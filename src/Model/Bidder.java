@@ -8,4 +8,8 @@ public class Bidder extends User {
     public void setName(String newName) {
         name = newName;
     }
+
+    public String getName() {
+        return name;
+    }
 }
