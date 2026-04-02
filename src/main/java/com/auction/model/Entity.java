@@ -1,13 +1,27 @@
 package com.auction.model;
 
-public abstract class Entity {
+import java.io.Serializable;
+import java.util.UUID;
+
+public abstract class Entity implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     protected int id;
 
+    public Entity() {
+    }
+
+    public Entity(int id) {
+        this.id = id;
+    }
+
+    //Getter & Setter
     public int getId() {
         return id;
     }
 
-    public void setId(int newId) {
-        this.id = newId;
+    public void setId(int id) {
+        this.id = id;
     }
 }
