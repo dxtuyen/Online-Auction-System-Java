@@ -1,5 +1,4 @@
 package com.auction.model;
 
-public class test {
-
+public interface canBid {
 }
