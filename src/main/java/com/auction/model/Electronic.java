@@ -1,9 +1,54 @@
 package com.auction.model;
 
+import java.util.List;
+
 public class Electronic extends Item {
 
     private static final long serialVersionUID = 1L;
 
+    private String brand;
+    private String model;
+    private int warrantyMonths;
 
+    public Electronic() {
+    }
 
+    public Electronic(String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition, String brand, String model, int warrantyMonths) {
+        super(name, description, sellerId, startingPrice, images, category, condition);
+        this.brand = brand;
+        this.model = model;
+        this.warrantyMonths = warrantyMonths;
+    }
+
+    public Electronic(int id, String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition, String brand, String model, int warrantyMonths) {
+        super(id, name, description, sellerId, startingPrice, images, category, condition);
+        this.brand = brand;
+        this.model = model;
+        this.warrantyMonths = warrantyMonths;
+    }
+
+    //Getter & Setter
+    public String getBrand() {
+        return brand;
+    }
+
+    public void setBrand(String brand) {
+        this.brand = brand;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public int getWarrantyMonths() {
+        return warrantyMonths;
+    }
+
+    public void setWarrantyMonths(int warrantyMonths) {
+        this.warrantyMonths = warrantyMonths;
+    }
 }
