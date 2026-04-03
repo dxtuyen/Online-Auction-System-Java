@@ -2,7 +2,7 @@ package com.auction.model;
 
 import java.io.Serializable;
 
-public class Bidder extends User implements Serializable, canBid, canSell {
+public class Bidder extends User implements canBid {
 
     private static final long serialVersionUID = 1L;
 
@@ -30,6 +30,13 @@ public class Bidder extends User implements Serializable, canBid, canSell {
 
     public void setBalance(double balance) {
         this.balance = balance;
+    }
+
+    //Methods
+    @Override
+    public String toString() {
+        return "Bidder: " + super.getUsername() +
+                " | Số dư: " + balance;
     }
 
 }

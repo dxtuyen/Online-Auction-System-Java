@@ -14,27 +14,27 @@ public abstract class User extends Entity {
         super();
     }
 
-    public User(String userName, String password, Role role) {
+    public User(String username, String password, Role role) {
         super();
-        this.username = userName;
+        this.username = username;
         this.password = password;
         this.role = role;
     }
 
-    public User(int id, String userName, String password, Role role) {
+    public User(int id, String username, String password, Role role) {
         super(id);
-        this.username = userName;
+        this.username = username;
         this.password = password;
         this.role = role;
     }
 
     //Getter & Setter
-    public String getUserName() {
+    public String getUsername() {
         return username;
     }
 
-    public void setUserName(String userName) {
-        this.username = userName;
+    public void setUserName(String username) {
+        this.username = username;
     }
 
     public String getPassword() {
@@ -56,6 +56,8 @@ public abstract class User extends Entity {
     //Methods
     @Override
     public String toString() {
-        return "Username: " + username + " | Password: " + password + " | Role: " + role.getDisplayRole();
+        return "Username: " + username +
+                " | Password: " + password +
+                " | Role: " + role.getDisplayRole();
     }
 }
