@@ -9,6 +9,7 @@ public abstract class User extends Entity {
     private String username;
     private String password;
     private Role role;
+    private UserStatus userStatus;
 
     public User() {
         super();
@@ -19,6 +20,7 @@ public abstract class User extends Entity {
         this.username = username;
         this.password = password;
         this.role = role;
+        this.userStatus = UserStatus.ACTIVE;
     }
 
     public User(int id, String username, String password, Role role) {
@@ -26,6 +28,7 @@ public abstract class User extends Entity {
         this.username = username;
         this.password = password;
         this.role = role;
+        this.userStatus = UserStatus.ACTIVE;
     }
 
     //Getter & Setter
@@ -53,11 +56,20 @@ public abstract class User extends Entity {
         this.role = role;
     }
 
+    public UserStatus getUserStatus() {
+        return userStatus;
+    }
+
+    public void setUserStatus(UserStatus userStatus) {
+        this.userStatus = userStatus;
+    }
+
     //Methods
     @Override
     public String toString() {
-        return "Username: " + username +
-                " | Password: " + password +
-                " | Role: " + role.getDisplayRole();
+        return "Tên tài khoản: " + username +
+                " | Mật khẩu: " + password +
+                " | Role: " + role.getDisplayRole() +
+                " | Trạng thái: " + userStatus.getDisplayStatus();
     }
 }
