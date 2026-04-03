@@ -15,6 +15,7 @@ public abstract class Item extends Entity {
     private ItemCondition condition;
 
     public Item() {
+        super();
     }
 
     public Item(String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition) {

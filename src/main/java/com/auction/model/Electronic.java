@@ -11,6 +11,7 @@ public class Electronic extends Item {
     private int warrantyMonths;
 
     public Electronic() {
+        super();
     }
 
     public Electronic(String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition, String brand, String model, int warrantyMonths) {
