@@ -1,6 +1,4 @@
-package com.auction.model;
-
-import java.time.LocalDate;
+package com.auction.model.entity;
 
 public abstract class User extends Entity {
 

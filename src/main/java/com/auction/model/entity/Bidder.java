@@ -1,6 +1,4 @@
-package com.auction.model;
-
-import java.io.Serializable;
+package com.auction.model.entity;
 
 public class Bidder extends User implements canBid {
 

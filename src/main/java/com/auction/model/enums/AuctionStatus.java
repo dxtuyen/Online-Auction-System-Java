@@ -1,4 +1,4 @@
-package com.auction.model;
+package com.auction.model.enums;
 
 public enum AuctionStatus {
     PENDING("Đang chờ phiên đấu giá bắt đầu"),

@@ -1,6 +1,7 @@
-package com.auction.model;
+package com.auction.model.entity;
 
-import java.time.LocalDate;
+import com.auction.model.enums.AuctionStatus;
+
 import java.time.LocalDateTime;
 
 public class AuctionSession extends Entity {

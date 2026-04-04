@@ -1,4 +1,4 @@
-package com.auction.model;
+package com.auction.model.entity;
 
 public class Admin extends User implements canManage {
 
