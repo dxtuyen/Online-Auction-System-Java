@@ -13,6 +13,11 @@ public abstract class Entity implements Serializable {
         // một vài thao tác sẽ dùng đến sau này như làm logic cho auction ( phiên đấu giá ) ,
         // chúng ta phải thường xuyên so sánh thời gian .
     }
+    // Lấy id ra
+    public String getId() {return id; }
+    public LocalDateTime getCreatedAt() {return createdAt; }
+
+    public abstract String toDisplayString();
 
     @Override
     // Định nghĩa lại hàm equals để so sánh id, nếu không sẽ so sánh địa chỉ bộ nhớ

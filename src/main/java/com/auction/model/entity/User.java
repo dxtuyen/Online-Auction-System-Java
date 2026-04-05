@@ -1,73 +1,36 @@
 package com.auction.model.entity;
 
 public abstract class User extends Entity {
-
-    private static final long serialVersionUID = 1L;
-
     private String username;
     private String password;
-    private Role role;
-    private UserStatus userStatus;
+    private String email;
 
-    public User() {
-        super();
-    }
-
-    public User(String username, String password, Role role) {
-        super();
-        this.username = username;
-        this.password = password;
-        this.role = role;
-        this.userStatus = UserStatus.ACTIVE;
-    }
-
-    public User(int id, String username, String password, Role role) {
+    public User(String id, String username, String password, String email) {
         super(id);
         this.username = username;
         this.password = password;
-        this.role = role;
-        this.userStatus = UserStatus.ACTIVE;
+        this.email = email;
     }
 
-    //Getter & Setter
-    public String getUsername() {
+    // Getters
+    public String getUsername() { return username; }
+    public String getEmail() { return email; }
+
+    // Không có getPassword() public → bảo mật
+    // Chỉ verify qua method riêng
+    public boolean verifyPassword(String input) {
+        return this.password.equals(input);
+    }
+
+    // tạo phương thức lấy ra vai vai trò của người dùng.
+    public abstract String getRole();
+
+    public String getDisplayName() {
         return username;
     }
 
-    public void setUserName(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public Role getRole() {
-        return role;
-    }
-
-    public void setRole(Role role) {
-        this.role = role;
-    }
-
-    public UserStatus getUserStatus() {
-        return userStatus;
-    }
-
-    public void setUserStatus(UserStatus userStatus) {
-        this.userStatus = userStatus;
-    }
-
-    //Methods
     @Override
-    public String toString() {
-        return "Tên tài khoản: " + username +
-                " | Mật khẩu: " + password +
-                " | Role: " + role.getDisplayRole() +
-                " | Trạng thái: " + userStatus.getDisplayStatus();
+    public String toDisplayString() {
+        return String.format("[%s] %s (%s)", getRole(), username, email);
     }
 }
