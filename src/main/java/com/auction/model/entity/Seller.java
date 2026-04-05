@@ -1,39 +1,21 @@
 package com.auction.model.entity;
 
-public class Seller extends User implements canSell{
+import java.util.ArrayList;
+import java.util.List;
 
-    private static final long serialVersionUID = 1L;
+public class Seller extends User {
+    private List<String> itemIds; // danh sách id của các vật phẩm
 
-    private double totalRevenue;
-
-    public Seller() {
-        super();
+    public Seller(String id, String username, String password, String email) {
+        super(id, username, password, email);
+        this.itemIds = new ArrayList<>();
     }
 
-    public Seller(String username, String password, double totalRevenue) {
-        super(username, password, Role.SELLER);
-        this.totalRevenue = totalRevenue;
-    }
-
-    public Seller(int id, String username, String password, double totalRevenue) {
-        super(id, username, password, Role.SELLER);
-        this.totalRevenue = totalRevenue;
-    }
-
-    //Getter & Setter
-
-    public double getTotalRevenue() {
-        return totalRevenue;
-    }
-
-    public void setTotalRevenue(double totalRevenue) {
-        this.totalRevenue = totalRevenue;
-    }
-
-    //Methods
     @Override
-    public String toString() {
-        return "Seller: " + super.getUsername() +
-                " | Doanh thu: " + totalRevenue;
-    }
+    public String getRole() { return "SELLER"; }
+
+    public List<String> getItemIds() { return new ArrayList<>(itemIds); }
+
+    // phương thức thêm vật vật phẩm vào danh sách
+    public void addItem(String itemId) { itemIds.add(itemId); }
 }
