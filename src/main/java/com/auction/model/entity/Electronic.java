@@ -1,55 +1,25 @@
 package com.auction.model.entity;
 
-import java.util.List;
-
 public class Electronic extends Item {
+    private String brand; // hãng
+    private int warrantyMonths; // bảo hành bao nhiêu tháng
 
-    private static final long serialVersionUID = 1L;
-
-    private String brand;
-    private String model;
-    private int warrantyMonths;
-
-    public Electronic() {
-        super();
-    }
-
-    public Electronic(String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition, String brand, String model, int warrantyMonths) {
-        super(name, description, sellerId, startingPrice, images, category, condition);
+    public Electronic(String id, String name, double startPrice,
+                      String description, String sellerId,
+                      String brand, int warrantyMonths) {
+        super(id, name, startPrice, description, sellerId);
         this.brand = brand;
-        this.model = model;
         this.warrantyMonths = warrantyMonths;
     }
 
-    public Electronic(int id, String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition, String brand, String model, int warrantyMonths) {
-        super(id, name, description, sellerId, startingPrice, images, category, condition);
-        this.brand = brand;
-        this.model = model;
-        this.warrantyMonths = warrantyMonths;
-    }
+    @Override
+    public String getCategory() { return "Điện tử"; } // lấy ra danh mục
 
-    //Getter & Setter
-    public String getBrand() {
-        return brand;
-    }
+    public String getBrand() { return brand; } // lẩy ra hãng
 
-    public void setBrand(String brand) {
-        this.brand = brand;
-    }
-
-    public String getModel() {
-        return model;
-    }
-
-    public void setModel(String model) {
-        this.model = model;
-    }
-
-    public int getWarrantyMonths() {
-        return warrantyMonths;
-    }
-
-    public void setWarrantyMonths(int warrantyMonths) {
-        this.warrantyMonths = warrantyMonths;
+    @Override
+    public String printInfo() {
+        return super.printInfo()
+                + String.format(" | Hãng: %s | BH: %d tháng", brand, warrantyMonths);
     }
 }

@@ -17,6 +17,7 @@ public abstract class Entity implements Serializable {
     public String getId() {return id; }
     public LocalDateTime getCreatedAt() {return createdAt; }
 
+    // hiện thị thông tin, để cho các lớp con ghi đè và in ra thông tin của chúng.
     public abstract String toDisplayString();
 
     @Override

@@ -2,76 +2,34 @@ package com.auction.model.entity;
 
 import java.time.LocalDateTime;
 
+// BidTransaction  như là một biên lai đặt giá hoặc bản ghi mỗi khi một người dùng Bidder thực
+// hiện hành động đặt giá vào một phiên đấu giá.
 public class BidTransaction extends Entity {
-
-    private static final long serialVersionUID = 1L;
-
-    private int auctionSessionId;
-    private int bidderId;
-    private double bidAmount;
+    private String bidderId;
+    private String auctionId;
+    private double amount;
+    // timestamp là gì : nó ghi lại thời gian mà môi lần Bidder đặt giá, nếu 2 người đặt cùng giá
+    // hệ thống sẽ ưu tiên người đặt sơm hơn, đó là logic.
     private LocalDateTime timestamp;
-    private boolean isValid;
 
-    public BidTransaction() {
-        super();
-    }
-
-    public BidTransaction(int auctionSessionId, int bidderId, double bidAmount) {
-        super();
-        this.auctionSessionId = auctionSessionId;
-        this.bidderId = bidderId;
-        this.bidAmount = bidAmount;
-        this.timestamp = LocalDateTime.now();
-        this.isValid = true;
-    }
-
-    public BidTransaction(int id, int auctionSessionId, int bidderId, double bidAmount, LocalDateTime timestamp, boolean isValid) {
+    public BidTransaction(String id, String bidderId, String auctionId,
+                          double amount) {
         super(id);
-        this.auctionSessionId = auctionSessionId;
-        this.bidderId = bidderId;
-        this.bidAmount = bidAmount;
-        this.timestamp = timestamp;
-        this.isValid = isValid;
+        this.bidderId = bidderId; // id của bidder
+        this.auctionId = auctionId; // id của lần lần đặt giá nhất định tại một thời điểm do người nào đó đặt
+        this.amount = amount; // tiền , dễ rồi
+        this.timestamp = LocalDateTime.now(); // thời gian đặt vừa nói ở trên
     }
+    // các phương thức này để lấy ra thông tin nhất định
+    public String getBidderId() { return bidderId; }
+    public String getAuctionId() { return auctionId; }
+    public double getAmount() { return amount; }
+    public LocalDateTime getTimestamp() { return timestamp; }
 
-    //Getter & Setter
-    public int getAuctionSessionId() {
-        return auctionSessionId;
-    }
-
-    public void setAuctionSessionId(int auctionSessionId) {
-        this.auctionSessionId = auctionSessionId;
-    }
-
-    public int getBidderId() {
-        return bidderId;
-    }
-
-    public void setBidderId(int bidderId) {
-        this.bidderId = bidderId;
-    }
-
-    public double getBidAmount() {
-        return bidAmount;
-    }
-
-    public void setBidAmount(double bidAmount) {
-        this.bidAmount = bidAmount;
-    }
-
-    public LocalDateTime getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public boolean isValid() {
-        return isValid;
-    }
-
-    public void setValid(boolean valid) {
-        isValid = valid;
+    @Override
+    // In ra các thông số tiền đặt, bidder nào đặt ( theo mã ), thời điểm đặt
+    public String toDisplayString() {
+        return String.format("Bid %,.0f VNĐ bởi %s lúc %s",
+                amount, bidderId, timestamp);
     }
 }
