@@ -1,5 +1,7 @@
 package com.auction.model;
 
+import com.auction.model.enums.Role;
+
 public class Bidder extends User implements canBid {
 
     private static final long serialVersionUID = 1L;

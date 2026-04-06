@@ -1,5 +1,7 @@
 package com.auction.model;
 
+import com.auction.model.enums.AuctionStatus;
+
 import java.time.LocalDateTime;
 
 /*

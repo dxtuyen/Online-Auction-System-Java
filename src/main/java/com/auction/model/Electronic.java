@@ -1,5 +1,8 @@
 package com.auction.model;
 
+import com.auction.model.enums.ItemCategory;
+import com.auction.model.enums.ItemCondition;
+
 import java.util.List;
 
 public class Electronic extends Item {

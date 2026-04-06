@@ -1,5 +1,7 @@
 package com.auction.model;
 
+import com.auction.model.enums.Role;
+
 public class Admin extends User implements canManage {
 
     private static final long serialVersionUID = 1L;

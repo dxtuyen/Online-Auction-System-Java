@@ -1,4 +1,4 @@
-package com.auction.model;
+package com.auction.model.enums;
 
 public enum Role {
     ADMIN("Quản trị viên"),

@@ -1,4 +1,4 @@
-package com.auction.model;
+package com.auction.model.enums;
 
 public enum UserStatus {
     ACTIVE("Đang hoạt động"),
