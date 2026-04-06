@@ -1,29 +1,31 @@
-package com.auction.model.entity;
-
-import com.auction.model.enums.AuctionStatus;
+package com.auction.model;
 
 import java.time.LocalDateTime;
 
-public class AuctionSession extends Entity {
+/*
+Phiên đấu giá: chứa thông tin của phiên đấu giá
+*/
+
+public class Auction extends Entity {
 
     private static final long serialVersionUID = 1L;
 
-    private int itemId;
-    private int sellerId;
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
-    private double startingPrice;
-    private double currentPrice;
-    private Integer highestBidderId;
-    private double minimumIncrement;
-    private AuctionStatus status;
-    private int totalBids;
+    private int itemId; //id của sản phẩm được bán trong phiên đấu giá
+    private int sellerId; //id của người bán
+    private LocalDateTime startTime; //thời gian bắt đầu phiên đấu giá
+    private LocalDateTime endTime; //thời gian kết thúc phiên đấu giá
+    private double startingPrice; //giá khởi điểm
+    private double currentPrice; //giá cao nhất hiện tại
+    private Integer highestBidderId; //id người trả giá cao nhất
+    private double minimumIncrement; //bước nhảy giá nhỏ nhất
+    private AuctionStatus status; //trạng thái của phiên đấu giá(PENDING/RUNNING/FINISHED/PAID/CANCELED)
+    private int totalBids; //số lương bid trong phiên đấu giá
 
-    public AuctionSession() {
+    public Auction() {
         super();
     }
 
-    public AuctionSession(int itemId, int sellerId, LocalDateTime startTime, LocalDateTime endTime, double startingPrice, double minimumIncrement) {
+    public Auction(int itemId, int sellerId, LocalDateTime startTime, LocalDateTime endTime, double startingPrice, double minimumIncrement) {
         super();
         this.itemId = itemId;
         this.sellerId = sellerId;
@@ -37,7 +39,7 @@ public class AuctionSession extends Entity {
         this.totalBids = 0;
     }
 
-    public  AuctionSession(int id, int itemId, int sellerId, LocalDateTime startTime, LocalDateTime endTime, double startingPrice, double currentPrice, int highestBidderId, double minimumIncrement, AuctionStatus status, int totalBids) {
+    public Auction(int id, int itemId, int sellerId, LocalDateTime startTime, LocalDateTime endTime, double startingPrice, double currentPrice, int highestBidderId, double minimumIncrement, AuctionStatus status, int totalBids) {
         super(id);
         this.itemId = itemId;
         this.sellerId = sellerId;
@@ -159,5 +161,22 @@ public class AuctionSession extends Entity {
         if (status.canTransitionTo(newStatus)) {
             this.status = newStatus;
         }
+    }
+
+    //Methods
+    @Override
+    public String toString() {
+        return "Auction{" +
+                "itemId=" + itemId +
+                ", sellerId=" + sellerId +
+                ", startTime=" + startTime +
+                ", endTime=" + endTime +
+                ", startingPrice=" + startingPrice +
+                ", currentPrice=" + currentPrice +
+                ", highestBidderId=" + highestBidderId +
+                ", minimumIncrement=" + minimumIncrement +
+                ", status=" + status +
+                ", totalBids=" + totalBids +
+                '}';
     }
 }

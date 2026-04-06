@@ -1,4 +1,4 @@
-package com.auction.model.entity;
+package com.auction.model;
 
 import java.util.List;
 
@@ -6,8 +6,8 @@ public class Art extends Item {
 
     private static final long serialVersionUID = 1L;
 
-    private String artist;
-    private int year;
+    private String artist; //tác giả
+    private int year; //năm sáng tác
 
     public Art() {
         super();
@@ -40,5 +40,14 @@ public class Art extends Item {
 
     public void setYear(int year) {
         this.year = year;
+    }
+
+    //Methods
+    @Override
+    public String toString() {
+        return "Art{" +
+                "artist='" + artist + '\'' +
+                ", year=" + year +
+                '}';
     }
 }

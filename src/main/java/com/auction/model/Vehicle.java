@@ -1,4 +1,6 @@
-package com.auction.model.entity;
+package com.auction.model;
+
+import com.auction.model.entity.Item;
 
 import java.util.List;
 

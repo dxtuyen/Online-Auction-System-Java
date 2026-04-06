@@ -1,4 +1,4 @@
-package com.auction.model.entity;
+package com.auction.model;
 
 public enum ItemCondition {
     NEW("Mới"),
