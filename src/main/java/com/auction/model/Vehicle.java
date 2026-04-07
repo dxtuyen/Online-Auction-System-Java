@@ -1,6 +1,5 @@
 package com.auction.model;
 
-import com.auction.model.entity.Item;
 import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 
