@@ -1,4 +1,4 @@
-package com.auction.model;
+package com.auction.model.entity;
 
 import com.auction.model.enums.Role;
 
