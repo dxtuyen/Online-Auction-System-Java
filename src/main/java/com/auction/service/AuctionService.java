@@ -200,7 +200,7 @@ public class AuctionService {
 
         createAuction(1, 3, 60, 1_000_000);
 
-        System.out.println("📦 Seed data đã tạo:");
+        System.out.println(" Seed data đã tạo:");
         System.out.println("   Tài khoản: alice/123 (Bidder), bob/123 (Bidder), seller1/123 (Seller)");
         System.out.println("   Sản phẩm: 3 items | Phiên đấu giá: 1 phiên MacBook (60 phút)");
     }
