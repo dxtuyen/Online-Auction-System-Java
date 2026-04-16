@@ -13,18 +13,19 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AuctionService {
 
-    // ====== SINGLETON ======
+    //SINGLETON
     private static AuctionService instance;
 
+    // Nếu nhiểu luồng gọi vẫn an toàn vì dùng synchornized rồi
     public static synchronized AuctionService getInstance() {
         if (instance == null) instance = new AuctionService();
         return instance;
     }
 
-    // ====== DATA STORES ======
-    private final Map<Integer, User> users = new HashMap<>();
-    private final Map<Integer, Item> items = new HashMap<>();
-    private final Map<Integer, Auction> auctions = new HashMap<>();
+    // Nơi lưu trữ dữ liệu
+    private final Map<Integer, User> users = new HashMap<>(); // Lưu người người dùng vào map
+    private final Map<Integer, Item> items = new HashMap<>(); // Lưu vật phẩm
+    private final Map<Integer, Auction> auctions = new HashMap<>(); // Lưu phiên đấu giá theo id.
     private final Map<Integer, List<BidTransaction>> bidHistory = new HashMap<>();
 
     // ====== AUTO ID ======
