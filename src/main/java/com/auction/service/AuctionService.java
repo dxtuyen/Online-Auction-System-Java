@@ -198,6 +198,7 @@ public class AuctionService {
      * @param minimumIncrement bước nhảy tối thiểu cho mỗi lần đặt giá
      * @return phiên đấu giá vừa tạo
      */
+    // minimumIncrement là tiền nhỏ nhất cho món hàng
     public Auction createAuction(int itemId, int sellerId, int durationMinutes,
                                  double minimumIncrement) {
         Item item = items.get(itemId);
