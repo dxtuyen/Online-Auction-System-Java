@@ -1,0 +1,114 @@
+/* =============== GLOBAL =============== */
+.root {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13px;
+    -fx-background-color: #f8fafc;
+}
+
+/* =============== HEADER =============== */
+.header-bar {
+    -fx-background-color: white;
+    -fx-padding: 12 20;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 0 0 1 0;
+}
+.header-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f2937;
+}
+
+/* =============== BUTTONS =============== */
+.btn-primary {
+    -fx-background-color: #2563eb;
+    -fx-text-fill: white;
+    -fx-padding: 8 20;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-font-weight: bold;
+}
+.btn-primary:hover { -fx-background-color: #1d4ed8; }
+.btn-primary:disabled { -fx-opacity: 0.5; }
+
+.btn-secondary {
+    -fx-background-color: white;
+    -fx-text-fill: #2563eb;
+    -fx-border-color: #2563eb;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 6 16;
+    -fx-cursor: hand;
+}
+.btn-secondary:hover { -fx-background-color: #eff6ff; }
+
+/* =============== INPUT =============== */
+.text-input {
+    -fx-padding: 8 12;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-color: #d1d5db;
+    -fx-font-size: 13px;
+}
+.text-input:focused {
+    -fx-border-color: #2563eb;
+    -fx-border-width: 2;
+}
+
+/* =============== LABELS =============== */
+.error-label {
+    -fx-text-fill: #dc2626;
+    -fx-font-size: 12px;
+}
+.muted-label {
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 12px;
+}
+
+/* =============== CARD =============== */
+.card {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #e5e7eb;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.04), 6, 0, 0, 2);
+}
+
+/* =============== PRICE & TIMER =============== */
+.price-big {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #059669;
+}
+.timer-normal {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #059669;
+}
+.timer-urgent {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #dc2626;
+}
+
+/* =============== TABLE =============== */
+.table-view .column-header {
+    -fx-background-color: #f1f5f9;
+    -fx-font-weight: bold;
+}
+.table-view {
+    -fx-border-color: #e5e7eb;
+    -fx-border-radius: 6;
+}
+
+/* =============== CHART =============== */
+.chart-series-line {
+    -fx-stroke: #2563eb;
+    -fx-stroke-width: 2px;
+}
+.chart-line-symbol {
+    -fx-background-color: #2563eb, white;
+    -fx-background-insets: 0, 2;
+    -fx-background-radius: 5px;
+    -fx-padding: 4px;
+}

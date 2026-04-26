@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.collections.FXCollections?>
+<?import java.lang.String?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.auction.client.controller.RegisterController"
+            prefWidth="920" prefHeight="620"
+            style="-fx-background-color: #f8fafc;">
+
+    <center>
+        <VBox alignment="CENTER" spacing="12" maxWidth="380" styleClass="card">
+            <padding><Insets top="32" right="32" bottom="32" left="32"/></padding>
+
+            <Label text="📝" style="-fx-font-size: 40;"/>
+            <Label text="Đăng ký tài khoản"
+                   style="-fx-font-size: 20; -fx-font-weight: bold;"/>
+
+            <TextField fx:id="txtUsername" promptText="Tên đăng nhập"
+                       prefHeight="38" styleClass="text-input"/>
+            <PasswordField fx:id="txtPassword" promptText="Mật khẩu"
+                           prefHeight="38" styleClass="text-input"/>
+
+            <ComboBox fx:id="cboRole" promptText="Chọn vai trò"
+                      prefWidth="320" prefHeight="38">
+                <items>
+                    <FXCollections fx:factory="observableArrayList">
+                        <String fx:value="BIDDER"/>
+                        <String fx:value="SELLER"/>
+                    </FXCollections>
+                </items>
+            </ComboBox>
+
+            <TextField fx:id="txtExtra" promptText="Số dư ban đầu (VNĐ) — Bidder"
+                       prefHeight="38" styleClass="text-input"/>
+
+            <Label fx:id="lblError" styleClass="error-label" wrapText="true"/>
+
+            <Button fx:id="btnRegister" text="Đăng ký"
+                    onAction="#handleRegister"
+                    prefWidth="320" prefHeight="40" styleClass="btn-primary"/>
+
+            <Hyperlink text="← Quay lại đăng nhập" onAction="#goToLogin"/>
+        </VBox>
+    </center>
+</BorderPane>
