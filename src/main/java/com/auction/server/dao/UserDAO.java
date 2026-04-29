@@ -4,21 +4,47 @@ import com.auction.model.entity.User;
 import java.util.List;
 
 public interface UserDAO {
-  //Nhóm các hàm CRUD
-  int addUser(User user); //Thêm một user mới
+  // --- Nhóm các hàm CRUD cơ bản ---
 
-  User getUserById(int id); //Lấy thông tin user theo id
+  /**
+   * Thêm một user mới vào hệ thống.
+   */
+  int addUser(User user);
 
-  boolean updateUser(User user); //Cập nhật thông tin user
+  /**
+   * Lấy thông tin user theo ID.
+   */
+  User getUserById(int id);
 
+  /**
+   * Cập nhật thông tin user.
+   */
+  boolean updateUser(User user);
+
+  /**
+   * Xóa user(Admin).
+   */
   boolean deleteUser(int id); //Xóa user(Admin)
 
-  //Nhóm các hàm nghiệp vụ
-  User getUserByUsername(String username); //Tìm kiếm user
+  // --- Nhóm các hàm nghiệp vụ ---
 
-  List<User> getAllUsers(); //Lấy danh sách các user(Admin)
+  /**
+   * Tìm kiếm user theo username.
+   */
+  User getUserByUsername(String username);
 
-  boolean isUsernameExists(String username); //Kiểm tra xem username tồn tại không
+  /**
+   * Lấy danh sách user.
+   */
+  List<User> getAllUsers();
 
-  boolean isEmailExists(String email); //Kiểm tra xem email này có đã tồn tại chưa
+  /**
+   * Kiểm tra username có tồn tại không.
+   */
+  boolean isUsernameExists(String username);
+
+  /**
+   * Kiểm tra xem email có tồn tại chưa.
+   */
+  boolean isEmailExists(String email);
 }
