@@ -6,6 +6,7 @@ public enum Role {
     SELLER("Người bán");
 
     private final String displayRole;
+
     Role(String displayRole) {
         this.displayRole = displayRole;
     }

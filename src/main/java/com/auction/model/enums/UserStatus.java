@@ -5,6 +5,7 @@ public enum UserStatus {
     BANNED("Đã bị ban");
 
     private final String displayStatus;
+
     UserStatus(String displayStatus) {
         this.displayStatus = displayStatus;
     }

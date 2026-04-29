@@ -10,8 +10,8 @@ public abstract class Entity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     //thuộc tính theo dõi,
-    private String id; //id để định danh obj
-    private LocalDateTime createdAt; // thời điểm tạo obj
+    private final String id; //id để định danh obj
+    private final LocalDateTime createdAt; // thời điểm tạo obj
     private LocalDateTime updatedAt; // thời điểm cập nhật obj cuối
 
     //tạo obj mới
@@ -21,8 +21,12 @@ public abstract class Entity implements Serializable {
         this.updatedAt = LocalDateTime.now();
     }
 
-    //load lại dữ liệu từ database
-    protected Entity(String id, LocalDateTime createdAt, LocalDateTime updatedAt)
+    //load lại dữ liệu từ database, có RỦI RO NULL sẽ fix sau
+    protected Entity(String id, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     // Encapsulation: private fields + getter/setter
     public String getId() {
@@ -30,9 +34,9 @@ public abstract class Entity implements Serializable {
     }
 
     // id không nên thay đổi được, mức truy cập đổi thành protected, hoặc sẽ xóa
-    protected void setId(String id) {
-        this.id = id;
-    }
+//    protected void setId(String id) {
+//        this.id = id;
+//    }
 
     //chỉ có get, không set vì thời điểm tạo obj không nên bị thay đổi
     public LocalDateTime getCreatedAt() {
