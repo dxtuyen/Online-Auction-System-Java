@@ -7,37 +7,37 @@ public abstract class User extends Entity {
 
     private static final long serialVersionUID = 1L;
 
-    private String username; //tên tài khoản
-    private String password; //mật khẩu
-    private Role role; //vai trò(BIDDER/SELLER/ADMIN)
-    private UserStatus userStatus; //trạng thái của tài khoản(ACTIVE/BANNED)
+    protected String username;
+    protected String password;
+    protected UserStatus userStatus;
 
     public User() {
         super();
+        this.userStatus = UserStatus.ACTIVE;
     }
 
-    public User(String username, String password, Role role) {
+    public User(String username, String password) {
         super();
         this.username = username;
         this.password = password;
-        this.role = role;
         this.userStatus = UserStatus.ACTIVE;
     }
 
-    public User(int id, String username, String password, Role role) {
+    public User(int id, String username, String password) {
         super(id);
         this.username = username;
         this.password = password;
-        this.role = role;
         this.userStatus = UserStatus.ACTIVE;
     }
 
-    //Getter & Setter
+    public abstract Role getRole();
+
+    // Getter & Setter
     public String getUsername() {
         return username;
     }
 
-    public void setUserName(String username) {
+    public void setUsername(String username) {
         this.username = username;
     }
 
@@ -49,14 +49,6 @@ public abstract class User extends Entity {
         this.password = password;
     }
 
-    public Role getRole() {
-        return role;
-    }
-
-    public void setRole(Role role) {
-        this.role = role;
-    }
-
     public UserStatus getUserStatus() {
         return userStatus;
     }
@@ -65,13 +57,11 @@ public abstract class User extends Entity {
         this.userStatus = userStatus;
     }
 
-    //Methods
     @Override
     public String toString() {
         return "User{" +
                 "username='" + username + '\'' +
-                ", password='" + password + '\'' +
-                ", role=" + role +
+                ", role=" + getRole() +
                 ", userStatus=" + userStatus +
                 '}';
     }
