@@ -5,8 +5,7 @@ import com.auction.model.enums.UserStatus;
 
 public abstract class User extends Entity {
 
-    // không cân thiết khai báo lại
-//    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
 
     protected String username; // ten tai khoan
     protected String password; //hashed

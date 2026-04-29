@@ -3,104 +3,100 @@ package com.auction.model.entity;
 import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public abstract class Item extends Entity {
 
     private static final long serialVersionUID = 1L;
 
-    private String name; //tên sản phẩm
-    private String description; //mô tả sản phẩm
-    private int sellerId; //id của người bán
-    private double startingPrice; //giá khởi điểm
-    private List<String> images; //Link URl
-    private ItemCategory category; //loại sản phẩm
-    private ItemCondition condition; //điều kiện của sản phẩm
+    private String name; // tên sản phẩm
+    private String description; // mô tả (optional)
+    private final String sellerId; // không đổi
+    private double startingPrice; // >= 0
+    private final List<String> images; // không replace list
+    private final ItemCategory category; // không đổi
+    private ItemCondition condition;
 
-    public Item() {
+    // có thể có lỗi null, giải pháp như sau
+    public Item(String name,
+                String description,
+                String sellerId,
+                double startingPrice,
+                List<String> images,
+                ItemCategory category,
+                ItemCondition condition) {
+
         super();
-    } //
 
-    public Item(String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition) {
-        super();
-        this.name = name;
-        this.description = description;
-        this.sellerId = sellerId;
+        this.name = Objects.requireNonNull(name);
+        this.description = description; // optional
+        this.sellerId = Objects.requireNonNull(sellerId);
+
+        if (startingPrice < 0) {
+            throw new IllegalArgumentException("Giá phải >= 0");
+        }
         this.startingPrice = startingPrice;
-        this.images = images;
-        this.category = category;
-        this.condition = condition;
+
+        this.images = new ArrayList<>(Objects.requireNonNull(images));
+        this.category = Objects.requireNonNull(category);
+        this.condition = Objects.requireNonNull(condition);
     }
 
-    public Item(int id, String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition) {
-        super(id);
-        this.name = name;
+    // Getter
+    public String getName() { return name; }
+    public String getDescription() { return description; }
+    public String getSellerId() { return sellerId; }
+    public double getStartingPrice() { return startingPrice; }
+
+    // sẽ thử trả về bản sao của images sau, hiện tại như này
+    public List<String> getImages() { return Collections.unmodifiableList(images); }
+    public ItemCategory getCategory() { return category; }
+    public ItemCondition getCondition() { return condition; }
+
+    // Setter
+    public void rename(String newName) {
+        this.name = Objects.requireNonNull(newName);
+        markUpdated();
+    }
+
+    public void updateDescription(String description) {
         this.description = description;
-        this.sellerId = sellerId;
-        this.startingPrice = startingPrice;
-        this.images = images;
-        this.category = category;
-        this.condition = condition;
+        markUpdated();
     }
 
-    //Getter & Setter
-    public String getName() {
-        return name;
+    public void updatePrice(double newPrice) {
+        if (newPrice < 0) {
+            throw new IllegalArgumentException("Giá phải >= 0");
+        }
+        this.startingPrice = newPrice;
+        markUpdated();
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void updateCondition(ItemCondition newCondition) {
+        this.condition = Objects.requireNonNull(newCondition);
+        markUpdated();
     }
 
-    public String getDescription() {
-        return description;
+    public void addImage(String url) {
+        images.add(Objects.requireNonNull(url));
+        markUpdated();
     }
 
-    public void setDescription(String description) {
-        this.description = description;
+    public void removeImage(String url) {
+        images.remove(url);
+        markUpdated();
     }
 
-    public int getSellerId() {
-        return sellerId;
+    @Override
+    public String getDisplayInfo() {
+        return String.format("[%s] %s - %.2f",
+                category.getDisplayName(),
+                name,
+                startingPrice);
     }
-
-    public void setSellerId(int sellerId) {
-        this.sellerId = sellerId;
-    }
-
-    public double getStartingPrice() {
-        return startingPrice;
-    }
-
-    public void setStartingPrice(double startingPrice) {
-        this.startingPrice = startingPrice;
-    }
-
-    public List<String> getImages() {
-        return images;
-    }
-
-    public void setImages(List<String> images) {
-        this.images = images;
-    }
-
-    public ItemCategory getCategory() {
-        return category;
-    }
-
-    public void setCategory(ItemCategory category) {
-        this.category = category;
-    }
-
-    public ItemCondition getCondition() {
-        return condition;
-    }
-
-    public void setCondition(ItemCondition condition) {
-        this.condition = condition;
-    }
-
-    //Methods
 
     @Override
     public String toString() {
