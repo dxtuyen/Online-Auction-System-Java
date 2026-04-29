@@ -22,11 +22,7 @@ public abstract class Entity implements Serializable {
     }
 
     //load lại dữ liệu từ database
-    protected Entity(String id) {
-        this.id = id;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
+    protected Entity(String id, LocalDateTime createdAt, LocalDateTime updatedAt)
 
     // Encapsulation: private fields + getter/setter
     public String getId() {
