@@ -1,112 +1,68 @@
 package com.auction.model.entity;
 
-import com.auction.model.enums.ItemCategory;
-import com.auction.model.enums.ItemCondition;
+import java.io.Serializable;
+import java.util.UUID;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-
-public abstract class Item extends Entity {
-
+public class Item implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private String name; // tên sản phẩm
-    private String description; // mô tả (optional)
-    private final String sellerId; // không đổi
-    private double startingPrice; // >= 0
-    private final List<String> images; // không replace list
-    private final ItemCategory category; // không đổi
-    private ItemCondition condition;
+    private UUID id;
+    private String name;
+    private String description;
+    private double initialPrice;
+    private UUID sellerId;
 
-    // có thể có lỗi null, giải pháp như sau
-    public Item(String name,
-                String description,
-                String sellerId,
-                double startingPrice,
-                List<String> images,
-                ItemCategory category,
-                ItemCondition condition) {
-
-        super();
-
-        this.name = Objects.requireNonNull(name);
-        this.description = description; // optional
-        this.sellerId = Objects.requireNonNull(sellerId);
-
-        if (startingPrice < 0) {
-            throw new IllegalArgumentException("Giá phải >= 0");
-        }
-        this.startingPrice = startingPrice;
-
-        this.images = new ArrayList<>(Objects.requireNonNull(images));
-        this.category = Objects.requireNonNull(category);
-        this.condition = Objects.requireNonNull(condition);
-    }
-
-    // Getter
-    public String getName() { return name; }
-    public String getDescription() { return description; }
-    public String getSellerId() { return sellerId; }
-    public double getStartingPrice() { return startingPrice; }
-
-    // sẽ thử trả về bản sao của images sau, hiện tại như này
-    public List<String> getImages() { return Collections.unmodifiableList(images); }
-    public ItemCategory getCategory() { return category; }
-    public ItemCondition getCondition() { return condition; }
-
-    // Setter
-    public void rename(String newName) {
-        this.name = Objects.requireNonNull(newName);
-        markUpdated();
-    }
-
-    public void updateDescription(String description) {
+    public Item (String name, String description, double initialPrice, UUID sellerId) {
+        this.name = name;
         this.description = description;
-        markUpdated();
+        this.initialPrice = initialPrice;
+        this.sellerId = sellerId;
     }
 
-    public void updatePrice(double newPrice) {
-        if (newPrice < 0) {
-            throw new IllegalArgumentException("Giá phải >= 0");
-        }
-        this.startingPrice = newPrice;
-        markUpdated();
+    public Item(UUID id, String name, String description, double initialPrice, UUID sellerId) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.initialPrice = initialPrice;
+        this.sellerId = sellerId;
     }
 
-    public void updateCondition(ItemCondition newCondition) {
-        this.condition = Objects.requireNonNull(newCondition);
-        markUpdated();
+    //Getter
+    public UUID getId() {
+        return id;
     }
 
-    public void addImage(String url) {
-        Objects.requireNonNull(url);
-        if (url.isBlank()) {
-            throw new IllegalArgumentException("URL rỗng");
-        }
-        if (!images.contains(url)) {
-            images.add(url);
-            markUpdated();
-        }
+    public String getName() {
+        return name;
     }
 
-    public void removeImage(String url) {
-        if (images.remove(url)) {
-            markUpdated();
-        }
+    public String getDescription() {
+        return description;
     }
 
-    @Override
-    public String toString() {
-        return "Item{" +
-                "name='" + name + '\'' +
-                ", description='" + description + '\'' +
-                ", sellerId=" + sellerId +
-                ", startingPrice=" + startingPrice +
-                ", images=" + images +
-                ", category=" + category +
-                ", condition=" + condition +
-                '}';
+    public double getstartingPrice() {
+        return initialPrice;
+    }
+
+    public UUID getSellerId() {
+        return sellerId;
+    }
+
+    //Setter
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setInitialPrice(double initialPrice) {
+        this.initialPrice = initialPrice;
+    }
+
+    public void setSellerId(UUID sellerId) {
+        this.sellerId = sellerId;
     }
 }
