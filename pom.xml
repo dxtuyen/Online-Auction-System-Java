@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.auction</groupId>
-    <artifactId>DemoAuctionSystem</artifactId>
+    <artifactId>Online-Auction-System-Java</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
