@@ -1,5 +1,7 @@
 package com.auction.server.controller;
 
+import com.auction.model.entity.Bidder;
+import com.auction.model.entity.Seller;
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
 import com.auction.protocol.Request;
@@ -10,7 +12,13 @@ import com.auction.service.AuctionService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Controller xử lý action liên quan đến User: LOGIN, REGISTER, LOGOUT. */
+/**
+ * Controller xử lý action liên quan đến User: LOGIN, REGISTER, LOGOUT, GET_PROFILE.
+ *
+ * <p>Ngoài xác thực, controller này còn chịu trách nhiệm trả về thông tin tài khoản
+ * của session hiện tại để client có thể hiển thị username, role, số dư khả dụng
+ * hoặc doanh thu mà không phải tự truy cập thẳng vào domain model.</p>
+ */
 public class UserController {
 
     private final AuctionService service = AuctionService.getInstance();
@@ -54,5 +62,41 @@ public class UserController {
     public Response logout(Request req) {
         handler.setCurrentUserId(null);
         return Response.success("LOGOUT", "Đã đăng xuất", null);
+    }
+
+    /**
+     * Trả thông tin tài khoản của user đang đăng nhập.
+     *
+     * <p>Bidder sẽ nhận thêm 3 số quan trọng:
+     * số dư ví, số tiền đang giữ chỗ ở các auction đang dẫn đầu, và số dư khả dụng.
+     * Seller sẽ nhận doanh thu hiện tại. Admin hiện chỉ trả thông tin cơ bản.</p>
+     */
+    public Response getProfile(Request req) {
+        if (handler.getCurrentUserId() == null)
+            return Response.error("GET_PROFILE", "Chưa đăng nhập");
+
+        int userId = Integer.parseInt(handler.getCurrentUserId());
+        User user = service.getUser(userId);
+        if (user == null) {
+            return Response.error("GET_PROFILE", "Không tìm thấy người dùng hiện tại");
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("userId", user.getId());
+        data.put("username", user.getUsername());
+        data.put("role", user.getRole().name());
+        data.put("displayRole", user.getRole().getDisplayRole());
+        data.put("status", user.getUserStatus().name());
+        data.put("displayStatus", user.getUserStatus().getDisplayStatus());
+
+        if (user instanceof Bidder bidder) {
+            data.put("balance", bidder.getBalance());
+            data.put("reservedBalance", service.getReservedBalance(userId));
+            data.put("availableBalance", service.getAvailableBalance(userId));
+        } else if (user instanceof Seller seller) {
+            data.put("totalRevenue", seller.getTotalRevenue());
+        }
+
+        return Response.success("GET_PROFILE", null, data);
     }
 }

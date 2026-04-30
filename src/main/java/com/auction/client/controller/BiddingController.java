@@ -324,6 +324,27 @@ public class BiddingController {
     // =========== NAV ===========
 
     @FXML
+    private void handleViewAccount() {
+        new Thread(() -> {
+            try {
+                ClientModel model = ClientModel.getInstance();
+                model.sendRequest("GET_PROFILE", Map.of());
+                Response res = model.waitForResponse("GET_PROFILE", 5000);
+
+                if (res != null && res.isSuccess()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) res.getData();
+                    Platform.runLater(() -> ClientApp.showInfo(formatProfileDetails(data)));
+                } else if (res != null) {
+                    Platform.runLater(() -> ClientApp.showError(res.getMessage()));
+                }
+            } catch (Exception e) {
+                Platform.runLater(() -> ClientApp.showError("Không tải được thông tin tài khoản: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    @FXML
     private void goBack() {
         if (countdown != null) countdown.stop();
         // Gỡ push handler để tránh leak khi mở phiên khác
@@ -368,5 +389,22 @@ public class BiddingController {
         } catch (Exception e) {
             return timestamp;
         }
+    }
+
+    private String formatProfileDetails(Map<String, Object> data) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
+        sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
+        sb.append("Trạng thái: ").append(str(data, "displayStatus"));
+
+        String role = str(data, "role");
+        if ("BIDDER".equals(role)) {
+            sb.append('\n').append("Số dư ví: ").append(formatMoney(data.get("balance")));
+            sb.append('\n').append("Đang giữ chỗ: ").append(formatMoney(data.get("reservedBalance")));
+            sb.append('\n').append("Số dư khả dụng: ").append(formatMoney(data.get("availableBalance")));
+        } else if ("SELLER".equals(role)) {
+            sb.append('\n').append("Doanh thu hiện tại: ").append(formatMoney(data.get("totalRevenue")));
+        }
+        return sb.toString();
     }
 }

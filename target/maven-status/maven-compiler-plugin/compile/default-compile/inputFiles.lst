@@ -22,13 +22,10 @@
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/model/entity/Art.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/model/entity/Bidder.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/model/entity/OtherItem.java
-/home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/model/entity/canBid.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/client/controller/SellerDashboardController.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/Main.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/model/enums/AuctionStatus.java
-/home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/model/entity/canManage.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/server/controller/BidController.java
-/home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/model/entity/canSell.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/model/enums/UserStatus.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/client/network/ServerConnection.java
 /home/doxuantuyen/IdeaProjects/Online-Auction-System-Java/src/main/java/com/auction/server/RequestRouter.java

@@ -32,6 +32,7 @@ public class AuctionListController {
         ClientModel model = ClientModel.getInstance();
         lblUserInfo.setText(String.format("Xin chào, %s (%s)",
                 model.getUsername(), model.getRole()));
+        loadProfileSummary();
 
         // Seller thấy nút tạo phiên
         if ("SELLER".equals(model.getRole())) btnCreateAuction.setVisible(true);
@@ -117,8 +118,65 @@ public class AuctionListController {
     }
 
     @FXML
+    private void handleViewAccount() {
+        requestProfile(data -> ClientApp.showInfo(formatProfileDetails(data)));
+    }
+
+    @FXML
     private void goToSellerDashboard() {
         ClientApp.switchScene("seller_dashboard.fxml");
+    }
+
+    private void loadProfileSummary() {
+        requestProfile(data -> lblUserInfo.setText(formatProfileSummary(data)));
+    }
+
+    private void requestProfile(java.util.function.Consumer<Map<String, Object>> onSuccess) {
+        new Thread(() -> {
+            try {
+                ClientModel model = ClientModel.getInstance();
+                model.sendRequest("GET_PROFILE", Map.of());
+                Response res = model.waitForResponse("GET_PROFILE", 5000);
+                if (res != null && res.isSuccess()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) res.getData();
+                    Platform.runLater(() -> onSuccess.accept(data));
+                } else if (res != null) {
+                    Platform.runLater(() -> ClientApp.showError(res.getMessage()));
+                }
+            } catch (Exception e) {
+                Platform.runLater(() -> ClientApp.showError("Không tải được thông tin tài khoản: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    private String formatProfileSummary(Map<String, Object> data) {
+        String base = String.format("Xin chào, %s (%s)", str(data, "username"), str(data, "displayRole"));
+        String role = str(data, "role");
+        if ("BIDDER".equals(role)) {
+            return base + " | Khả dụng: " + formatMoney(data.get("availableBalance"));
+        }
+        if ("SELLER".equals(role)) {
+            return base + " | Doanh thu: " + formatMoney(data.get("totalRevenue"));
+        }
+        return base;
+    }
+
+    private String formatProfileDetails(Map<String, Object> data) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
+        sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
+        sb.append("Trạng thái: ").append(str(data, "displayStatus"));
+
+        String role = str(data, "role");
+        if ("BIDDER".equals(role)) {
+            sb.append('\n').append("Số dư ví: ").append(formatMoney(data.get("balance")));
+            sb.append('\n').append("Đang giữ chỗ: ").append(formatMoney(data.get("reservedBalance")));
+            sb.append('\n').append("Số dư khả dụng: ").append(formatMoney(data.get("availableBalance")));
+        } else if ("SELLER".equals(role)) {
+            sb.append('\n').append("Doanh thu hiện tại: ").append(formatMoney(data.get("totalRevenue")));
+        }
+        return sb.toString();
     }
 
     private String str(Map<String, Object> m, String k) {

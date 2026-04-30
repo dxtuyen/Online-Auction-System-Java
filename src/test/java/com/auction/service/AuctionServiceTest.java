@@ -172,6 +172,23 @@ class AuctionServiceTest {
     }
 
     @Test
+    @DisplayName("Xem thông tin số dư bidder → trả đúng balance, reserved và available")
+    void getBalanceSummary_bidder_success() {
+        User seller = service.register("seller_profile", "123", Role.SELLER, 0);
+        Bidder bidder = (Bidder) service.register("bidder_profile", "123", Role.BIDDER, 10_000_000);
+
+        Item item = service.createItem(ItemCategory.OTHER, "Profile Item", "Mô tả",
+                3_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+        Auction auction = service.createAuction(item.getId(), seller.getId(), 60, 1_000_000);
+
+        service.placeBid(auction.getId(), bidder.getId(), 7_000_000);
+
+        assertEquals(10_000_000, bidder.getBalance());
+        assertEquals(7_000_000, service.getReservedBalance(bidder.getId()));
+        assertEquals(3_000_000, service.getAvailableBalance(bidder.getId()));
+    }
+
+    @Test
     @DisplayName("Đặt giá phiên đã đóng → throw exception")
     void placeBid_closedAuction_throws() {
         User seller = service.register("seller_v3", "123", Role.SELLER, 0);

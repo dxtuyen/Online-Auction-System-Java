@@ -13,6 +13,7 @@ import java.util.*;
 
 public class SellerDashboardController {
 
+    @FXML private Label lblUserInfo;
     @FXML private TableView<Map<String, Object>> tblItems;
     @FXML private TableColumn<Map<String, Object>, String> colItemId;
     @FXML private TableColumn<Map<String, Object>, String> colItemName;
@@ -44,6 +45,7 @@ public class SellerDashboardController {
         colItemPrice.setCellValueFactory(cd -> new SimpleStringProperty(money(cd.getValue().get("startingPrice"))));
         tblItems.setItems(itemsData);
 
+        loadProfileSummary();
         loadMyItems();
     }
 
@@ -169,6 +171,46 @@ public class SellerDashboardController {
     @FXML
     private void goBack() {
         ClientApp.switchScene("auction_list.fxml");
+    }
+
+    @FXML
+    private void handleViewAccount() {
+        requestProfile(data -> ClientApp.showInfo(formatProfileDetails(data)));
+    }
+
+    private void loadProfileSummary() {
+        requestProfile(data -> {
+            String summary = String.format("%s | Doanh thu: %s",
+                    s(data, "username"), money(data.get("totalRevenue")));
+            lblUserInfo.setText(summary);
+        });
+    }
+
+    private void requestProfile(java.util.function.Consumer<Map<String, Object>> onSuccess) {
+        new Thread(() -> {
+            try {
+                ClientModel model = ClientModel.getInstance();
+                model.sendRequest("GET_PROFILE", Map.of());
+                Response res = model.waitForResponse("GET_PROFILE", 5000);
+                if (res != null && res.isSuccess()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) res.getData();
+                    Platform.runLater(() -> onSuccess.accept(data));
+                } else if (res != null) {
+                    Platform.runLater(() -> ClientApp.showError(res.getMessage()));
+                }
+            } catch (Exception e) {
+                Platform.runLater(() -> ClientApp.showError("Không tải được thông tin tài khoản: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    private String formatProfileDetails(Map<String, Object> data) {
+        return String.format("Tài khoản: %s%nVai trò: %s%nTrạng thái: %s%nDoanh thu hiện tại: %s",
+                s(data, "username"),
+                s(data, "displayRole"),
+                s(data, "displayStatus"),
+                money(data.get("totalRevenue")));
     }
 
     private void clearItemForm() {

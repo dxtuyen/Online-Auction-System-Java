@@ -14,6 +14,9 @@
         <HBox alignment="CENTER_LEFT" spacing="12" styleClass="header-bar">
             <Button text="← Quay lại" onAction="#goBack" styleClass="btn-secondary"/>
             <Label text="🏪 Dashboard người bán" styleClass="header-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="lblUserInfo" styleClass="muted-label"/>
+            <Button text="Tài khoản" onAction="#handleViewAccount" styleClass="btn-secondary"/>
         </HBox>
     </top>
 

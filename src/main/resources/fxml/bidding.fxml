@@ -13,6 +13,7 @@
         <HBox alignment="CENTER_LEFT" spacing="12" styleClass="header-bar">
             <Button text="← Quay lại" onAction="#goBack" styleClass="btn-secondary"/>
             <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Tài khoản" onAction="#handleViewAccount" styleClass="btn-secondary"/>
             <Label fx:id="lblTimer" styleClass="timer-normal"/>
         </HBox>
     </top>

@@ -171,10 +171,10 @@ public class Main {
 
         printOption(1, "Xem danh sách phiên đấu giá");
         printOption(2, "Xem chi tiết phiên");
+        printOption(4, "Xem thông tin tài khoản");
 
         if (currentUser instanceof Bidder) {
             printOption(3, "Đặt giá");
-            printOption(4, "Xem số dư");
         }
         if (currentUser instanceof Seller) {
             printOption(5, "Thêm sản phẩm");
@@ -193,11 +193,11 @@ public class Main {
             case 1 -> listAuctions();
             // case 2: xem thông tin chi tiết của một phiên đấu giá.
             case 2 -> viewAuctionDetail();
-            // Các thao tác đặt giá/chỉnh số dư chỉ dành cho bidder.
+            // Các thao tác đặt giá chỉ dành cho bidder.
             // case 3: bidder đặt giá cho một phiên.
             case 3 -> { if (currentUser instanceof Bidder) handlePlaceBid(); }
-            // case 4: bidder xem số dư hiện tại.
-            case 4 -> { if (currentUser instanceof Bidder b) printField("Số dư", formatCurrency(b.getBalance())); }
+            // case 4: mọi role đều có thể xem thông tin tài khoản của chính mình.
+            case 4 -> showAccountInfo();
             // Các thao tác quản lý hàng hóa và phiên đấu giá chỉ dành cho seller.
             // case 5: seller thêm sản phẩm mới.
             case 5 -> { if (currentUser instanceof Seller) handleCreateItem(); }
@@ -209,6 +209,29 @@ public class Main {
             case 8 -> { if (currentUser instanceof Seller) handleCloseAuction(); }
             // case 9: đăng xuất khỏi tài khoản hiện tại.
             case 9 -> { currentUser = null; printSuccess("Đã đăng xuất."); }
+        }
+    }
+
+    /**
+     * Hiển thị thông tin tài khoản của user đang đăng nhập.
+     *
+     * <p>Bidder sẽ thấy số dư ví, phần đang giữ chỗ ở các auction đang dẫn đầu
+     * và số dư khả dụng còn lại. Seller thấy doanh thu hiện tại. Admin hiện chỉ có thông tin cơ bản.</p>
+     */
+    private static void showAccountInfo() {
+        printSection("Thông tin tài khoản");
+        printField("Username", currentUser.getUsername());
+        printField("Vai trò", currentUser.getRole().getDisplayRole());
+        printField("Trạng thái", currentUser.getUserStatus().getDisplayStatus());
+
+        if (currentUser instanceof Bidder bidder) {
+            double reserved = service.getReservedBalance(bidder.getId());
+            double available = service.getAvailableBalance(bidder.getId());
+            printField("Số dư ví", formatCurrency(bidder.getBalance()));
+            printField("Đang giữ chỗ", formatCurrency(reserved));
+            printField("Số dư khả dụng", formatCurrency(available));
+        } else if (currentUser instanceof Seller seller) {
+            printField("Doanh thu", formatCurrency(seller.getTotalRevenue()));
         }
     }
 

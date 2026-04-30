@@ -128,6 +128,31 @@ public class AuctionService {
     public User getUser(int id) { return users.get(id); }
     public Collection<User> getAllUsers() { return users.values(); }
 
+    /**
+     * Trả về tổng tiền bidder đang "giữ chỗ" ở các auction khác mà họ đang dẫn đầu.
+     *
+     * <p>Con số này chưa bị trừ khỏi ví thật, nhưng vẫn phải được trừ khỏi sức mua còn lại
+     * để bidder không thể cam kết vượt quá số tiền mình thực sự có.</p>
+     */
+    public double getReservedBalance(int bidderId) {
+        User bidder = users.get(bidderId);
+        if (!(bidder instanceof Bidder)) {
+            throw new RuntimeException("Bidder không hợp lệ!");
+        }
+        return calculateReservedAmount(bidderId, -1);
+    }
+
+    /**
+     * Trả về số dư khả dụng thực tế của bidder sau khi trừ phần đang reserve ở các auction khác.
+     */
+    public double getAvailableBalance(int bidderId) {
+        User bidder = users.get(bidderId);
+        if (!(bidder instanceof Bidder bidderEntity)) {
+            throw new RuntimeException("Bidder không hợp lệ!");
+        }
+        return bidderEntity.getBalance() - getReservedBalance(bidderId);
+    }
+
     // ======================== ITEM ========================
 
     public Item createItem(ItemCategory category, String name, String description,

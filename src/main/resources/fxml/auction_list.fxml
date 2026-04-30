@@ -13,6 +13,7 @@
             <Label text="🏛️ Đấu giá Trực tuyến" styleClass="header-title"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Label fx:id="lblUserInfo" styleClass="muted-label"/>
+            <Button text="Tài khoản" onAction="#handleViewAccount" styleClass="btn-secondary"/>
             <Button fx:id="btnCreateAuction" text="+ Tạo phiên"
                     onAction="#goToSellerDashboard" visible="false"
                     styleClass="btn-secondary"/>

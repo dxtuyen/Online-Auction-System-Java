@@ -49,6 +49,7 @@ public class RequestRouter {
                 case "LOGIN"    -> userCtrl.login(req);
                 case "REGISTER" -> userCtrl.register(req);
                 case "LOGOUT"   -> userCtrl.logout(req);
+                case "GET_PROFILE" -> userCtrl.getProfile(req);
 
                 // Auction
                 case "LIST_AUCTIONS"  -> auctionCtrl.listAuctions(req);
