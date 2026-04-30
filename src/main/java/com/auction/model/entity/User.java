@@ -3,7 +3,9 @@ package com.auction.model.entity;
 import com.auction.model.enums.Role;
 import com.auction.model.enums.UserStatus;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.UUID;
 
 public abstract class User extends Entity {
 
@@ -26,6 +28,28 @@ public abstract class User extends Entity {
         this.role = Objects.requireNonNull(role);
         this.userStatus = UserStatus.ACTIVE;
     }
+
+    // Load từ DB
+    protected User(UUID id,
+                   LocalDateTime createdAt,
+                   LocalDateTime updatedAt,
+                   String username,
+                   String password,
+                   String email,
+                   String fullName,
+                   Role role,
+                   UserStatus status) {
+
+        super(id, createdAt, updatedAt);
+
+        this.username = Objects.requireNonNull(username, "username must not be null");
+        this.password = Objects.requireNonNull(password, "password must not be null");
+        this.email = Objects.requireNonNull(email, "email must not be null");
+        this.fullName = Objects.requireNonNull(fullName, "fullName must not be null");
+        this.role = Objects.requireNonNull(role, "role must not be null");
+        this.userStatus = Objects.requireNonNull(status, "status must not be null");
+    }
+
     //mỗi loại user tự quyết định trả về role nào
     public Role getRole() {
         return role;
