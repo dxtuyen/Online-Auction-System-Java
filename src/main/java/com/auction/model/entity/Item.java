@@ -81,21 +81,20 @@ public abstract class Item extends Entity {
     }
 
     public void addImage(String url) {
-        images.add(Objects.requireNonNull(url));
-        markUpdated();
+        Objects.requireNonNull(url);
+        if (url.isBlank()) {
+            throw new IllegalArgumentException("URL rỗng");
+        }
+        if (!images.contains(url)) {
+            images.add(url);
+            markUpdated();
+        }
     }
 
     public void removeImage(String url) {
-        images.remove(url);
-        markUpdated();
-    }
-
-    @Override
-    public String getDisplayInfo() {
-        return String.format("[%s] %s - %.2f",
-                category.getDisplayName(),
-                name,
-                startingPrice);
+        if (images.remove(url)) {
+            markUpdated();
+        }
     }
 
     @Override

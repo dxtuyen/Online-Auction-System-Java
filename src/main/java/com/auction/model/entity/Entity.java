@@ -9,57 +9,53 @@ public abstract class Entity implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    //thuộc tính theo dõi,
-    private final String id; //id để định danh obj
+    // thuộc tính theo dõi,
+    private final UUID id; //id để định danh obj
     private final LocalDateTime createdAt; // thời điểm tạo obj
     private LocalDateTime updatedAt; // thời điểm cập nhật obj cuối
 
     //tạo obj mới
     protected Entity() {
-        this.id = UUID.randomUUID().toString();
+        this.id = UUID.randomUUID();
         this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
     }
 
-    //load lại dữ liệu từ database, có RỦI RO NULL sẽ fix sau
-    protected Entity(String id, LocalDateTime createdAt, LocalDateTime updatedAt) {
-        this.id = id;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
+    // load lại dữ liệu từ database, có RỦI RO NULL (đã fix bên dưới)
+    protected Entity(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = Objects.requireNonNull(id);
+        this.createdAt = Objects.requireNonNull(createdAt);
+        this.updatedAt = Objects.requireNonNull(updatedAt);
     }
 
-    // Encapsulation: private fields + getter/setter
-    public String getId() {
-        return id;
-    }
-
-    // id không nên thay đổi được, mức truy cập đổi thành protected, hoặc sẽ xóa
-//    protected void setId(String id) {
-//        this.id = id;
-//    }
-
-    //chỉ có get, không set vì thời điểm tạo obj không nên bị thay đổi
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    //tương tự như trên
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
+    // gọi method này mỗi khi entity bị thay đổi
     protected void markUpdated() {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public abstract String getDisplayInfo(); // mỗi class sẽ tự cài đặt cách hiển thị thông tin
+    // Getter
+
+    public UUID getId() {
+        return id;
+    }
+
+    // chỉ có get, không set vì thời điểm tạo obj không nên bị thay đổi
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    // tương tự như trên
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+
         Entity entity = (Entity) o;
-        return Objects.equals(id, entity.id);
+        return id.equals(entity.id);
     }
 
     @Override
@@ -69,7 +65,11 @@ public abstract class Entity implements Serializable {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{id='" + id + "'}";
+        return getClass().getSimpleName() +
+                "{id=" + id +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                "}";
     }
 }
 
