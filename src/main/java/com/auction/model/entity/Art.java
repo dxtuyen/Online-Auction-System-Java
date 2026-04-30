@@ -3,54 +3,39 @@ package com.auction.model.entity;
 import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
+/** Tác phẩm nghệ thuật - có tác giả, năm sáng tác, chất liệu. */
 public class Art extends Item {
 
     private static final long serialVersionUID = 1L;
 
-    private String artist; //tác giả
-    private int year; //năm sáng tác
+    private final String artist;
+    private final Integer yearCreated;   // có thể null nếu không rõ
+    private final String medium;          // chất liệu: oil/acrylic/watercolor...
 
-    public Art() {
-        super();
-    }
-
-    public Art(String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition, String artist, int year) {
-        super(name, description, sellerId, startingPrice, images, category, condition);
+    public Art(String name, String description, UUID sellerId,
+               BigDecimal startingPrice, List<String> images,
+               ItemCondition condition,
+               String artist, Integer yearCreated, String medium) {
+        super(name, description, sellerId, startingPrice, images,
+                ItemCategory.ART, condition);
         this.artist = artist;
-        this.year = year;
+        this.yearCreated = yearCreated;
+        this.medium = medium;
     }
 
-    public Art(int id, String name, String description, int sellerId, double startingPrice, List<String> images, ItemCategory category, ItemCondition condition, String artist, int year) {
-        super(id, name, description, sellerId, startingPrice, images, category, condition);
-        this.artist = artist;
-        this.year = year;
-    }
+    public String getArtist() { return artist; }
+    public Integer getYearCreated() { return yearCreated; }
+    public String getMedium() { return medium; }
 
-    //Getter & Setter
-    public String getArtist() {
-        return artist;
-    }
-
-    public void setArtist(String artist) {
-        this.artist = artist;
-    }
-
-    public int year() {
-        return year;
-    }
-
-    public void setYear(int year) {
-        this.year = year;
-    }
-
-    //Methods
     @Override
-    public String toString() {
-        return "Art{" +
-                "artist='" + artist + '\'' +
-                ", year=" + year +
-                '}';
+    public String getSpecificInfo() {
+        return String.format("Tác giả: %s | Năm: %s | Chất liệu: %s",
+                artist,
+                yearCreated == null ? "?" : yearCreated.toString(),
+                medium);
     }
 }

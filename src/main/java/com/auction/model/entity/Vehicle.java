@@ -1,145 +1,45 @@
+// File: com/auction/model/entity/Vehicle.java
 package com.auction.model.entity;
 
 import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
+/** Phương tiện - có hãng, đời, số km đã đi. */
 public class Vehicle extends Item {
+
     private static final long serialVersionUID = 1L;
 
-    private String brand;              // Hãng xe
-    private String model;              // Dòng xe
-    private int manufactureYear;       // Năm sản xuất
-    private int mileage;               // Số km đã đi
-    private String color;              // Màu xe
-    private String fuelType;           // Xăng / Dầu / Điện
-    private String transmission;       // Số sàn / Số tự động
-    private int ownerCount;            // Số đời chủ
-    private boolean hasRegistration;   // Có giấy tờ hay không
+    private final String make;          // Toyota, Honda...
+    private final String model;
+    private final int year;
+    private final int mileageKm;
 
-    public Vehicle() {
-        super();
-    }
-
-    public Vehicle(String name, String description, int sellerId, double startingPrice,
-                   List<String> images, ItemCategory category, ItemCondition condition,
-                   String brand, String model, int manufactureYear, int mileage,
-                   String color, String fuelType, String transmission,
-                   int ownerCount, boolean hasRegistration) {
-        super(name, description, sellerId, startingPrice, images, category, condition);
-        this.brand = brand;
+    public Vehicle(String name, String description, UUID sellerId,
+                   BigDecimal startingPrice, List<String> images,
+                   ItemCondition condition,
+                   String make, String model, int year, int mileageKm) {
+        super(name, description, sellerId, startingPrice, images,
+                ItemCategory.VEHICLE, condition);
+        this.make = make;
         this.model = model;
-        this.manufactureYear = manufactureYear;
-        this.mileage = mileage;
-        this.color = color;
-        this.fuelType = fuelType;
-        this.transmission = transmission;
-        this.ownerCount = ownerCount;
-        this.hasRegistration = hasRegistration;
+        if (year < 1900) throw new IllegalArgumentException("year không hợp lệ");
+        if (mileageKm < 0) throw new IllegalArgumentException("mileageKm phải >= 0");
+        this.year = year;
+        this.mileageKm = mileageKm;
     }
 
-    public Vehicle(int id, String name, String description, int sellerId, double startingPrice,
-                   List<String> images, ItemCategory category, ItemCondition condition,
-                   String brand, String model, int manufactureYear, int mileage,
-                   String color, String fuelType, String transmission,
-                   int ownerCount, boolean hasRegistration) {
-        super(id, name, description, sellerId, startingPrice, images, category, condition);
-        this.brand = brand;
-        this.model = model;
-        this.manufactureYear = manufactureYear;
-        this.mileage = mileage;
-        this.color = color;
-        this.fuelType = fuelType;
-        this.transmission = transmission;
-        this.ownerCount = ownerCount;
-        this.hasRegistration = hasRegistration;
-    }
-
-    // Getter & Setter
-    public String getBrand() {
-        return brand;
-    }
-
-    public void setBrand(String brand) {
-        this.brand = brand;
-    }
-
-    public String getModel() {
-        return model;
-    }
-
-    public void setModel(String model) {
-        this.model = model;
-    }
-
-    public int getManufactureYear() {
-        return manufactureYear;
-    }
-
-    public void setManufactureYear(int manufactureYear) {
-        this.manufactureYear = manufactureYear;
-    }
-
-    public int getMileage() {
-        return mileage;
-    }
-
-    public void setMileage(int mileage) {
-        this.mileage = mileage;
-    }
-
-    public String getColor() {
-        return color;
-    }
-
-    public void setColor(String color) {
-        this.color = color;
-    }
-
-    public String getFuelType() {
-        return fuelType;
-    }
-
-    public void setFuelType(String fuelType) {
-        this.fuelType = fuelType;
-    }
-
-    public String getTransmission() {
-        return transmission;
-    }
-
-    public void setTransmission(String transmission) {
-        this.transmission = transmission;
-    }
-
-    public int getOwnerCount() {
-        return ownerCount;
-    }
-
-    public void setOwnerCount(int ownerCount) {
-        this.ownerCount = ownerCount;
-    }
-
-    public boolean isHasRegistration() {
-        return hasRegistration;
-    }
-
-    public void setHasRegistration(boolean hasRegistration) {
-        this.hasRegistration = hasRegistration;
-    }
+    public String getMake() { return make; }
+    public String getModel() { return model; }
+    public int getYear() { return year; }
+    public int getMileageKm() { return mileageKm; }
 
     @Override
-    public String toString() {
-        return super.toString() +
-                "\nHãng: " + brand +
-                "\nDòng xe: " + model +
-                "\nNăm sản xuất: " + manufactureYear +
-                "\nSố km đã đi: " + mileage +
-                "\nMàu: " + color +
-                "\nNhiên liệu: " + fuelType +
-                "\nHộp số: " + transmission +
-                "\nSố đời chủ: " + ownerCount +
-                "\nGiấy tờ: " + (hasRegistration ? "Có" : "Không");
+    public String getSpecificInfo() {
+        return String.format("%s %s đời %d | Đã đi: %,d km",
+                make, model, year, mileageKm);
     }
 }
