@@ -104,7 +104,7 @@ public class Auction extends Entity {
         this.currentPrice = currentPrice;
     }
 
-    public int getHighestBidderID() {
+    public Integer getHighestBidderId() {
         return highestBidderId;
     }
 
@@ -115,7 +115,8 @@ public class Auction extends Entity {
     public double getMinimumIncrement() {
         return minimumIncrement;
     }
-    public void setMinimumBidIncrement(double minimumIncrement) {
+
+    public void setMinimumIncrement(double minimumIncrement) {
         this.minimumIncrement = minimumIncrement;
     }
 
