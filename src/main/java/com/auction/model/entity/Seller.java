@@ -3,88 +3,78 @@ package com.auction.model.entity;
 import com.auction.model.enums.Role;
 import com.auction.model.enums.UserStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Người bán - có totalRevenue tích lũy qua các phiên đấu giá thành công.
+ */
 public class Seller extends User {
 
     private static final long serialVersionUID = 1L;
 
-    private double totalRevenue; //doanh thu
+    private BigDecimal totalRevenue;
 
-    // Tạo seller mới
+    // ============== CONSTRUCTORS ==============
+
     public Seller(String username, String hashedPassword, String email, String fullName) {
+        this(username, hashedPassword, email, fullName, BigDecimal.ZERO);
+    }
+
+    public Seller(String username, String hashedPassword, String email,
+                  String fullName, BigDecimal totalRevenue) {
         super(username, hashedPassword, email, fullName, Role.SELLER);
-        this.totalRevenue = 0.0;
+        this.totalRevenue = validateRevenue(totalRevenue);
     }
 
-    // Tạo seller mới + set doanh thu ban đầu
-    public Seller(String username, String hashedPassword, String email, String fullName, double totalRevenue) {
-        super(username, hashedPassword, email, fullName, Role.SELLER);
-        this.totalRevenue = totalRevenue;
+    public Seller(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
+                  String username, String hashedPassword, String email,
+                  String fullName, UserStatus status, BigDecimal totalRevenue) {
+        super(id, createdAt, updatedAt, username, hashedPassword, email,
+                fullName, Role.SELLER, status);
+        this.totalRevenue = validateRevenue(totalRevenue);
     }
 
-    // Load từ DB
-    public Seller(UUID id,
-                  LocalDateTime createdAt,
-                  LocalDateTime updatedAt,
-                  String username,
-                  String password,
-                  String email,
-                  String fullName,
-                  UserStatus status,
-                  double totalRevenue) {
+    // ============== DOMAIN METHODS ==============
 
-        super(
-                id,
-                createdAt,
-                updatedAt,
-                Objects.requireNonNull(username, "username must not be null"),
-                Objects.requireNonNull(password, "password must not be null"),
-                Objects.requireNonNull(email, "email must not be null"),
-                Objects.requireNonNull(fullName, "fullName must not be null"),
-                Role.SELLER,
-                Objects.requireNonNull(status, "status must not be null")
-        );
-
-        this.totalRevenue = totalRevenue;
-    }
-
-    //Getter & Setter
-    public double getTotalRevenue() {
-        return totalRevenue;
-    }
-
-    public void addRevenue(double amount) {
-        if (amount <= 0) {
-            throw new IllegalArgumentException("Revenue must be > 0");
+    /** Cộng doanh thu khi auction kết thúc thành công */
+    public void addRevenue(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Revenue phải > 0");
         }
-        this.totalRevenue += amount;
+        this.totalRevenue = this.totalRevenue.add(amount);
         markUpdated();
     }
 
-    @Override
-    public boolean canBid() {
-        return false;
+    public BigDecimal getTotalRevenue() {
+        return totalRevenue;
     }
 
-    @Override
-    public boolean canSell() {
-        return true;
-    }
+    // ============== PERMISSIONS ==============
 
-    @Override
-    public boolean canManageSystem() {
-        return false;
+    @Override public boolean canBid()           { return false; }
+    @Override public boolean canSell()          { return isActive(); }
+    @Override public boolean canManageSystem()  { return false; }
+
+    // ============== VALIDATION ==============
+
+    private static BigDecimal validateRevenue(BigDecimal revenue) {
+        Objects.requireNonNull(revenue, "revenue must not be null");
+        if (revenue.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Revenue không thể âm");
+        }
+        return revenue;
     }
 
     @Override
     public String toString() {
         return "Seller{" +
-                "username='" + getUsername() + '\'' +
-                ", role=" + getRole() +
-                ", userStatus=" + getUserStatus() +
+                "id=" + getId() +
+                ", username='" + getUsername() + '\'' +
+                ", status=" + getUserStatus() +
                 ", totalRevenue=" + totalRevenue +
                 '}';
     }
