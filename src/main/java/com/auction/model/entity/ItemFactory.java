@@ -8,9 +8,6 @@ import java.util.Map;
 
 public class ItemFactory {
 
-    private ItemFactory() {
-    }
-
     public static Item createItem(ItemCategory category, String name,
                                   String description, double startingPrice,
                                   int sellerId, List<String> images, ItemCondition condition,
