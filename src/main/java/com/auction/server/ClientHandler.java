@@ -29,6 +29,11 @@ import java.util.Map;
  *   <li>Client ngắt → dọn dẹp observer subscription</li>
  * </ol>
  * </p>
+ *
+ * <p>Class này đồng thời nắm 3 vai trò:
+ * giữ session của connection hiện tại ({@code currentUserId}),
+ * làm adapter mạng giữa JSON text và object Java,
+ * và làm observer để nhận event realtime từ domain rồi push ngược ra client.</p>
  */
 public class ClientHandler implements Runnable, AuctionObserver {
 
@@ -41,6 +46,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
     // id user sau khi login — null nghĩa là chưa đăng nhập
     private String currentUserId;
 
+    /**
+     * Mỗi socket client được bọc trong đúng một handler.
+     *
+     * <p>Router cũng được tạo tại đây để toàn bộ request của connection này
+     * luôn dùng chung một ngữ cảnh session.</p>
+     */
     public ClientHandler(Socket socket) {
         this.socket = socket;
         this.router = new RequestRouter(this);
@@ -57,6 +68,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
             String line;
             while ((line = reader.readLine()) != null) {
+                // Protocol hiện tại là "mỗi dòng là một JSON request".
                 handleLine(line);
             }
         } catch (IOException e) {
@@ -66,7 +78,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
-    /** Parse 1 dòng JSON và đưa cho router xử lý. */
+    /**
+     * Parse một dòng JSON rồi chuyển xuống router.
+     *
+     * <p>Nếu payload không parse được hoặc thiếu action, server không đóng connection ngay
+     * mà trả về một {@code ERROR} response để client biết request nào bị lỗi.</p>
+     */
     private void handleLine(String line) {
         try {
             Request req = JsonHelper.parseRequest(line);
@@ -75,6 +92,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
                 return;
             }
 
+            // Router chịu trách nhiệm điều phối action và bọc lỗi nghiệp vụ thành error response.
             Response res = router.route(req);
             if (res != null) send(res);
 
@@ -86,6 +104,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
     /**
      * Gửi Response xuống client. Dùng synchronized tránh 2 thread ghi vào
      * cùng 1 writer gây lỗi interleaving.
+     *
+     * <p>Điều này quan trọng vì cùng một handler có thể vừa trả response cho request hiện tại,
+     * vừa nhận event push từ observer callback ở thread khác.</p>
      */
     public synchronized void send(Response response) {
         if (writer != null) {
@@ -93,7 +114,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
-    /** Dọn dẹp khi client disconnect. */
+    /**
+     * Dọn dẹp khi client disconnect.
+     *
+     * <p>Việc unsubscribe khỏi toàn bộ auction là bắt buộc; nếu bỏ sót,
+     * event manager sẽ còn giữ reference tới handler đã chết và tiếp tục push vô ích.</p>
+     */
     private void cleanup() {
         // Gỡ khỏi TẤT cả observer subscription để tránh memory leak
         eventManager.unsubscribeAll(this);
@@ -106,12 +132,14 @@ public class ClientHandler implements Runnable, AuctionObserver {
     }
 
     // ============= Accessors =============
+    // currentUserId chính là "session state" đơn giản nhất của connection này.
 
     public String getCurrentUserId() { return currentUserId; }
     public void setCurrentUserId(String currentUserId) { this.currentUserId = currentUserId; }
 
     // ============= AuctionObserver implementation =============
-    // Mỗi khi có bid mới trên phiên mà client này đang xem → push xuống
+    // Mỗi callback dưới đây sẽ được AuctionEventManager gọi khi auction mà client đang
+    // subscribe có thay đổi. Handler chỉ map event domain thành JSON push tương ứng.
 
     @Override
     public void onNewBid(Auction auction, BidTransaction bid) {
@@ -125,22 +153,27 @@ public class ClientHandler implements Runnable, AuctionObserver {
         data.put("totalBids", auction.getTotalBids());
         data.put("timestamp", bid.getTimestamp().toString());
 
+        // PUSH response không đi qua flow request/response thông thường mà được đẩy chủ động.
         send(Response.push("BID_UPDATE", data));
     }
 
     @Override
     public void onAuctionStatusChanged(Auction auction) {
+        // Client dùng event này để disable nút bid, cập nhật status label, đóng countdown...
+        Integer highestBidderId = auction.getHighestBidderIdOrNull();
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId());
         data.put("status", auction.getStatus().name());
         data.put("currentPrice", auction.getCurrentPrice());
-        data.put("highestBidderId", auction.getHighestBidderID());
+        // Auction có thể kết thúc mà không có ai bid, nên field leader phải chấp nhận null.
+        data.put("highestBidderId", highestBidderId);
 
         send(Response.push("AUCTION_STATUS", data));
     }
 
     @Override
     public void onAuctionExtended(Auction auction) {
+        // Event riêng cho anti-sniping, để client cập nhật lại endTime mà không cần reload toàn bộ detail.
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId());
         data.put("newEndTime", auction.getEndTime().toString());

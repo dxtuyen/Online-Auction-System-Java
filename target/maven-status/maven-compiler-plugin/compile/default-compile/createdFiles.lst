@@ -1,5 +1,4 @@
 com/auction/model/entity/BidTransaction.class
-com/auction/model/entity/canManage.class
 com/auction/client/network/ServerConnection.class
 com/auction/model/entity/Entity.class
 com/auction/model/enums/AuctionStatus.class
@@ -30,7 +29,6 @@ com/auction/server/controller/AuctionController.class
 com/auction/Main$1.class
 com/auction/server/controller/UserController.class
 com/auction/model/entity/Auction.class
-com/auction/model/entity/canSell.class
 com/auction/model/entity/User.class
 com/auction/model/enums/ItemCategory.class
 com/auction/client/controller/SellerDashboardController.class
@@ -45,4 +43,3 @@ com/auction/client/controller/AuctionListController.class
 com/auction/model/entity/ItemFactory.class
 com/auction/client/ClientApp.class
 com/auction/server/controller/BidController.class
-com/auction/model/entity/canBid.class

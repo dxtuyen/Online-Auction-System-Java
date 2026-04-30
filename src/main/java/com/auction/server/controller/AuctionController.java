@@ -13,7 +13,18 @@ import com.auction.service.AuctionService;
 
 import java.util.*;
 
-/** Controller xử lý Auction + Item. */
+/**
+ * Controller phía server cho nhóm use case Auction + Item.
+ *
+ * <p>Vai trò của controller này là đứng giữa socket request và service layer:
+ * đọc dữ liệu thô từ {@link Request}, kiểm tra session tối thiểu,
+ * gọi đúng nghiệp vụ trong {@link AuctionService}, rồi map kết quả về {@link Response}
+ * để client JavaFX hoặc client console dùng được ngay.</p>
+ *
+ * <p>Controller không nên chứa business rule nặng. Các rule như quyền sở hữu item,
+ * bước nhảy giá, reserve balance, settlement... đều phải được chốt ở service.
+ * Ở đây chủ yếu là orchestration và serialization dữ liệu trả về.</p>
+ */
 public class AuctionController {
 
     private final AuctionService service = AuctionService.getInstance();
@@ -22,6 +33,12 @@ public class AuctionController {
 
     public AuctionController(ClientHandler handler) { this.handler = handler; }
 
+    /**
+     * Trả về danh sách auction để client render màn hình list.
+     *
+     * <p>Response ở đây là bản tóm tắt: tên item, giá hiện tại, trạng thái, thời điểm kết thúc...
+     * Các field này đủ để hiển thị lưới danh sách mà chưa cần tải toàn bộ chi tiết item.</p>
+     */
     public Response listAuctions(Request req) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Auction a : service.getAllAuctions()) {
@@ -44,6 +61,12 @@ public class AuctionController {
         return Response.success("LIST_AUCTIONS", null, data);
     }
 
+    /**
+     * Lấy đầy đủ thông tin của một auction để client mở màn hình chi tiết/bidding.
+     *
+     * <p>Ngoài dữ liệu auction cơ bản, method này còn map thêm sellerName, leaderName,
+     * remainedSeconds và phần mô tả item để client không phải gọi nhiều request nhỏ.</p>
+     */
     public Response getAuction(Request req) {
         int auctionId = req.getDataInt("auctionId");
         Auction a = service.getAuction(auctionId);
@@ -52,6 +75,7 @@ public class AuctionController {
         Item item = service.getItem(a.getItemId());
         User seller = service.getUser(a.getSellerId());
 
+        // LinkedHashMap giữ thứ tự field ổn định, thuận tiện khi debug response JSON.
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", a.getId());
         data.put("itemName", item != null ? item.getName() : "N/A");
@@ -62,9 +86,11 @@ public class AuctionController {
         data.put("currentPrice", a.getCurrentPrice());
         data.put("minimumIncrement", a.getMinimumIncrement());
         data.put("totalBids", a.getTotalBids());
-        data.put("highestBidderId", a.getHighestBidderID());
-        if (a.getHighestBidderID() > 0) {
-            User leader = service.getUser(a.getHighestBidderID());
+        Integer highestBidderId = a.getHighestBidderIdOrNull();
+        data.put("highestBidderId", highestBidderId);
+        // Auction mới tạo có thể chưa có leader; dùng getter nullable để tránh NPE ở giai đoạn này.
+        if (highestBidderId != null) {
+            User leader = service.getUser(highestBidderId);
             data.put("leaderName", leader != null ? leader.getUsername() : "");
         }
         data.put("status", a.getStatus().name());
@@ -76,6 +102,12 @@ public class AuctionController {
         return Response.success("GET_AUCTION", null, data);
     }
 
+    /**
+     * Tạo item mới cho seller đang đăng nhập.
+     *
+     * <p>Controller chỉ xác thực việc client đã có session. Tính hợp lệ về vai trò seller,
+     * category-specific attributes hay quyền tạo item vẫn do service/factory chịu trách nhiệm.</p>
+     */
     @SuppressWarnings("unchecked")
     public Response createItem(Request req) {
         if (handler.getCurrentUserId() == null)
@@ -88,7 +120,8 @@ public class AuctionController {
         double startingPrice = req.getDataDouble("startingPrice");
         ItemCondition condition = ItemCondition.valueOf(req.getDataString("condition"));
 
-        // specificAttributes là Map<String,String> — Gson parse thành Object
+        // specificAttributes đi qua JSON nên khi vào đây chỉ còn Object/Map raw;
+        // controller chuẩn hóa lại về Map<String, String> trước khi giao cho service.
         Map<String, String> attrs = new HashMap<>();
         Object raw = req.getData().get("specificAttributes");
         if (raw instanceof Map<?, ?> m) {
@@ -106,6 +139,13 @@ public class AuctionController {
         return Response.success("CREATE_ITEM", "Đã thêm sản phẩm", data);
     }
 
+    /**
+     * Mở một auction mới cho item thuộc seller hiện tại.
+     *
+     * <p>Controller áp vài default nhẹ cho input thiếu hoặc không hợp lệ
+     * (duration/increment <= 0) để request từ client đỡ bị fail vì giá trị trống,
+     * còn validation sở hữu item vẫn nằm ở service.</p>
+     */
     public Response createAuction(Request req) {
         if (handler.getCurrentUserId() == null)
             return Response.error("CREATE_AUCTION", "Chưa đăng nhập");
@@ -126,12 +166,27 @@ public class AuctionController {
         return Response.success("CREATE_AUCTION", "Đã tạo phiên đấu giá", data);
     }
 
+    /**
+     * Đóng auction theo request từ client.
+     *
+     * <p>Từ controller nhìn vào đây chỉ là một lệnh "close", nhưng ở service nó sẽ chạy
+     * toàn bộ finalize flow: kiểm tra quyền actor hiện tại, đổi trạng thái,
+     * settlement nếu có winner, và phát event realtime.</p>
+     */
     public Response closeAuction(Request req) {
+        if (handler.getCurrentUserId() == null)
+            return Response.error("CLOSE_AUCTION", "Chưa đăng nhập");
+
+        int actorUserId = Integer.parseInt(handler.getCurrentUserId());
         int auctionId = req.getDataInt("auctionId");
-        service.closeAuction(auctionId);
+        // Actor id luôn lấy từ session hiện tại, không tin dữ liệu userId do client tự gửi lên.
+        service.closeAuction(auctionId, actorUserId);
         return Response.success("CLOSE_AUCTION", "Đã đóng phiên", null);
     }
 
+    /**
+     * Trả danh sách item của user hiện tại để seller chọn item nào sẽ mở auction.
+     */
     public Response listMyItems(Request req) {
         if (handler.getCurrentUserId() == null)
             return Response.error("LIST_MY_ITEMS", "Chưa đăng nhập");
@@ -152,13 +207,21 @@ public class AuctionController {
         return Response.success("LIST_MY_ITEMS", null, data);
     }
 
-    /** Client muốn nhận push realtime về phiên này. */
+    /**
+     * Đăng ký client hiện tại vào danh sách observer của auction.
+     *
+     * <p>Sau call này, client sẽ nhận được các push như BID_UPDATE, AUCTION_STATUS,
+     * AUCTION_EXTENDED mà không cần polling liên tục.</p>
+     */
     public Response watchAuction(Request req) {
         int auctionId = req.getDataInt("auctionId");
         eventManager.subscribe(auctionId, handler);
         return Response.success("WATCH_AUCTION", "Đang theo dõi phiên " + auctionId, null);
     }
 
+    /**
+     * Hủy theo dõi realtime cho client hiện tại.
+     */
     public Response unwatchAuction(Request req) {
         int auctionId = req.getDataInt("auctionId");
         eventManager.unsubscribe(auctionId, handler);

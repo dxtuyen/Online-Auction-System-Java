@@ -130,6 +130,48 @@ class AuctionServiceTest {
     }
 
     @Test
+    @DisplayName("Đặt giá vượt số dư bidder → throw exception")
+    void placeBid_insufficientBalance_throws() {
+        User seller = service.register("seller_v_balance", "123", Role.SELLER, 0);
+        User bidder = service.register("bidder_v_balance", "123", Role.BIDDER, 1_500_000);
+
+        Item item = service.createItem(ItemCategory.OTHER, "Low Budget Item", "Mô tả",
+                1_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+
+        Auction auction = service.createAuction(item.getId(), seller.getId(),
+                60, 500_000);
+
+        assertThrows(RuntimeException.class, () ->
+                service.placeBid(auction.getId(), bidder.getId(), 2_000_000));
+        assertEquals(1_000_000, auction.getCurrentPrice());
+        assertEquals(0, auction.getTotalBids());
+    }
+
+    @Test
+    @DisplayName("Reserve balance: được tăng giá trên chính auction đang dẫn đầu nhưng không được over-commit auction khác")
+    void placeBid_reservedBalanceAcrossAuctions_throws() {
+        User seller = service.register("seller_reserved", "123", Role.SELLER, 0);
+        User bidder = service.register("bidder_reserved", "123", Role.BIDDER, 10_000_000);
+
+        Item item1 = service.createItem(ItemCategory.OTHER, "Reserved Item 1", "Mô tả",
+                3_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+        Item item2 = service.createItem(ItemCategory.OTHER, "Reserved Item 2", "Mô tả",
+                2_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+
+        Auction auction1 = service.createAuction(item1.getId(), seller.getId(), 60, 1_000_000);
+        Auction auction2 = service.createAuction(item2.getId(), seller.getId(), 60, 1_000_000);
+
+        service.placeBid(auction1.getId(), bidder.getId(), 5_000_000);
+        service.placeBid(auction1.getId(), bidder.getId(), 7_000_000);
+
+        assertThrows(RuntimeException.class, () ->
+                service.placeBid(auction2.getId(), bidder.getId(), 4_000_000));
+        assertEquals(7_000_000, auction1.getCurrentPrice());
+        assertEquals(2_000_000, auction2.getCurrentPrice());
+        assertEquals(0, auction2.getTotalBids());
+    }
+
+    @Test
     @DisplayName("Đặt giá phiên đã đóng → throw exception")
     void placeBid_closedAuction_throws() {
         User seller = service.register("seller_v3", "123", Role.SELLER, 0);
@@ -142,7 +184,7 @@ class AuctionServiceTest {
                 60, 100_000);
 
         // Đóng phiên trước
-        service.closeAuction(auction.getId());
+        service.closeAuction(auction.getId(), seller.getId());
 
         // Act + Assert: đặt giá trong phiên đã đóng → throw
         assertThrows(RuntimeException.class, () ->
@@ -156,6 +198,101 @@ class AuctionServiceTest {
 
         assertThrows(RuntimeException.class, () ->
                 service.placeBid(99999, bidder.getId(), 10_000_000));
+    }
+
+    @Test
+    @DisplayName("Bidder không sở hữu auction → không được đóng phiên")
+    void closeAuction_unauthorizedBidder_throws() {
+        User seller = service.register("seller_close_auth", "123", Role.SELLER, 0);
+        User bidder = service.register("bidder_close_auth", "123", Role.BIDDER, 10_000_000);
+
+        Item item = service.createItem(ItemCategory.OTHER, "Close Auth Item", "Mô tả",
+                1_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+
+        Auction auction = service.createAuction(item.getId(), seller.getId(),
+                60, 100_000);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.closeAuction(auction.getId(), bidder.getId()));
+        assertEquals("Bạn không có quyền đóng phiên đấu giá này!", ex.getMessage());
+        assertEquals(AuctionStatus.RUNNING, auction.getStatus());
+    }
+
+    @Test
+    @DisplayName("Đóng phiên có bidder thắng → trừ tiền bidder, cộng doanh thu seller")
+    void closeAuction_withWinner_settlesBalances() {
+        Seller seller = (Seller) service.register("seller_settle", "123", Role.SELLER, 0);
+        Bidder bidder = (Bidder) service.register("bidder_settle", "123", Role.BIDDER, 100_000_000);
+
+        Item item = service.createItem(ItemCategory.ELECTRONICS, "MacBook Settle",
+                "Test item", 30_000_000, seller.getId(), ItemCondition.NEW,
+                Map.of("brand", "Apple", "model", "MacBook", "warrantyMonths", "12"));
+
+        Auction auction = service.createAuction(item.getId(), seller.getId(),
+                60, 1_000_000);
+
+        service.placeBid(auction.getId(), bidder.getId(), 32_000_000);
+        service.closeAuction(auction.getId(), seller.getId());
+
+        assertEquals(AuctionStatus.PAID, auction.getStatus());
+        assertEquals(68_000_000, bidder.getBalance());
+        assertEquals(32_000_000, seller.getTotalRevenue());
+
+        service.closeAuction(auction.getId(), seller.getId());
+        assertEquals(68_000_000, bidder.getBalance());
+        assertEquals(32_000_000, seller.getTotalRevenue());
+    }
+
+    @Test
+    @DisplayName("Admin được phép đóng auction của seller khác")
+    void closeAuction_adminCanClose_success() {
+        User seller = service.register("seller_admin_close", "123", Role.SELLER, 0);
+        User admin = service.register("admin_close_auth", "123", Role.ADMIN, 0);
+
+        Item item = service.createItem(ItemCategory.OTHER, "Admin Close Item", "Mô tả",
+                1_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+
+        Auction auction = service.createAuction(item.getId(), seller.getId(),
+                60, 100_000);
+
+        service.closeAuction(auction.getId(), admin.getId());
+        assertEquals(AuctionStatus.FINISHED, auction.getStatus());
+    }
+
+    @Test
+    @DisplayName("Đăng ký auto-bid vượt số dư bidder → throw exception")
+    void registerAutoBid_insufficientBalance_throws() {
+        User seller = service.register("seller_auto_balance", "123", Role.SELLER, 0);
+        User bidder = service.register("bidder_auto_balance", "123", Role.BIDDER, 3_000_000);
+
+        Item item = service.createItem(ItemCategory.OTHER, "AutoBid Item", "Mô tả",
+                1_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+
+        Auction auction = service.createAuction(item.getId(), seller.getId(),
+                60, 500_000);
+
+        assertThrows(RuntimeException.class, () ->
+                service.registerAutoBid(auction.getId(), bidder.getId(), 5_000_000, 500_000));
+    }
+
+    @Test
+    @DisplayName("Reserve balance: đăng ký auto-bid ở auction khác vượt số dư khả dụng → throw exception")
+    void registerAutoBid_reservedBalance_throws() {
+        User seller = service.register("seller_auto_reserved", "123", Role.SELLER, 0);
+        User bidder = service.register("bidder_auto_reserved", "123", Role.BIDDER, 10_000_000);
+
+        Item item1 = service.createItem(ItemCategory.OTHER, "Auto Reserved 1", "Mô tả",
+                3_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+        Item item2 = service.createItem(ItemCategory.OTHER, "Auto Reserved 2", "Mô tả",
+                2_000_000, seller.getId(), ItemCondition.NEW, new HashMap<>());
+
+        Auction auction1 = service.createAuction(item1.getId(), seller.getId(), 60, 1_000_000);
+        Auction auction2 = service.createAuction(item2.getId(), seller.getId(), 60, 1_000_000);
+
+        service.placeBid(auction1.getId(), bidder.getId(), 7_000_000);
+
+        assertThrows(RuntimeException.class, () ->
+                service.registerAutoBid(auction2.getId(), bidder.getId(), 4_000_000, 1_000_000));
     }
 
     // ==================== SINGLETON TEST ====================

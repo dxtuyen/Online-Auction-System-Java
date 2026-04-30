@@ -264,9 +264,10 @@ public class Main {
         printField("Bước nhảy", formatCurrency(a.getMinimumIncrement()));
         printField("Tổng bids", String.valueOf(a.getTotalBids()));
 
-        if (a.getHighestBidderID() > 0) {
-            User leader = service.getUser(a.getHighestBidderID());
-            printField("Dẫn đầu", leader != null ? leader.getUsername() : "ID " + a.getHighestBidderID());
+        Integer highestBidderId = a.getHighestBidderIdOrNull();
+        if (highestBidderId != null) {
+            User leader = service.getUser(highestBidderId);
+            printField("Dẫn đầu", leader != null ? leader.getUsername() : "ID " + highestBidderId);
         } else {
             printField("Dẫn đầu", "Chưa có người đặt giá");
         }
@@ -454,11 +455,13 @@ public class Main {
         printPrompt("Auction ID cần đóng");
         int id = readInt();
         try {
-            service.closeAuction(id);
+            // Console app cũng đi qua cùng rule phân quyền của service như server API.
+            service.closeAuction(id, currentUser.getId());
             Auction a = service.getAuction(id);
             printSuccess("Đã đóng phiên #" + id);
-            if (a.getHighestBidderID() > 0) {
-                User w = service.getUser(a.getHighestBidderID());
+            Integer highestBidderId = a.getHighestBidderIdOrNull();
+            if (highestBidderId != null) {
+                User w = service.getUser(highestBidderId);
                 printField("Người thắng", w != null ? w.getUsername() : "?");
                 printField("Giá chốt", formatCurrency(a.getCurrentPrice()));
             } else {

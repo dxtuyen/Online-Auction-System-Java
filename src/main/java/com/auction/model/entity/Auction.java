@@ -108,6 +108,10 @@ public class Auction extends Entity {
         return highestBidderId;
     }
 
+    public Integer getHighestBidderIdOrNull() {
+        return highestBidderId;
+    }
+
     public void setHighestBidderId(int highestBidderId) {
         this.highestBidderId = highestBidderId;
     }

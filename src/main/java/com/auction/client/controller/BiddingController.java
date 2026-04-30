@@ -197,7 +197,7 @@ public class BiddingController {
             if (num(data.get("auctionId")) != auctionId) return;
             Platform.runLater(() -> {
                 String status = str(data, "status");
-                if ("FINISHED".equals(status) || "CANCELED".equals(status)) {
+                if ("FINISHED".equals(status) || "PAID".equals(status) || "CANCELED".equals(status)) {
                     lblTimer.setText("Phiên đã kết thúc");
                     btnPlaceBid.setDisable(true);
                     txtBidAmount.setDisable(true);
