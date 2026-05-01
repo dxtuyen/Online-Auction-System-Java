@@ -7,7 +7,7 @@ import com.auction.model.enums.Role;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.ClientHandler;
-import com.auction.service.AuctionService;
+import com.auction.server.service.AuctionService;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

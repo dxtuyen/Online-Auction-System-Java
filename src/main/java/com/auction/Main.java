@@ -2,7 +2,7 @@ package com.auction;
 
 import com.auction.model.entity.*;
 import com.auction.model.enums.*;
-import com.auction.service.AuctionService;
+import com.auction.server.service.AuctionService;
 
 import java.util.*;
 
