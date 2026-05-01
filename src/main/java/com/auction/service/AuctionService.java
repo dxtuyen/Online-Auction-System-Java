@@ -2,7 +2,7 @@ package com.auction.service;
 
 import com.auction.model.entity.*;
 import com.auction.model.enums.*;
-import com.auction.observer.AuctionEventManager;
+import com.auction.server.observer.AuctionEventManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
