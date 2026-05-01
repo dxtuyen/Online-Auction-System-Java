@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.auction.service.AuctionServiceTest" time="0.184" tests="18" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.auction.protocol.JsonHelperTest" time="0.251" tests="8" errors="0" skipped="0" failures="0">
   <properties>
     <property name="java.specification.version" value="21"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
@@ -7,7 +7,6 @@
     <property name="java.vm.vendor" value="Ubuntu"/>
     <property name="sun.arch.data.model" value="64"/>
     <property name="java.vendor.url" value="https://ubuntu.com/"/>
-    <property name="user.timezone" value="Asia/Ho_Chi_Minh"/>
     <property name="os.name" value="Linux"/>
     <property name="java.vm.specification.version" value="21"/>
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
@@ -53,22 +52,12 @@
     <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
     <property name="java.class.version" value="65.0"/>
   </properties>
-  <testcase name="getBalanceSummary_bidder_success" classname="com.auction.service.AuctionServiceTest" time="0.049"/>
-  <testcase name="login_correctPassword_success" classname="com.auction.service.AuctionServiceTest" time="0.003"/>
-  <testcase name="register_duplicateUsername_throws" classname="com.auction.service.AuctionServiceTest" time="0.015"/>
-  <testcase name="placeBid_nonExistentAuction_throws" classname="com.auction.service.AuctionServiceTest" time="0.007"/>
-  <testcase name="registerAutoBid_insufficientBalance_throws" classname="com.auction.service.AuctionServiceTest" time="0.024"/>
-  <testcase name="login_wrongPassword_throws" classname="com.auction.service.AuctionServiceTest" time="0.018"/>
-  <testcase name="placeBid_insufficientBalance_throws" classname="com.auction.service.AuctionServiceTest" time="0.004"/>
-  <testcase name="placeBid_tooLow_throws" classname="com.auction.service.AuctionServiceTest" time="0.004"/>
-  <testcase name="register_newUser_success" classname="com.auction.service.AuctionServiceTest" time="0.001"/>
-  <testcase name="placeBid_reservedBalanceAcrossAuctions_throws" classname="com.auction.service.AuctionServiceTest" time="0.004"/>
-  <testcase name="closeAuction_withWinner_settlesBalances" classname="com.auction.service.AuctionServiceTest" time="0.003"/>
-  <testcase name="closeAuction_adminCanClose_success" classname="com.auction.service.AuctionServiceTest" time="0.002"/>
-  <testcase name="registerAutoBid_reservedBalance_throws" classname="com.auction.service.AuctionServiceTest" time="0.002"/>
-  <testcase name="placeBid_closedAuction_throws" classname="com.auction.service.AuctionServiceTest" time="0.003"/>
-  <testcase name="login_nonExistentUser_throws" classname="com.auction.service.AuctionServiceTest" time="0.002"/>
-  <testcase name="closeAuction_unauthorizedBidder_throws" classname="com.auction.service.AuctionServiceTest" time="0.003"/>
-  <testcase name="singleton_alwaysSameInstance" classname="com.auction.service.AuctionServiceTest" time="0.002"/>
-  <testcase name="placeBid_validAmount_success" classname="com.auction.service.AuctionServiceTest" time="0.002"/>
+  <testcase name="roundTrip_responsePreservesData" classname="com.auction.protocol.JsonHelperTest" time="0.16"/>
+  <testcase name="push_toJson_containsPushStatus" classname="com.auction.protocol.JsonHelperTest" time="0.005"/>
+  <testcase name="error_toJson_containsStatusAndMessage" classname="com.auction.protocol.JsonHelperTest" time="0.003"/>
+  <testcase name="getDataString_missingKey_returnsNull" classname="com.auction.protocol.JsonHelperTest" time="0.003"/>
+  <testcase name="toJson_request_correctFormat" classname="com.auction.protocol.JsonHelperTest" time="0.004"/>
+  <testcase name="roundTrip_requestPreservesData" classname="com.auction.protocol.JsonHelperTest" time="0.003"/>
+  <testcase name="success_toJson_containsStatus" classname="com.auction.protocol.JsonHelperTest" time="0.002"/>
+  <testcase name="parseRequest_validJson_correctObject" classname="com.auction.protocol.JsonHelperTest" time="0.002"/>
 </testsuite>

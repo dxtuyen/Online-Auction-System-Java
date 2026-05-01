@@ -104,23 +104,45 @@ public class Auction extends Entity {
         this.currentPrice = currentPrice;
     }
 
+    /**
+     * Trả về id người trả giá cao nhất.
+     *
+     * <p><b>Lưu ý:</b> phương thức này có thể ném {@link NullPointerException} nếu chưa có ai bid
+     * vì auto-unbox {@code Integer} sang {@code int}. Khi không chắc, dùng {@link #getHighestBidderIdOrNull()}.</p>
+     */
     public int getHighestBidderID() {
         return highestBidderId;
     }
 
+    /**
+     * Phiên bản an toàn của {@link #getHighestBidderID()} — trả về {@code null} nếu chưa có bid nào.
+     */
     public Integer getHighestBidderIdOrNull() {
         return highestBidderId;
     }
 
-    public void setHighestBidderId(int highestBidderId) {
+    /**
+     * Set người dẫn đầu mới. Cho phép {@code null} để reset khi auction bị huỷ.
+     */
+    public void setHighestBidderId(Integer highestBidderId) {
         this.highestBidderId = highestBidderId;
     }
 
     public double getMinimumIncrement() {
         return minimumIncrement;
     }
-    public void setMinimumBidIncrement(double minimumIncrement) {
+
+    /** Setter chuẩn theo JavaBean convention (match với {@link #getMinimumIncrement()}). */
+    public void setMinimumIncrement(double minimumIncrement) {
         this.minimumIncrement = minimumIncrement;
+    }
+
+    /**
+     * @deprecated dùng {@link #setMinimumIncrement(double)} cho đúng convention.
+     */
+    @Deprecated
+    public void setMinimumBidIncrement(double minimumIncrement) {
+        setMinimumIncrement(minimumIncrement);
     }
 
     public AuctionStatus getStatus() {
