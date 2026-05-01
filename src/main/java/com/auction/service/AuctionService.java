@@ -1,4 +1,4 @@
-package com.auction.server.service;
+package com.auction.service;
 
 import com.auction.model.entity.*;
 import com.auction.model.enums.*;
