@@ -2,6 +2,7 @@ package com.auction.service;
 
 import com.auction.model.entity.*;
 import com.auction.model.enums.*;
+import com.auction.server.service.AuctionService;
 import org.junit.jupiter.api.*;
 
 import java.util.HashMap;

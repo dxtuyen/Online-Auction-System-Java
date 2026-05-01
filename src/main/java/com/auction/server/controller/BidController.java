@@ -5,7 +5,7 @@ import com.auction.model.entity.User;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.ClientHandler;
-import com.auction.service.AuctionService;
+import com.auction.server.service.AuctionService;
 
 import java.util.*;
 
