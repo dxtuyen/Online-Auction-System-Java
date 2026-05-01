@@ -5,7 +5,7 @@ import com.auction.model.entity.Item;
 import com.auction.model.entity.User;
 import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
-import com.auction.observer.AuctionEventManager;
+import com.auction.server.observer.AuctionEventManager;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.ClientHandler;

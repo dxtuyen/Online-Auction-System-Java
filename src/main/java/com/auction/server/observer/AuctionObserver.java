@@ -1,4 +1,4 @@
-package com.auction.observer;
+package com.auction.server.observer;
 
 import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;

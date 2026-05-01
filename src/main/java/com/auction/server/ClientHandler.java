@@ -2,8 +2,8 @@ package com.auction.server;
 
 import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
-import com.auction.observer.AuctionEventManager;
-import com.auction.observer.AuctionObserver;
+import com.auction.server.observer.AuctionEventManager;
+import com.auction.server.observer.AuctionObserver;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.util.JsonHelper;
