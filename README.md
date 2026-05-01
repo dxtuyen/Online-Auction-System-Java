@@ -1,10 +1,10 @@
-# 🏛️ Hệ thống Đấu giá Trực tuyến
+# Hệ thống Đấu giá Trực tuyến
 
 ![Java CI](https://github.com/YOUR_USERNAME/Online-Auction-System-Java/actions/workflows/ci.yml/badge.svg)
 
 Hệ thống đấu giá Client-Server bằng Java 17, JavaFX, Socket TCP và JSON.
 
-## ✨ Tính năng
+## Tính năng
 
 ### Bắt buộc
 - Đăng ký / đăng nhập 3 vai trò (Bidder / Seller / Admin)
@@ -28,7 +28,7 @@ Hệ thống đấu giá Client-Server bằng Java 17, JavaFX, Socket TCP và JS
 - JUnit 5: AuctionServiceTest (19 tests) + JsonHelperTest (8 tests)
 - GitHub Actions CI/CD
 
-## 🚀 Cài đặt & Chạy
+## Cài đặt & Chạy
 
 ### Yêu cầu
 - JDK 17+
@@ -62,12 +62,12 @@ mvn exec:java -Dexec.mainClass="com.auction.Main"
 | seller1 | 123 | SELLER |
 | admin | 123 | ADMIN |
 
-## 🧪 Test
+## Test
 ```bash
 mvn test
 ```
 
-## 👥 Design Patterns
+##  Design Patterns
 
 | Pattern | Ở đâu | Mục đích |
 |---------|-------|----------|
@@ -75,7 +75,7 @@ mvn test
 | Factory Method | ItemFactory | Tạo Item theo category |
 | Observer | AuctionEventManager → ClientHandler | Realtime push bid mới |
 
-## 📋 CI/CD
+## CI/CD
 
 Workflow `.github/workflows/ci.yml` chạy tự động khi push hoặc tạo PR:
 1. Setup JDK 17 (Temurin)
