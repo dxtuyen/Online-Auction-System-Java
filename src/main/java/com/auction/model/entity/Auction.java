@@ -4,12 +4,10 @@ import com.auction.model.exception.AuctionClosedException;
 import com.auction.model.exception.IllegalAuctionStateException;
 import com.auction.model.exception.InvalidBidException;
 import com.auction.model.enums.AuctionStatus;
-import com.auction.model.enums.BidStatus;
 import com.auction.model.observer.AuctionObserver;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;

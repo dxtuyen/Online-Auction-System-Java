@@ -19,16 +19,19 @@ public class Seller extends User {
 
     // ============== CONSTRUCTORS ==============
 
-    public Seller(String username, String hashedPassword, String email, String fullName) {
-        this(username, hashedPassword, email, fullName, BigDecimal.ZERO);
-    }
-
+    /** LƯU Ý: cái này có dùng để tạo Seller để test hệ thống */
     public Seller(String username, String hashedPassword, String email,
                   String fullName, BigDecimal totalRevenue) {
         super(username, hashedPassword, email, fullName, Role.SELLER);
         this.totalRevenue = validateRevenue(totalRevenue);
     }
 
+    /** Tạo Seller mới với số dư 0 */
+    public Seller(String username, String hashedPassword, String email, String fullName) {
+        this(username, hashedPassword, email, fullName, BigDecimal.ZERO);
+    }
+
+    /** Load từ DB */
     public Seller(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                   String username, String hashedPassword, String email,
                   String fullName, UserStatus status, BigDecimal totalRevenue) {

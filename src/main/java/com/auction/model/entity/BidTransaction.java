@@ -65,7 +65,7 @@ public class BidTransaction extends Entity {
     private void changeStatus(BidStatus newStatus) {
         if (this.status == newStatus) return;
         if (!this.status.canTransitionTo(newStatus)) {
-            throw new IllegalStateException(
+            throw  new IllegalStateException(
                     "Không thể chuyển bid từ " + status + " sang " + newStatus);
         }
         this.status = newStatus;

@@ -23,16 +23,16 @@ public class Bidder extends User {
 
     // ============== CONSTRUCTORS ==============
 
-    /** Tạo bidder mới với balance = 0 */
-    public Bidder(String username, String hashedPassword, String email, String fullName) {
-        this(username, hashedPassword, email, fullName, BigDecimal.ZERO);
-    }
-
-    /** Tạo bidder mới + balance ban đầu */
+    /** Tạo bidder mới + balance ban đầu, có dùng để test */
     public Bidder(String username, String hashedPassword, String email,
                   String fullName, BigDecimal initialBalance) {
         super(username, hashedPassword, email, fullName, Role.BIDDER);
         this.balance = validateBalance(initialBalance);
+    }
+
+    /** Tạo bidder mới với balance = 0 */
+    public Bidder(String username, String hashedPassword, String email, String fullName) {
+        this(username, hashedPassword, email, fullName, BigDecimal.ZERO);
     }
 
     /** Restore từ DB */
@@ -82,6 +82,7 @@ public class Bidder extends User {
 
     // ============== VALIDATION ==============
 
+    /** Kiểm tra số dư có valid khng */
     private static BigDecimal validateBalance(BigDecimal balance) {
         Objects.requireNonNull(balance, "balance must not be null");
         if (balance.compareTo(BigDecimal.ZERO) < 0) {
@@ -90,6 +91,7 @@ public class Bidder extends User {
         return balance;
     }
 
+    /** Kiểm tra tiền để bid có hợp lệ không */
     private static void validatePositiveAmount(BigDecimal amount) {
         Objects.requireNonNull(amount, "amount must not be null");
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {

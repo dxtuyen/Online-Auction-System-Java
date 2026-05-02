@@ -1,8 +1,10 @@
 package com.auction;
 
+import com.auction.model.enums.ItemCategory;
+import com.auction.model.enums.ItemCondition;
+import com.auction.model.enums.Role;
 import com.auction.model.entity.*;
-import com.auction.model.enums.*;
-import com.auction.service.AuctionService;
+import com.auction.model.service.AuctionService;
 
 import java.util.*;
 

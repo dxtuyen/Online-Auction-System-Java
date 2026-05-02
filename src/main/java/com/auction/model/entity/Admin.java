@@ -47,12 +47,12 @@ public class Admin extends User {
      */
     public void banUser(User target) {
         if (!canManageSystem()) {
-            throw new IllegalStateException("Admin hiện không active, không thể thao tác");
+            throw new IllegalStateException("Quyền Admin hiện không được active, không thể thao tác");
         }
         if (target == this) {
             throw new IllegalArgumentException("Admin không thể tự khóa mình");
         }
-        target.ban();
+        target.ban(); /** Method ban() ở User */
     }
 
     /** Kích hoạt lại user đã bị khóa */
@@ -60,7 +60,7 @@ public class Admin extends User {
         if (!canManageSystem()) {
             throw new IllegalStateException("Admin hiện không active, không thể thao tác");
         }
-        target.activate();
+        target.activate(); /** Method active() ở User */
     }
 
     // ============== PERMISSIONS ==============

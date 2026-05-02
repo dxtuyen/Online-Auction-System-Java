@@ -23,7 +23,16 @@ public abstract class User extends Entity {
 
     private static final long serialVersionUID = 1L;
 
-    // Pattern email cơ bản, đủ dùng cho project. Production có thể dùng Apache Commons Validator
+    // Pattern email cơ bản (check valid email). Production có thể dùng Apache Commons Validator
+    /*
+    ^: chuỗi bắt đầu với ....
+    []: những kí tự hợp lệ
+    -: từ kí tự nào đến kí tự nào, ví dụ: 0-9 = từ 0 đến 9
+    +: có thể lặp lại nhiều lần (phải xuất hiện ít nhất một lần)
+    @: bắt buộc có @
+    \\.: phải có dấu chấm
+    {2,}$: ít nhất 2 ký tự và phải ở cuối
+     */
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})$");
 
