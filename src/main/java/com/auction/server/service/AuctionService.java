@@ -91,7 +91,7 @@ public class AuctionService {
 
     // ======================== USER ========================
 
-    public User register(String username, String password, Role role, double extraValue) {
+    public User register(String username, String password, Role role, double balance, double revenue) {
         for (User u : users.values()) {
             if (u.getUsername().equals(username)) {
                 throw new RuntimeException("Username '" + username + "' đã được sử dụng!");
@@ -99,11 +99,12 @@ public class AuctionService {
         }
 
         int id = userIdCounter.incrementAndGet();
-        User user = switch (role) {
+        User user = new User(id, username, password, role, balance, revenue);
+        /*User user = switch (role) {
             case BIDDER -> new Bidder(id, username, password, extraValue);
             case SELLER -> new Seller(id, username, password, extraValue);
             case ADMIN  -> new Admin(id, username, password, extraValue);
-        };
+        };*/
 
         users.put(id, user);
         return user;
@@ -134,23 +135,23 @@ public class AuctionService {
      * <p>Con số này chưa bị trừ khỏi ví thật, nhưng vẫn phải được trừ khỏi sức mua còn lại
      * để bidder không thể cam kết vượt quá số tiền mình thực sự có.</p>
      */
-    public double getReservedBalance(int bidderId) {
-        User bidder = users.get(bidderId);
-        if (!(bidder instanceof Bidder)) {
+    public double getReservedBalance(int userId) {
+        User user = users.get(userId);
+        if (!(user.getRole() == Role.BIDDER)) {
             throw new RuntimeException("Bidder không hợp lệ!");
         }
-        return calculateReservedAmount(bidderId, -1);
+        return calculateReservedAmount(userId, -1);
     }
 
     /**
      * Trả về số dư khả dụng thực tế của bidder sau khi trừ phần đang reserve ở các auction khác.
      */
-    public double getAvailableBalance(int bidderId) {
-        User bidder = users.get(bidderId);
-        if (!(bidder instanceof Bidder bidderEntity)) {
-            throw new RuntimeException("Bidder không hợp lệ!");
+    public double getAvailableBalance(int userId) {
+        User user = users.get(userId);
+        if (!(user.getRole() == Role.BIDDER)) {
+            throw new RuntimeException("Bidder không hợp lệ");
         }
-        return bidderEntity.getBalance() - getReservedBalance(bidderId);
+        return user.getBalance() - getReservedBalance(userId);
     }
 
     // ======================== ITEM ========================
@@ -286,14 +287,13 @@ public class AuctionService {
         User bidder = users.get(bidderId);
         if (bidder == null || bidder.getRole() != Role.BIDDER)
             throw new RuntimeException("Bidder không hợp lệ!");
-        Bidder bidderEntity = (Bidder) bidder;
         BidTransaction bid;
         // Ngoài lock auction, ta khóa tiếp theo user để việc đọc reserve + ghi bid là một
         // transaction logic nguyên khối đối với riêng bidder đó.
         ReentrantLock userLock = getUserLock(bidderId);
         userLock.lock();
         try {
-            ensureBidderCanCoverAmount(bidderEntity, auctionId, bidAmount);
+            ensureBidderCanCoverAmount(bidder, auctionId, bidAmount);
 
             int bidId = bidIdCounter.incrementAndGet();
             bid = new BidTransaction(auctionId, bidderId, bidAmount);
@@ -355,8 +355,8 @@ public class AuctionService {
      * Nó bằng balance thật trừ đi phần tiền đang bị giữ chỗ ở các auction khác
      * mà bidder đang dẫn đầu.</p>
      */
-    private void ensureBidderCanCoverAmount(Bidder bidder, int auctionId, double targetAmount) {
-        double maxAffordableBid = calculateMaxAffordableBid(bidder.getId(), auctionId);
+    private void ensureBidderCanCoverAmount(User user, int auctionId, double targetAmount) {
+        double maxAffordableBid = calculateMaxAffordableBid(user.getId(), auctionId);
         if (targetAmount > maxAffordableBid) {
             throw new RuntimeException(String.format(
                     "Số dư khả dụng không đủ để đặt giá %,.0f (khả dụng: %,.0f)",
@@ -371,10 +371,10 @@ public class AuctionService {
      * trên chính auction mình đang dẫn đầu. Nếu không loại trừ, bidder sẽ bị "tự khóa"
      * vì bid cũ của chính họ cũng bị tính là tiền đã giữ chỗ.</p>
      */
-    private double calculateMaxAffordableBid(int bidderId, int auctionId) {
-        Bidder bidder = (Bidder) users.get(bidderId);
-        double reservedAmount = calculateReservedAmount(bidderId, auctionId);
-        return bidder.getBalance() - reservedAmount;
+    private double calculateMaxAffordableBid(int userId, int auctionId) {
+        User user = users.get(userId);
+        double reservedAmount = calculateReservedAmount(userId, auctionId);
+        return user.getBalance() - reservedAmount;
     }
 
     /**
@@ -384,14 +384,14 @@ public class AuctionService {
      * auction nào bidder đang dẫn đầu thì {@code currentPrice} của auction đó được coi là đang giữ chỗ.
      * Khi bidder bị outbid, reserve được giải phóng tự động vì leader đã đổi sang người khác.</p>
      */
-    private double calculateReservedAmount(int bidderId, int excludeAuctionId) {
+    private double calculateReservedAmount(int userId, int excludeAuctionId) {
         double reserved = 0;
         for (Auction currentAuction : auctions.values()) {
             if (currentAuction.getId() == excludeAuctionId) continue;
             if (currentAuction.getStatus() != AuctionStatus.RUNNING) continue;
 
             Integer highestBidderId = currentAuction.getHighestBidderIdOrNull();
-            if (highestBidderId != null && highestBidderId == bidderId) {
+            if (highestBidderId != null && highestBidderId == userId) {
                 reserved += currentAuction.getCurrentPrice();
             }
         }
@@ -450,22 +450,22 @@ public class AuctionService {
             try {
                 User bidderUser = users.get(highestBidderId);
                 User sellerUser = users.get(sellerId);
-                if (!(bidderUser instanceof Bidder bidder)) {
+                if (!(bidderUser.getRole() == Role.BIDDER)) {
                     throw new RuntimeException("Người thắng không hợp lệ!");
                 }
-                if (!(sellerUser instanceof Seller seller)) {
+                if (!(sellerUser.getRole() == Role.SELLER)) {
                     throw new RuntimeException("Seller không hợp lệ!");
                 }
 
                 // finalPrice chính là giá thắng cuộc tại thời điểm auction kết thúc.
                 double finalPrice = auction.getCurrentPrice();
-                if (bidder.getBalance() < finalPrice) {
+                if (bidderUser.getBalance() < finalPrice) {
                     throw new RuntimeException(String.format(
                             "Người thắng không đủ số dư để thanh toán %,.0f", finalPrice));
                 }
 
-                bidder.setBalance(bidder.getBalance() - finalPrice);
-                seller.setTotalRevenue(seller.getTotalRevenue() + finalPrice);
+                bidderUser.setBalance(bidderUser.getBalance() - finalPrice);
+                sellerUser.setRevenue(sellerUser.getRevenue() + finalPrice);
                 auction.transitionTo(AuctionStatus.PAID);
             } finally {
                 if (secondUserId != firstUserId) {
@@ -497,7 +497,7 @@ public class AuctionService {
         ReentrantLock userLock = getUserLock(bidderId);
         userLock.lock();
         try {
-            ensureBidderCanCoverAmount((Bidder) bidder, auctionId, maxBid);
+            ensureBidderCanCoverAmount(bidder, auctionId, maxBid);
         } finally {
             userLock.unlock();
         }
@@ -555,10 +555,10 @@ public class AuctionService {
     // ======================== SEED DATA ========================
 
     public void seedData() {
-        register("alice", "123", Role.BIDDER, 100_000_000);
-        register("bob", "123", Role.BIDDER, 100_000_000);
-        register("seller1", "123", Role.SELLER, 0);
-        register("admin", "123", Role.ADMIN, 0);
+        register("alice", "123", Role.BIDDER, 100_000_000, 0);
+        register("bob", "123", Role.BIDDER, 100_000_000, 0);
+        register("seller1", "123", Role.SELLER, 0, 0);
+        register("admin", "123", Role.ADMIN, 0, 0);
 
         createItem(ItemCategory.ELECTRONICS, "MacBook Pro M3", "Mới nguyên seal, BH 12 tháng",
                 35_000_000, 3, ItemCondition.NEW,

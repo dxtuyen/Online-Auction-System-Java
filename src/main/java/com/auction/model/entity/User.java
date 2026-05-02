@@ -3,7 +3,7 @@ package com.auction.model.entity;
 import com.auction.model.enums.Role;
 import com.auction.model.enums.UserStatus;
 
-public abstract class User extends Entity {
+public class User extends Entity {
 
     private static final long serialVersionUID = 1L;
 
@@ -11,25 +11,31 @@ public abstract class User extends Entity {
     private String password; //mật khẩu
     private Role role; //vai trò(BIDDER/SELLER/ADMIN)
     private UserStatus userStatus; //trạng thái của tài khoản(ACTIVE/BANNED)
+    private double balance;
+    private double revenue;
 
     public User() {
         super();
     }
 
-    public User(String username, String password, Role role) {
+    public User(String username, String password, Role role, double balance, double revenue) {
         super();
         this.username = username;
         this.password = password;
         this.role = role;
         this.userStatus = UserStatus.ACTIVE;
+        this.balance = balance;
+        this.revenue = revenue;
     }
 
-    public User(int id, String username, String password, Role role) {
+    public User(int id, String username, String password, Role role, double balance, double revenue) {
         super(id);
         this.username = username;
         this.password = password;
         this.role = role;
         this.userStatus = UserStatus.ACTIVE;
+        this.balance = balance;
+        this.revenue = revenue;
     }
 
     //Getter & Setter
@@ -73,6 +79,22 @@ public abstract class User extends Entity {
         this.userStatus = userStatus;
     }
 
+    public double getBalance() {
+        return balance;
+    }
+
+    public void setBalance(double balance) {
+        this.balance = balance;
+    }
+
+    public double getRevenue() {
+        return revenue;
+    }
+
+    public void setRevenue(double revenue) {
+        this.revenue = revenue;
+    }
+
     //Methods
     @Override
     public String toString() {
@@ -84,3 +106,121 @@ public abstract class User extends Entity {
                 '}';
     }
 }
+
+/*
+package com.auction.model.entity;
+
+import com.auction.model.enums.Role;
+
+public class Seller1 extends User {
+
+    private static final long serialVersionUID = 1L;
+
+    private double totalRevenue; //doanh thu
+
+    public Seller() {
+        super();
+    }
+
+    public Seller(String username, String password, double totalRevenue) {
+        super(username, password, Role.SELLER);
+        this.totalRevenue = totalRevenue;
+    }
+
+    public Seller(int id, String username, String password, double totalRevenue) {
+        super(id, username, password, Role.SELLER);
+        this.totalRevenue = totalRevenue;
+    }
+
+    //Getter & Setter
+
+    public double getTotalRevenue() {
+        return totalRevenue;
+    }
+
+    public void setTotalRevenue(double totalRevenue) {
+        this.totalRevenue = totalRevenue;
+    }
+
+    //Methods
+    @Override
+    public String toString() {
+        return "Seller{" +
+            "totalRevenue=" + totalRevenue +
+            '}';
+    }
+}
+
+package com.auction.model.entity;
+
+import com.auction.model.enums.Role;
+
+public class Bidder1 extends User {
+
+    private static final long serialVersionUID = 1L;
+
+    private double balance; //số dư
+
+    public Bidder() {
+        super();
+    }
+
+    public Bidder(String username, String password, double balance) {
+        super(username, password, Role.BIDDER);
+        this.balance = balance;
+    }
+
+    public Bidder(int id, String username, String password, double balance) {
+        super(id, username, password, Role.BIDDER);
+        this.balance = balance;
+    }
+
+    //Getter & Setter
+
+    public double getBalance() {
+        return balance;
+    }
+
+    public void setBalance(double balance) {
+        this.balance = balance;
+    }
+
+    //Methods
+    @Override
+    public String toString() {
+        return "Bidder{" +
+            "balance=" + balance +
+            '}';
+    }
+}
+
+package com.auction.model.entity;
+
+import com.auction.model.enums.Role;
+
+public class Admin1 extends User {
+
+    private static final long serialVersionUID = 1L;
+
+    public Admin() {
+        super();
+    }
+
+    public Admin(String username, String password, double totalRevenue) {
+        super(username, password, Role.ADMIN);
+    }
+
+    public Admin(int id, String username, String password, double totalRevenue) {
+        super(id, username, password, Role.ADMIN);
+    }
+
+    //Methods
+    @Override
+    public String toString() {
+        return "Admin{" +
+            "username=" + super.getUsername() +
+            '}';
+    }
+}
+*/
+

@@ -1,7 +1,5 @@
 package com.auction.server.controller;
 
-import com.auction.model.entity.Bidder;
-import com.auction.model.entity.Seller;
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
 import com.auction.protocol.Request;
@@ -47,10 +45,11 @@ public class UserController {
         String username = req.getDataString("username");
         String password = req.getDataString("password");
         String roleStr = req.getDataString("role");
-        double extra = req.getDataDouble("extra");
+        double balance = req.getDataDouble("balance");
+        double revenue = req.getDataDouble("revenue");
 
         Role role = Role.valueOf(roleStr);
-        User user = service.register(username, password, role, extra);
+        User user = service.register(username, password, role, balance, revenue);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("userId", user.getId());
@@ -89,13 +88,11 @@ public class UserController {
         data.put("status", user.getUserStatus().name());
         data.put("displayStatus", user.getUserStatus().getDisplayStatus());
 
-        if (user instanceof Bidder bidder) {
-            data.put("balance", bidder.getBalance());
-            data.put("reservedBalance", service.getReservedBalance(userId));
-            data.put("availableBalance", service.getAvailableBalance(userId));
-        } else if (user instanceof Seller seller) {
-            data.put("totalRevenue", seller.getTotalRevenue());
-        }
+        data.put("balance", user.getBalance());
+        data.put("reservedBalance", service.getReservedBalance(userId));
+        data.put("availableBalance", service.getAvailableBalance(userId));
+        data.put("totalRevenue", user.getRevenue());
+
 
         return Response.success("GET_PROFILE", null, data);
     }

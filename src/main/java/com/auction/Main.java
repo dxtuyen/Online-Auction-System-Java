@@ -130,25 +130,12 @@ public class Main {
         int roleChoice = readInt();
 
         Role role;
-        double extra;
-        // switch này dùng để xác định vai trò tài khoản dựa trên số người dùng chọn.
-        // Mỗi case tương ứng với một vai trò cụ thể.
-        switch (roleChoice) {
-            // case 1: tạo tài khoản kiểu Bidder và nhập thêm số dư ban đầu.
-            case 1 -> {
-                role = Role.BIDDER;
-                printPrompt("Số dư ban đầu (VNĐ)");
-                extra = readDouble();
-                if (extra <= 0) extra = 10_000_000;
-            }
-            // case 2: tạo tài khoản kiểu Seller, không cần số dư ban đầu.
-            case 2 -> { role = Role.SELLER; extra = 0; }
-            // default: chạy khi giá trị nhập vào không khớp case nào ở trên.
-            default -> { printError("Lựa chọn không hợp lệ."); return; }
-        }
+        double balance = 0;
+        double revenue = 0;
+        role = roleChoice == 1 ? Role.BIDDER : Role.SELLER;
 
         try {
-            User user = service.register(username, password, role, extra);
+            User user = service.register(username, password, role, balance, revenue);
             printSuccess(String.format("Tạo tài khoản thành công. ID: %d", user.getId()));
             printLine("Hãy đăng nhập để tiếp tục.");
         } catch (RuntimeException e) {
@@ -172,16 +159,11 @@ public class Main {
         printOption(1, "Xem danh sách phiên đấu giá");
         printOption(2, "Xem chi tiết phiên");
         printOption(4, "Xem thông tin tài khoản");
-
-        if (currentUser instanceof Bidder) {
-            printOption(3, "Đặt giá");
-        }
-        if (currentUser instanceof Seller) {
-            printOption(5, "Thêm sản phẩm");
-            printOption(6, "Tạo phiên đấu giá");
-            printOption(7, "Xem sản phẩm của tôi");
-            printOption(8, "Đóng phiên");
-        }
+        printOption(3, "Đặt giá");
+        printOption(5, "Thêm sản phẩm");
+        printOption(6, "Tạo phiên đấu giá");
+        printOption(7, "Xem sản phẩm của tôi");
+        printOption(8, "Đóng phiên");
         printOption(9, "Đăng xuất");
         printPrompt("Chọn");
 
@@ -195,18 +177,18 @@ public class Main {
             case 2 -> viewAuctionDetail();
             // Các thao tác đặt giá chỉ dành cho bidder.
             // case 3: bidder đặt giá cho một phiên.
-            case 3 -> { if (currentUser instanceof Bidder) handlePlaceBid(); }
+            case 3 -> { handlePlaceBid(); }
             // case 4: mọi role đều có thể xem thông tin tài khoản của chính mình.
             case 4 -> showAccountInfo();
             // Các thao tác quản lý hàng hóa và phiên đấu giá chỉ dành cho seller.
             // case 5: seller thêm sản phẩm mới.
-            case 5 -> { if (currentUser instanceof Seller) handleCreateItem(); }
+            case 5 -> { handleCreateItem(); }
             // case 6: seller tạo phiên đấu giá từ sản phẩm đã có.
-            case 6 -> { if (currentUser instanceof Seller) handleCreateAuction(); }
+            case 6 -> { handleCreateAuction(); }
             // case 7: seller xem danh sách sản phẩm của mình.
-            case 7 -> { if (currentUser instanceof Seller) listMyItems(); }
+            case 7 -> { listMyItems(); }
             // case 8: seller đóng một phiên đấu giá.
-            case 8 -> { if (currentUser instanceof Seller) handleCloseAuction(); }
+            case 8 -> { handleCloseAuction(); }
             // case 9: đăng xuất khỏi tài khoản hiện tại.
             case 9 -> { currentUser = null; printSuccess("Đã đăng xuất."); }
         }
@@ -223,16 +205,12 @@ public class Main {
         printField("Username", currentUser.getUsername());
         printField("Vai trò", currentUser.getRole().getDisplayRole());
         printField("Trạng thái", currentUser.getUserStatus().getDisplayStatus());
-
-        if (currentUser instanceof Bidder bidder) {
-            double reserved = service.getReservedBalance(bidder.getId());
-            double available = service.getAvailableBalance(bidder.getId());
-            printField("Số dư ví", formatCurrency(bidder.getBalance()));
-            printField("Đang giữ chỗ", formatCurrency(reserved));
-            printField("Số dư khả dụng", formatCurrency(available));
-        } else if (currentUser instanceof Seller seller) {
-            printField("Doanh thu", formatCurrency(seller.getTotalRevenue()));
-        }
+        double reserved = service.getReservedBalance(currentUser.getId());
+        double available = service.getAvailableBalance(currentUser.getId());
+        printField("Số dư ví", formatCurrency(currentUser.getBalance()));
+        printField("Đang giữ chỗ", formatCurrency(reserved));
+        printField("Số dư khả dụng", formatCurrency(available));
+        printField("Doanh thu", formatCurrency(currentUser.getRevenue()));
     }
 
     // ==================== XEM PHIÊN ====================
