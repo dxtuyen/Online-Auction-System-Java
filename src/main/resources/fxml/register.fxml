@@ -1,48 +1,60 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?import javafx.scene.layout.*?>
+
+<?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
-<?import javafx.geometry.Insets?>
-<?import javafx.collections.FXCollections?>
-<?import java.lang.String?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
 
-<BorderPane xmlns:fx="http://javafx.com/fxml"
-            fx:controller="com.auction.client.controller.RegisterController"
-            prefWidth="920" prefHeight="620"
-            style="-fx-background-color: #f8fafc;">
-
-    <center>
-        <VBox alignment="CENTER" spacing="12" maxWidth="380" styleClass="card">
-            <padding><Insets top="32" right="32" bottom="32" left="32"/></padding>
-
-            <Label text="📝" style="-fx-font-size: 40;"/>
-            <Label text="Đăng ký tài khoản"
-                   style="-fx-font-size: 20; -fx-font-weight: bold;"/>
-
-            <TextField fx:id="txtUsername" promptText="Tên đăng nhập"
-                       prefHeight="38" styleClass="text-input"/>
-            <PasswordField fx:id="txtPassword" promptText="Mật khẩu"
-                           prefHeight="38" styleClass="text-input"/>
-
-            <ComboBox fx:id="cboRole" promptText="Chọn vai trò"
-                      prefWidth="320" prefHeight="38">
-                <items>
-                    <FXCollections fx:factory="observableArrayList">
-                        <String fx:value="BIDDER"/>
-                        <String fx:value="SELLER"/>
-                    </FXCollections>
-                </items>
-            </ComboBox>
-
-            <TextField fx:id="txtExtra" promptText="Số dư ban đầu (VNĐ) — Bidder"
-                       prefHeight="38" styleClass="text-input"/>
-
-            <Label fx:id="lblError" styleClass="error-label" wrapText="true"/>
-
-            <Button fx:id="btnRegister" text="Đăng ký"
-                    onAction="#handleRegister"
-                    prefWidth="320" prefHeight="40" styleClass="btn-primary"/>
-
-            <Hyperlink text="← Quay lại đăng nhập" onAction="#goToLogin"/>
+<AnchorPane prefHeight="500.0" prefWidth="700.0" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.controller.RegisterController">
+    <children>
+        <VBox alignment="CENTER" style="-fx-background-color: #f1f5f9;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+            <children>
+                <VBox alignment="TOP_CENTER" maxWidth="400.0" prefWidth="400.0" spacing="15.0" style="-fx-background-color: white; -fx-background-radius: 15; -fx-border-color: #e2e8f0; -fx-border-radius: 15; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 5);">
+                    <padding>
+                        <Insets bottom="30.0" left="30.0" right="30.0" top="30.0" />
+                    </padding>
+                    <children>
+                        <Label text="Sign Up" textFill="#000000d1">
+                            <font>
+                                <Font name="System Bold" size="24.0" />
+                            </font>
+                        </Label>
+                        <VBox spacing="5.0">
+                            <children>
+                                <Label text="Tên đăng nhập" textFill="#64748b" />
+                                <TextField fx:id="txtUsername" prefHeight="40.0" promptText="Nhập tên đăng nhập" style="-fx-background-radius: 8; -fx-border-color: #cbd5e1; -fx-border-radius: 8;" />
+                            </children>
+                        </VBox>
+                        <VBox spacing="5.0">
+                            <children>
+                                <Label text="Mật Khẩu" textFill="#64748b" />
+                                <PasswordField fx:id="txtPassword" prefHeight="40.0" promptText="Nhập mật khẩu" style="-fx-background-radius: 8; -fx-border-color: #cbd5e1; -fx-border-radius: 8;" />
+                            </children>
+                        </VBox>
+                        <VBox spacing="5.0">
+                            <children>
+                                <Label text="Số dư ban đầu" textFill="#64748b" />
+                                <TextField fx:id="txtInitialBalance" prefHeight="40.0" promptText="nhập số tiền" style="-fx-background-radius: 8; -fx-border-color: #cbd5e1; -fx-border-radius: 8;" />
+                            </children>
+                        </VBox>
+                        <Button fx:id="btnRegister" maxWidth="1.7976931348623157E308" mnemonicParsing="false" onAction="#handleDoRegister" prefHeight="45.0" style="-fx-background-color: #2563eb; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8; -fx-cursor: hand;" text="Đăng ký">
+                            <font>
+                                <Font size="14.0" />
+                            </font>
+                            <VBox.margin>
+                                <Insets top="10.0" />
+                            </VBox.margin></Button>
+                        <HBox alignment="CENTER">
+                            <children>
+                                <Hyperlink onAction="#handleBackToLogin" text="Quay lại đăng nhập" />
+                            </children>
+                        </HBox>
+                    </children>
+                </VBox>
+            </children>
+            <padding>
+                <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+            </padding>
         </VBox>
-    </center>
-</BorderPane>
+    </children>
+</AnchorPane>
