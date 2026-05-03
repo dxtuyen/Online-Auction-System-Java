@@ -6,14 +6,16 @@
 }
 
 /* =============== HEADER =============== */
+
 .header-bar {
     -fx-background-color: white;
-    -fx-padding: 12 20;
+    -fx-padding: 10 20 10 20;
     -fx-border-color: #e5e7eb;
     -fx-border-width: 0 0 1 0;
 }
+
 .header-title {
-    -fx-font-size: 16px;
+    -fx-font-size: 15px;
     -fx-font-weight: bold;
     -fx-text-fill: #1f2937;
 }
@@ -30,38 +32,52 @@
 .btn-primary:hover { -fx-background-color: #1d4ed8; }
 .btn-primary:disabled { -fx-opacity: 0.5; }
 
+/* Nút viền xanh — hành động phụ: Tài khoản, Refresh, Đăng xuất */
 .btn-secondary {
-    -fx-background-color: white;
-    -fx-text-fill: #2563eb;
-    -fx-border-color: #2563eb;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
-    -fx-padding: 6 16;
-    -fx-cursor: hand;
+    -fx-background-color: #ffffff;
+     -fx-border-color: #2563eb;
+     -fx-border-radius: 6;
+     -fx-background-radius: 6;
+     -fx-text-fill: #2563eb;
+     -fx-padding: 5 12;
+     -fx-cursor: hand;
 }
-.btn-secondary:hover { -fx-background-color: #eff6ff; }
-
 /* =============== INPUT =============== */
 .text-input {
-    -fx-padding: 8 12;
-    -fx-background-radius: 6;
-    -fx-border-radius: 6;
+    -fx-background-color: white;
     -fx-border-color: #d1d5db;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 8 12 8 12;
     -fx-font-size: 13px;
+    -fx-text-fill: #1f2937;
+    -fx-prompt-text-fill: #9ca3af;
 }
+
 .text-input:focused {
     -fx-border-color: #2563eb;
     -fx-border-width: 2;
 }
 
 /* =============== LABELS =============== */
-.error-label {
+.label-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f2937;
+}
+
+.label-error {
     -fx-text-fill: #dc2626;
     -fx-font-size: 12px;
 }
-.muted-label {
+.label-muted {
     -fx-text-fill: #6b7280;
     -fx-font-size: 12px;
+}
+
+.label-price {
+    -fx-text-fill: #059669;
+    -fx-font-weight: bold;
 }
 
 /* =============== CARD =============== */
@@ -92,14 +108,17 @@
 }
 
 /* =============== TABLE =============== */
+.table-view {
+    -fx-border-color: #e5e7eb;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
 .table-view .column-header {
     -fx-background-color: #f1f5f9;
     -fx-font-weight: bold;
 }
-.table-view {
-    -fx-border-color: #e5e7eb;
-    -fx-border-radius: 6;
-}
+
 
 /* =============== CHART =============== */
 .chart-series-line {
