@@ -2,12 +2,24 @@
 
 <?import java.net.URL?>
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.chart.*?>
-<?import javafx.scene.control.*?>
-<?import javafx.scene.layout.*?>
+<?import javafx.scene.chart.CategoryAxis?>
+<?import javafx.scene.chart.LineChart?>
+<?import javafx.scene.chart.NumberAxis?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<BorderPane prefHeight="620" prefWidth="920" style="-fx-background-color: #f8fafc;" xmlns:fx="http://javafx.com/fxml/1" xmlns="http://javafx.com/javafx/26" fx:controller="com.auction.client.controller.BiddingController">
+<BorderPane prefHeight="620" prefWidth="920" style="-fx-background-color: #f8fafc;" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.controller.BiddingController">
     <stylesheets>
         <URL value="@../css/style.css" />
     </stylesheets>
@@ -33,19 +45,9 @@
       </HBox>
    </top>
    <center>
-      <GridPane hgap="16.0" BorderPane.alignment="CENTER">
-        <columnConstraints>
-          <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
-          <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
-        </columnConstraints>
-        <rowConstraints>
-          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
-        </rowConstraints>
-         <padding>
-            <Insets bottom="16.0" left="18.0" right="18.0" top="16.0" />
-         </padding>
+      <HBox prefHeight="100.0" spacing="16.0" BorderPane.alignment="CENTER">
          <children>
-            <VBox prefHeight="200.0" prefWidth="100.0" spacing="14.0">
+            <VBox prefHeight="200.0" prefWidth="100.0" spacing="14.0" HBox.hgrow="ALWAYS">
                <children>
                   <VBox prefHeight="331.0" prefWidth="442.0" styleClass="card">
                      <children>
@@ -131,9 +133,9 @@
                         </GridPane>
                      </children>
                   </VBox>
-                  <VBox prefHeight="200.0" prefWidth="100.0" styleClass="card">
+                  <VBox prefHeight="157.0" prefWidth="399.0" styleClass="card">
                      <children>
-                        <Label text="💰 Đặt giá" textFill="#6b7280">
+                        <Label text="💰 Đặt giá">
                            <font>
                               <Font size="15.0" />
                            </font>
@@ -149,17 +151,17 @@
                         </HBox>
                      </children>
                   </VBox>
-                  <VBox prefHeight="114.0" prefWidth="442.0" style="-fx-background-color: #f0f9ff; box-border-color: #bae6fd;" styleClass="card">
+                  <VBox style="-fx-background-color: #f0f9ff; box-border-color: #bae6fd;" styleClass="card">
                      <children>
-                        <Label text="🤖 Auto-Bid — Đặt giá tự động" textFill="#6b7280">
+                        <Label text="🤖 Auto-Bid — Đặt giá tự động">
                            <font>
                               <Font size="15.0" />
                            </font>
                         </Label>
                         <HBox alignment="CENTER_LEFT" prefHeight="100.0" prefWidth="200.0" spacing="8.0">
                            <children>
-                              <TextField fx:id="txtMaxBid" prefHeight="36.0" prefWidth="162.0" promptText="Giá tối đa" styleClass="text-input" />
-                              <TextField fx:id="txtIncrementAuto" prefHeight="36.0" prefWidth="141.0" promptText="Bước nhảy" styleClass="text-input" />
+                              <TextField fx:id="txtMaxBid" prefHeight="36.0" prefWidth="139.0" promptText="Giá tối đa" styleClass="text-input" />
+                              <TextField fx:id="txtIncrementAuto" prefHeight="36.0" prefWidth="124.0" promptText="Bước nhảy" styleClass="text-input" />
                               <Button mnemonicParsing="false" onAction="#handleSetAutoBid" styleClass="btn-secondary" text="Đăng ký" />
                            </children>
                            <padding>
@@ -176,10 +178,10 @@
                   </VBox>
                </children>
                <padding>
-                  <Insets bottom="5.0" top="5.0" />
+                  <Insets bottom="5.0" left="5.0" top="5.0" />
                </padding>
             </VBox>
-            <VBox prefHeight="200.0" prefWidth="100.0" spacing="14.0" GridPane.columnIndex="1">
+            <VBox alignment="CENTER_LEFT" prefHeight="200.0" prefWidth="100.0" spacing="14.0" HBox.hgrow="ALWAYS">
                <children>
                   <VBox prefHeight="200.0" prefWidth="100.0" styleClass="card">
                      <children>
@@ -213,9 +215,12 @@
                      </children>
                   </VBox>
                </children>
+               <padding>
+                  <Insets bottom="5.0" right="5.0" top="5.0" />
+               </padding>
             </VBox>
          </children>
-      </GridPane>
+      </HBox>
    </center>
 
     

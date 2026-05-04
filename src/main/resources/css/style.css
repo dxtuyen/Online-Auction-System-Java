@@ -25,7 +25,7 @@
     -fx-background-color: #2563eb;
     -fx-text-fill: white;
     -fx-padding: 8 20;
-    -fx-background-radius: 6;
+    -fx-background-radius: 8;
     -fx-cursor: hand;
     -fx-font-weight: bold;
 }
@@ -44,20 +44,15 @@
 }
 /* =============== INPUT =============== */
 .text-input {
-    -fx-background-color: white;
-    -fx-border-color: #d1d5db;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+    -fx-border-color:  #cbd5e1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
     -fx-padding: 8 12 8 12;
-    -fx-font-size: 13px;
     -fx-text-fill: #1f2937;
     -fx-prompt-text-fill: #9ca3af;
 }
 
-.text-input:focused {
-    -fx-border-color: #2563eb;
-    -fx-border-width: 2;
-}
+
 
 /* =============== LABELS =============== */
 .label-title {
@@ -97,7 +92,7 @@
     -fx-text-fill: #059669;
 }
 .timer-normal {
-    -fx-font-size: 16px;
+    -fx-font-size: 18px;
     -fx-font-weight: bold;
     -fx-text-fill: #059669;
 }
