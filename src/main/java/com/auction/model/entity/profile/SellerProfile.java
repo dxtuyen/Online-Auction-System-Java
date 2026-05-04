@@ -8,7 +8,7 @@ public class SellerProfile implements RoleProfile {
 
     private static final long serialVersionUID= 1L;
 
-    BigDecimal totalRevenue;
+    private BigDecimal totalRevenue;
 
     /** VALIDATE */
     private static BigDecimal validateNonNegative(BigDecimal v) {

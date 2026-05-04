@@ -77,7 +77,7 @@ public class User extends Entity {
 
     /** XOA ROLE */
     public synchronized boolean revokeRole(Role role) {
-        Objects.requireNonNull(role);
+        Objects.requireNonNull(role, "Role khong duoc null");
         boolean removed = profiles.remove(role) != null;
         if (removed) markUpdated();
         return removed;
@@ -107,7 +107,7 @@ public class User extends Entity {
     }
 
     /** */
-    public BidderProfile requireBider() {
+    public BidderProfile requireBidder() {
         return asBidder().orElseThrow(() ->
             new NoSuchElementException("User '" + username + "' không phải Bidder"));
     }
@@ -193,7 +193,7 @@ public class User extends Entity {
 
     private static String validatePassword(String password) {
         Objects.requireNonNull(password, "password must not be null");
-        if (password.isEmpty() || password.length() < 8) {
+        if (password.isEmpty()) {
             throw new IllegalArgumentException("Password khong duoc ngan");
         }
         return password;
@@ -253,6 +253,11 @@ public class User extends Entity {
         }
 
         public User build() {
+            Objects.requireNonNull(username, "username required");
+            Objects.requireNonNull(hashedPassword, "password required");
+            Objects.requireNonNull(email, "email required");
+            Objects.requireNonNull(fullName, "fullName required");
+
             User u = new User(username, hashedPassword, email, fullName);
             stagedProfiles.values().forEach(u::grantRole);
             return u;

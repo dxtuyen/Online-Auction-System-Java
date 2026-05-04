@@ -24,8 +24,8 @@ public class BidderProfile implements RoleProfile {
 
     private static void validatePositive(BigDecimal v) {
         Objects.requireNonNull(v, "So du khong the la null");
-        if (v.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Gia tri phai => 0");
+        if (v.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Gia tri phai > 0");
         }
     }
 

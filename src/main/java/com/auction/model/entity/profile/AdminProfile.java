@@ -33,10 +33,10 @@ public class AdminProfile implements RoleProfile {
     }
 
     /** UNBAN USER */
-    public void unBanUser(User target) {
+    public void unbanUser(User target) {
         Objects.requireNonNull(target, "Target khong the la null");
         ensureOwnerActive();
-        target.activate();
+        target.active();
     }
 
     /** CAP ROLE CHO USER */
