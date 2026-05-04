@@ -8,7 +8,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-/** Phương tiện - có hãng, đời, số km đã đi. */
+/**
+ * Phương tiện - có hãng, đời, số km đã đi.
+ */
 public class Vehicle extends Item {
 
     private static final long serialVersionUID = 1L;
@@ -32,10 +34,21 @@ public class Vehicle extends Item {
         this.mileageKm = mileageKm;
     }
 
-    public String getMake() { return make; }
-    public String getModel() { return model; }
-    public int getYear() { return year; }
-    public int getMileageKm() { return mileageKm; }
+    public String getMake() {
+        return make;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public int getYear() {
+        return year;
+    }
+
+    public int getMileageKm() {
+        return mileageKm;
+    }
 
     @Override
     public String getSpecificInfo() {

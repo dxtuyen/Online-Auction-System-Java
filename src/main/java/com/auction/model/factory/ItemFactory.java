@@ -3,6 +3,7 @@ package com.auction.model.factory;
 import com.auction.model.entity.Art;
 import com.auction.model.entity.Electronics;
 import com.auction.model.entity.Item;
+import com.auction.model.entity.OtherItem;
 import com.auction.model.entity.Vehicle;
 import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
@@ -14,21 +15,21 @@ import java.util.UUID;
 
 /**
  * Factory Method Pattern - tạo Item theo category.
- *
+ * <p>
  * Lý do dùng Factory:
- *  1. CLIENT KHÔNG cần biết về các subclass cụ thể (Electronics, Art, Vehicle...).
- *     Chỉ cần truyền category + thuộc tính → factory lo phần "new".
- *  2. Khi thêm category mới (vd Fashion), CHỈ sửa 1 chỗ là factory.
- *     → Open/Closed Principle (SOLID).
- *  3. Encapsulate logic validation đặc thù của từng loại.
- *
+ * 1. CLIENT KHÔNG cần biết về các subclass cụ thể (Electronics, Art, Vehicle...).
+ * Chỉ cần truyền category + thuộc tính → factory lo phần "new".
+ * 2. Khi thêm category mới (vd Fashion), CHỈ sửa 1 chỗ là factory.
+ * → Open/Closed Principle (SOLID).
+ * 3. Encapsulate logic validation đặc thù của từng loại.
+ * <p>
  * Ví dụ sử dụng:
- *   Item phone = ItemFactory.create(
- *       ItemCategory.ELECTRONICS,
- *       "iPhone 15", "Like new", sellerId,
- *       new BigDecimal("20000000"), List.of("img.jpg"), ItemCondition.USED,
- *       Map.of("brand", "Apple", "model", "iPhone 15", "warrantyMonths", 6)
- *   );
+ * Item phone = ItemFactory.create(
+ * ItemCategory.ELECTRONICS,
+ * "iPhone 15", "Like new", sellerId,
+ * new BigDecimal("20000000"), List.of("img.jpg"), ItemCondition.USED,
+ * Map.of("brand", "Apple", "model", "iPhone 15", "warrantyMonths", 6)
+ * );
  */
 public final class ItemFactory {
 
@@ -53,6 +54,8 @@ public final class ItemFactory {
         }
         if (specificAttrs == null) specificAttrs = Map.of();
 
+        // Switch exhaustive - KHÔNG dùng default. Khi thêm category mới vào enum,
+        // compiler sẽ báo lỗi ngay tại đây → tránh quên handle.
         return switch (category) {
             case ELECTRONICS -> new Electronics(
                     name, description, sellerId, startingPrice, images, condition,
@@ -73,10 +76,14 @@ public final class ItemFactory {
                     integer(specificAttrs, "year", 0),
                     integer(specificAttrs, "mileageKm", 0)
             );
-            // FASHION, COLLECTIBLE, OTHER chưa có subclass riêng -> tạm throw
-            // Khi thêm subclass mới, chỉ cần thêm case ở đây
-            default -> throw new UnsupportedOperationException(
-                    "Chưa hỗ trợ tạo item cho category: " + category);
+            // FASHION, COLLECTIBLE, OTHER không có subclass riêng → dùng OtherItem
+            // với extraInfo dạng text tự do. Khi nào category đó cần thuộc tính
+            // có cấu trúc (vd Fashion cần size + brand + material) thì tách subclass mới.
+            case FASHION, COLLECTIBLE, OTHER -> new OtherItem(
+                    name, description, sellerId, startingPrice, images,
+                    category, condition,
+                    strOrNull(specificAttrs, "extraInfo")
+            );
         };
     }
 
@@ -87,6 +94,11 @@ public final class ItemFactory {
             throw new IllegalArgumentException("Thiếu thuộc tính bắt buộc: " + key);
         }
         return v.toString();
+    }
+
+    private static String strOrNull(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        return v == null ? null : v.toString();
     }
 
     private static int integer(Map<String, Object> map, String key, int defaultValue) {

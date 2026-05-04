@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-/** Sản phẩm điện tử - có thêm brand, model, thời hạn bảo hành. */
+/**
+ * Sản phẩm điện tử - có thêm brand, model, thời hạn bảo hành.
+ */
 public class Electronics extends Item {
 
     private static final long serialVersionUID = 1L;
@@ -30,9 +32,17 @@ public class Electronics extends Item {
         this.warrantyMonths = warrantyMonths;
     }
 
-    public String getBrand() { return brand; }
-    public String getModel() { return model; }
-    public int getWarrantyMonths() { return warrantyMonths; }
+    public String getBrand() {
+        return brand;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public int getWarrantyMonths() {
+        return warrantyMonths;
+    }
 
     @Override
     public String getSpecificInfo() {

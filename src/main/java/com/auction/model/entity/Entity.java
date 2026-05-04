@@ -7,11 +7,11 @@ import java.util.UUID;
 
 /**
  * Base class cho tất cả entity trong hệ thống.
- *
+ * <p>
  * Áp dụng:
- *  - DDD Identity Equality: 2 entity bằng nhau khi cùng id (không so sánh từng field)
- *  - Template Method: lớp con kế thừa và bổ sung domain logic
- *  - Immutability: id, createdAt là final → không bao giờ đổi sau khi tạo
+ * - DDD Identity Equality: 2 entity bằng nhau khi cùng id (không so sánh từng field)
+ * - Template Method: lớp con kế thừa và bổ sung domain logic
+ * - Immutability: id, createdAt là final → không bao giờ đổi sau khi tạo
  */
 public abstract class Entity implements Serializable {
 
@@ -21,14 +21,18 @@ public abstract class Entity implements Serializable {
     private final LocalDateTime createdAt; // bất biến, set 1 lần
     private LocalDateTime updatedAt;       // mutable, đổi mỗi lần markUpdated()
 
-    /** Tạo entity MỚI (chưa có trong DB) */
+    /**
+     * Tạo entity MỚI (chưa có trong DB)
+     */
     protected Entity() {
         this.id = UUID.randomUUID();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = this.createdAt;
     }
 
-    /** Restore entity từ DB - bắt buộc non-null để tránh data corrupt */
+    /**
+     * Restore entity từ DB - bắt buộc non-null để tránh data corrupt
+     */
     protected Entity(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
@@ -43,9 +47,17 @@ public abstract class Entity implements Serializable {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public UUID getId() { return id; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public UUID getId() {
+        return id;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
 
     /**
      * equals/hashCode dựa HOÀN TOÀN trên id (DDD pattern).

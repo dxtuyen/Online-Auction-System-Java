@@ -5,38 +5,27 @@ import com.auction.model.exception.InsufficientBalanceException;
 
 import java.math.BigDecimal;
 
-import java.util.Objects;
-
 public class BidderProfile implements RoleProfile {
 
     private static final long serialVersionUID = 1L;
 
-    private  BigDecimal balance;
+    /**
+     * Volatile thay vì synchronized cho reader: BigDecimal immutable, chỉ cần thấy reference mới nhất
+     */
+    private volatile BigDecimal balance;
 
-    /** VALIDATE */
-    private static BigDecimal validateNonNegative(BigDecimal v) {
-        Objects.requireNonNull(v, "So du khong the la null");
-        if (v.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("So du khong the am");
-        }
-        return v;
-    }
-
-    private static void validatePositive(BigDecimal v) {
-        Objects.requireNonNull(v, "So du khong the la null");
-        if (v.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Gia tri phai > 0");
-        }
-    }
-
-    /** TAO BIDDERPROFILE, BALANCE = 0 */
+    /**
+     * TAO BIDDERPROFILE, BALANCE = 0
+     */
     public BidderProfile() {
         this(BigDecimal.ZERO);
     }
 
-    /** LOAD TU DATABASE, HOAC TAO DE TEST */
+    /**
+     * LOAD TU DATABASE, HOAC TAO DE TEST
+     */
     public BidderProfile(BigDecimal initialBalance) {
-        balance = validateNonNegative(initialBalance);
+        balance = RoleProfile.requireNonNegative(initialBalance, "balance");
     }
 
     @Override
@@ -44,20 +33,26 @@ public class BidderProfile implements RoleProfile {
         return Role.BIDDER;
     }
 
-    /** GET BALANCE */
-    public synchronized BigDecimal getBalance() {
+    /**
+     * GET BALANCE - không cần synchronized vì balance là volatile + BigDecimal immutable
+     */
+    public BigDecimal getBalance() {
         return balance;
     }
 
-    /** HOAN TIEN SAU KHI THUA DAU GIA VAO TAI KHOAN */
+    /**
+     * HOAN TIEN SAU KHI THUA DAU GIA VAO TAI KHOAN
+     */
     public synchronized void credit(BigDecimal amount) {
-        validatePositive(amount);
+        RoleProfile.requirePositive(amount, "credit amount");
         balance = this.balance.add(amount);
     }
 
-    /** TRU TIEN DAT COC, BAO LOI NEU KHONG DU */
+    /**
+     * TRU TIEN DAT COC, BAO LOI NEU KHONG DU
+     */
     public synchronized void debit(BigDecimal amount) {
-        validatePositive(amount);
+        RoleProfile.requirePositive(amount, "debit amount");
         if (this.balance.compareTo(amount) < 0) {
             throw new InsufficientBalanceException(
                     "Số dư không đủ. Hiện có: " + balance + ", cần: " + amount);
@@ -65,9 +60,11 @@ public class BidderProfile implements RoleProfile {
         balance = balance.subtract(amount);
     }
 
-    /** CHECK TRUOC KHI BID - UI HELPER */
-    public synchronized boolean hasEnoughBalance(BigDecimal amount) {
-        validatePositive(amount);
+    /**
+     * CHECK TRUOC KHI BID - UI HELPER
+     */
+    public boolean hasEnoughBalance(BigDecimal amount) {
+        RoleProfile.requirePositive(amount, "amount");
         return balance.compareTo(amount) >= 0;
     }
 

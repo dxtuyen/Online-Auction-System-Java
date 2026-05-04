@@ -2,13 +2,13 @@ package com.auction.model.enums;
 
 /**
  * Trạng thái của một bid.
- *
+ * <p>
  * Sơ đồ chuyển trạng thái:
- *   PENDING ──► VALID ──► OUTBID ──► CANCELED
- *       │         │
- *       └─► REJECTED
- *       └─► CANCELED
- *
+ * PENDING ──► VALID ──► OUTBID ──► CANCELED
+ * │         │
+ * └─► REJECTED
+ * └─► CANCELED
+ * <p>
  * REJECTED và CANCELED là terminal.
  */
 public enum BidStatus {
@@ -35,9 +35,9 @@ public enum BidStatus {
     public boolean canTransitionTo(BidStatus next) {
         if (next == null) return false;
         return switch (this) {
-            case PENDING  -> next == VALID || next == REJECTED || next == CANCELED;
-            case VALID    -> next == OUTBID || next == CANCELED;
-            case OUTBID   -> next == CANCELED;
+            case PENDING -> next == VALID || next == REJECTED || next == CANCELED;
+            case VALID -> next == OUTBID || next == CANCELED;
+            case OUTBID -> next == CANCELED;
             case REJECTED, CANCELED -> false;
         };
     }

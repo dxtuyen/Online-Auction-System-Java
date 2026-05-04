@@ -4,7 +4,6 @@ import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 import com.auction.model.enums.Role;
 import com.auction.model.entity.*;
-import com.auction.model.service.AuctionService;
 import org.junit.jupiter.api.*;
 
 import java.util.HashMap;

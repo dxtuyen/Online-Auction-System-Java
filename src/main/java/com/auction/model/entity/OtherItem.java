@@ -12,22 +12,22 @@ import java.util.UUID;
 /**
  * Item "tổng hợp" - dùng cho các category KHÔNG có subclass riêng
  * như FASHION, COLLECTIBLE, OTHER.
- *
+ * <p>
  * Tại sao cần class này?
- *  - Item là abstract → không thể new Item(...) trực tiếp
- *  - Không phải mọi category đều xứng đáng có subclass riêng
- *    (vd: FASHION có thể chỉ cần "size" - không đủ phức tạp để tách class)
- *  - Đây là pattern Null Object / Default Implementation:
- *    "khi không có gì đặc biệt, dùng cái mặc định"
- *
+ * - Item là abstract → không thể new Item(...) trực tiếp
+ * - Không phải mọi category đều xứng đáng có subclass riêng
+ * (vd: FASHION có thể chỉ cần "size" - không đủ phức tạp để tách class)
+ * - Đây là pattern Null Object / Default Implementation:
+ * "khi không có gì đặc biệt, dùng cái mặc định"
+ * <p>
  * Khác biệt với Electronics/Art/Vehicle:
- *  - Category được TRUYỀN VÀO (không cố định) - vì class này phục vụ nhiều category
- *  - Có 1 field tự do `extraInfo` để lưu thông tin đặc thù dạng text
- *
+ * - Category được TRUYỀN VÀO (không cố định) - vì class này phục vụ nhiều category
+ * - Có 1 field tự do `extraInfo` để lưu thông tin đặc thù dạng text
+ * <p>
  * Khi nào nên TÁCH ra subclass riêng?
- *  - Khi category có >= 2 thuộc tính cấu trúc (vd: brand + model + warranty)
- *  - Khi cần validate đặc thù (vd: year >= 1900 cho Vehicle)
- *  - Khi cần logic riêng (vd: tính phí giao hàng theo cân nặng)
+ * - Khi category có >= 2 thuộc tính cấu trúc (vd: brand + model + warranty)
+ * - Khi cần validate đặc thù (vd: year >= 1900 cho Vehicle)
+ * - Khi cần logic riêng (vd: tính phí giao hàng theo cân nặng)
  */
 public class OtherItem extends Item {
 
@@ -43,7 +43,9 @@ public class OtherItem extends Item {
 
     // ============== CONSTRUCTORS ==============
 
-    /** Tạo item mới */
+    /**
+     * Tạo item mới
+     */
     public OtherItem(String name, String description, UUID sellerId,
                      BigDecimal startingPrice, List<String> images,
                      ItemCategory category, ItemCondition condition,
@@ -53,7 +55,9 @@ public class OtherItem extends Item {
         this.extraInfo = extraInfo;   // optional - cho phép null
     }
 
-    /** Restore từ DB */
+    /**
+     * Restore từ DB
+     */
     public OtherItem(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                      String name, String description, UUID sellerId,
                      BigDecimal startingPrice, List<String> images,

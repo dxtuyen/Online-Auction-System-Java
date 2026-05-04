@@ -9,11 +9,11 @@ import java.util.UUID;
 
 /**
  * Một lượt đặt giá.
- *
+ * <p>
  * Design pattern:
- *  - State Machine: status chỉ chuyển theo BidStatus.canTransitionTo
- *  - Immutable core: auctionId/bidderId/bidAmount KHÔNG đổi sau khi tạo
- *
+ * - State Machine: status chỉ chuyển theo BidStatus.canTransitionTo
+ * - Immutable core: auctionId/bidderId/bidAmount KHÔNG đổi sau khi tạo
+ * <p>
  * Note: Đã BỎ field `timestamp` riêng vì TRÙNG với createdAt từ Entity.
  * Dùng getCreatedAt() làm timestamp đặt bid - tránh duplicate data.
  */
@@ -31,9 +31,9 @@ public class BidTransaction extends Entity {
     public BidTransaction(UUID auctionId, UUID bidderId, BigDecimal bidAmount) {
         super();
         this.auctionId = Objects.requireNonNull(auctionId, "auctionId must not be null");
-        this.bidderId  = Objects.requireNonNull(bidderId, "bidderId must not be null");
+        this.bidderId = Objects.requireNonNull(bidderId, "bidderId must not be null");
         this.bidAmount = validateAmount(bidAmount);
-        this.status    = BidStatus.PENDING;
+        this.status = BidStatus.PENDING;
     }
 
     public BidTransaction(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
@@ -41,31 +41,57 @@ public class BidTransaction extends Entity {
                           BidStatus status) {
         super(id, createdAt, updatedAt);
         this.auctionId = Objects.requireNonNull(auctionId);
-        this.bidderId  = Objects.requireNonNull(bidderId);
+        this.bidderId = Objects.requireNonNull(bidderId);
         this.bidAmount = validateAmount(bidAmount);
-        this.status    = Objects.requireNonNull(status);
+        this.status = Objects.requireNonNull(status);
     }
 
     // ============== GETTERS ==============
-    public UUID getAuctionId() { return auctionId; }
-    public UUID getBidderId() { return bidderId; }
-    public BigDecimal getBidAmount() { return bidAmount; }
-    public BidStatus getStatus() { return status; }
+    public UUID getAuctionId() {
+        return auctionId;
+    }
 
-    /** Alias dễ hiểu - thực ra là createdAt từ Entity */
-    public LocalDateTime getTimestamp() { return getCreatedAt(); }
+    public UUID getBidderId() {
+        return bidderId;
+    }
+
+    public BigDecimal getBidAmount() {
+        return bidAmount;
+    }
+
+    public BidStatus getStatus() {
+        return status;
+    }
+
+    /**
+     * Alias dễ hiểu - thực ra là createdAt từ Entity
+     */
+    public LocalDateTime getTimestamp() {
+        return getCreatedAt();
+    }
 
     // ============== STATE TRANSITIONS ==============
 
-    public void markValid()   { changeStatus(BidStatus.VALID); }
-    public void markOutbid()  { changeStatus(BidStatus.OUTBID); }
-    public void reject()      { changeStatus(BidStatus.REJECTED); }
-    public void cancel()      { changeStatus(BidStatus.CANCELED); }
+    public void markValid() {
+        changeStatus(BidStatus.VALID);
+    }
+
+    public void markOutbid() {
+        changeStatus(BidStatus.OUTBID);
+    }
+
+    public void reject() {
+        changeStatus(BidStatus.REJECTED);
+    }
+
+    public void cancel() {
+        changeStatus(BidStatus.CANCELED);
+    }
 
     private void changeStatus(BidStatus newStatus) {
         if (this.status == newStatus) return;
         if (!this.status.canTransitionTo(newStatus)) {
-            throw  new IllegalStateException(
+            throw new IllegalStateException(
                     "Không thể chuyển bid từ " + status + " sang " + newStatus);
         }
         this.status = newStatus;

@@ -13,15 +13,15 @@ import java.util.UUID;
 
 /**
  * Lớp cha cho mọi loại sản phẩm đấu giá.
- *
+ * <p>
  * Design patterns áp dụng:
- *  - Template Method: getSpecificInfo() bắt subclass tự cung cấp thông tin riêng
- *    → thể hiện POLYMORPHISM thực sự (yêu cầu OOP của đề bài)
- *  - Defensive Copy: getImages() trả về unmodifiableList để bảo vệ encapsulation
- *
+ * - Template Method: getSpecificInfo() bắt subclass tự cung cấp thông tin riêng
+ * → thể hiện POLYMORPHISM thực sự (yêu cầu OOP của đề bài)
+ * - Defensive Copy: getImages() trả về unmodifiableList để bảo vệ encapsulation
+ * <p>
  * Tại sao Item phải abstract?
- *  Vì hệ thống KHÔNG bao giờ có "Item chung chung" - phải là Electronics/Art/Vehicle/...
- *  Mỗi loại có thuộc tính riêng (RAM cho Electronics, năm sáng tác cho Art...).
+ * Vì hệ thống KHÔNG bao giờ có "Item chung chung" - phải là Electronics/Art/Vehicle/...
+ * Mỗi loại có thuộc tính riêng (RAM cho Electronics, năm sáng tác cho Art...).
  */
 public abstract class Item extends Entity {
 
@@ -38,7 +38,9 @@ public abstract class Item extends Entity {
 
     // ============== CONSTRUCTORS ==============
 
-    /** Tạo item MỚI */
+    /**
+     * Tạo item MỚI
+     */
     protected Item(String name,
                    String description,
                    UUID sellerId,
@@ -47,28 +49,30 @@ public abstract class Item extends Entity {
                    ItemCategory category,
                    ItemCondition condition) {
         super();
-        this.name           = validateName(name);
-        this.description    = description;   // optional, không validate null
-        this.sellerId       = Objects.requireNonNull(sellerId, "sellerId must not be null");
-        this.startingPrice  = validatePrice(startingPrice);
-        this.images         = new ArrayList<>(Objects.requireNonNull(images, "images must not be null"));
-        this.category       = Objects.requireNonNull(category, "category must not be null");
-        this.condition      = Objects.requireNonNull(condition, "condition must not be null");
+        this.name = validateName(name);
+        this.description = description;   // optional, không validate null
+        this.sellerId = Objects.requireNonNull(sellerId, "sellerId must not be null");
+        this.startingPrice = validatePrice(startingPrice);
+        this.images = new ArrayList<>(Objects.requireNonNull(images, "images must not be null"));
+        this.category = Objects.requireNonNull(category, "category must not be null");
+        this.condition = Objects.requireNonNull(condition, "condition must not be null");
     }
 
-    /** Restore từ DB */
+    /**
+     * Restore từ DB
+     */
     protected Item(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                    String name, String description, UUID sellerId,
                    BigDecimal startingPrice, List<String> images,
                    ItemCategory category, ItemCondition condition) {
         super(id, createdAt, updatedAt);
-        this.name           = validateName(name);
-        this.description    = description;
-        this.sellerId       = Objects.requireNonNull(sellerId);
-        this.startingPrice  = validatePrice(startingPrice);
-        this.images         = new ArrayList<>(Objects.requireNonNull(images));
-        this.category       = Objects.requireNonNull(category);
-        this.condition      = Objects.requireNonNull(condition);
+        this.name = validateName(name);
+        this.description = description;
+        this.sellerId = Objects.requireNonNull(sellerId);
+        this.startingPrice = validatePrice(startingPrice);
+        this.images = new ArrayList<>(Objects.requireNonNull(images));
+        this.category = Objects.requireNonNull(category);
+        this.condition = Objects.requireNonNull(condition);
     }
 
     // ============== ABSTRACT METHODS (Template Method Pattern) ==============
@@ -76,10 +80,10 @@ public abstract class Item extends Entity {
     /**
      * Mỗi loại item TỰ trả về thông tin đặc trưng của mình.
      * Đây là cách ép subclass thể hiện đặc thù - nếu không có, abstract class vô nghĩa.
-     *
+     * <p>
      * Ví dụ:
-     *  - Electronics: "Brand: Apple | Model: iPhone 15 | Warranty: 12 months"
-     *  - Art: "Artist: Van Gogh | Year: 1889 | Style: Post-Impressionism"
+     * - Electronics: "Brand: Apple | Model: iPhone 15 | Warranty: 12 months"
+     * - Art: "Artist: Van Gogh | Year: 1889 | Style: Post-Impressionism"
      */
     public abstract String getSpecificInfo();
 
@@ -100,13 +104,33 @@ public abstract class Item extends Entity {
     }
 
     // ============== GETTERS ==============
-    public String getName() { return name; }
-    public String getDescription() { return description; }
-    public UUID getSellerId() { return sellerId; }
-    public BigDecimal getStartingPrice() { return startingPrice; }
-    public List<String> getImages() { return Collections.unmodifiableList(images); }
-    public ItemCategory getCategory() { return category; }
-    public ItemCondition getCondition() { return condition; }
+    public String getName() {
+        return name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public UUID getSellerId() {
+        return sellerId;
+    }
+
+    public BigDecimal getStartingPrice() {
+        return startingPrice;
+    }
+
+    public List<String> getImages() {
+        return Collections.unmodifiableList(images);
+    }
+
+    public ItemCategory getCategory() {
+        return category;
+    }
+
+    public ItemCondition getCondition() {
+        return condition;
+    }
 
     // ============== DOMAIN OPERATIONS ==============
 

@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-/** Tác phẩm nghệ thuật - có tác giả, năm sáng tác, chất liệu. */
+/**
+ * Tác phẩm nghệ thuật - có tác giả, năm sáng tác, chất liệu.
+ */
 public class Art extends Item {
 
     private static final long serialVersionUID = 1L;
@@ -27,9 +29,17 @@ public class Art extends Item {
         this.medium = medium;
     }
 
-    public String getArtist() { return artist; }
-    public Integer getYearCreated() { return yearCreated; }
-    public String getMedium() { return medium; }
+    public String getArtist() {
+        return artist;
+    }
+
+    public Integer getYearCreated() {
+        return yearCreated;
+    }
+
+    public String getMedium() {
+        return medium;
+    }
 
     @Override
     public String getSpecificInfo() {
