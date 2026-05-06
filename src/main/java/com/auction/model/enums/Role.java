@@ -5,12 +5,13 @@ public enum Role {
     BIDDER("Người đấu giá"),
     SELLER("Người bán");
 
-    private final String displayRole;
-    Role(String displayRole) {
-        this.displayRole = displayRole;
+    private final String displayName;
+
+    Role(String displayName) {
+        this.displayName = displayName;
     }
 
-    public String getDisplayRole() {
-        return displayRole;
+    public String getDisplayName() {
+        return displayName;
     }
 }

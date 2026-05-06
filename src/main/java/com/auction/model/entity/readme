@@ -1,3 +1,7 @@
+Core entities:
++ có User, Auction, Item
++ thiếu Bid, Auction manager, auto bid
+
 com.auction/
 ├── model/                          # Domain layer (dùng chung Client+Server)
 │   ├── entity/                     # ⚠️ CHỈ CHỨA ENTITY
