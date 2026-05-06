@@ -1,4 +1,4 @@
-package com.auction.model.service;
+package com.auction.service;
 
 import com.auction.model.entity.User;
 import com.auction.model.entity.profile.RoleProfile;

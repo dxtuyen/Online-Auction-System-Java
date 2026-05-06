@@ -1,4 +1,4 @@
-package com.auction.model.service;
+package com.auction.service;
 
 import com.auction.model.entity.Item;
 import com.auction.model.entity.User;

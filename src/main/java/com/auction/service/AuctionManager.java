@@ -1,4 +1,4 @@
-package com.auction.model.service;
+package com.auction.service;
 
 import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
@@ -89,8 +89,7 @@ public final class AuctionManager {
     /**
      * Global observers - nhận event từ TẤT CẢ auction. CopyOnWrite vì đọc nhiều ghi ít.
      */
-    private final List<AuctionObserver> globalObservers =
-            new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<AuctionObserver> globalObservers = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     /**
      * Scheduler tự động chuyển PENDING→RUNNING→FINISHED theo thời gian.
@@ -126,14 +125,12 @@ public final class AuctionManager {
 
         @Override
         public void onAuctionExtended(Auction auction, int seconds) {
-            globalObservers.forEach(obs ->
-                    safeNotify(() -> obs.onAuctionExtended(auction, seconds)));
+            globalObservers.forEach(obs -> safeNotify(() -> obs.onAuctionExtended(auction, seconds)));
         }
 
         @Override
         public void onStatusChanged(Auction auction, AuctionStatus oldStatus, AuctionStatus newStatus) {
-            globalObservers.forEach(obs ->
-                    safeNotify(() -> obs.onStatusChanged(auction, oldStatus, newStatus)));
+            globalObservers.forEach(obs -> safeNotify(() -> obs.onStatusChanged(auction, oldStatus, newStatus)));
         }
     };
 
@@ -159,32 +156,23 @@ public final class AuctionManager {
      * - Validate seller phải có quyền sell
      * - Validate item phải tồn tại và thuộc về seller này
      */
-    public Auction createAuction(UUID itemId, UUID sellerId,
-                                 LocalDateTime startTime, LocalDateTime endTime,
-                                 BigDecimal startingPrice, BigDecimal minimumIncrement) {
+    public Auction createAuction(UUID itemId, UUID sellerId, LocalDateTime startTime, LocalDateTime endTime, BigDecimal startingPrice, BigDecimal minimumIncrement) {
         Objects.requireNonNull(itemId, "itemId");
         Objects.requireNonNull(sellerId, "sellerId");
 
         // Check seller có quyền
-        User seller = UserManager.getInstance().findById(sellerId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Seller không tồn tại: " + sellerId));
+        User seller = UserManager.getInstance().findById(sellerId).orElseThrow(() -> new IllegalArgumentException("Seller không tồn tại: " + sellerId));
         if (!seller.canSell()) {
-            throw new IllegalArgumentException(
-                    "User không có quyền tạo phiên đấu giá");
+            throw new IllegalArgumentException("User không có quyền tạo phiên đấu giá");
         }
 
         // Check item tồn tại + thuộc về seller này (chống tạo phiên cho item của người khác)
-        Item item = ItemManager.getInstance().findById(itemId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Item không tồn tại: " + itemId));
+        Item item = ItemManager.getInstance().findById(itemId).orElseThrow(() -> new IllegalArgumentException("Item không tồn tại: " + itemId));
         if (!item.getSellerId().equals(sellerId)) {
-            throw new IllegalArgumentException(
-                    "Item này không thuộc về seller " + sellerId);
+            throw new IllegalArgumentException("Item này không thuộc về seller " + sellerId);
         }
 
-        Auction auction = new Auction(itemId, sellerId, startTime, endTime,
-                startingPrice, minimumIncrement);
+        Auction auction = new Auction(itemId, sellerId, startTime, endTime, startingPrice, minimumIncrement);
         return register(auction);
     }
 
@@ -201,8 +189,7 @@ public final class AuctionManager {
         // putIfAbsent atomic - đảm bảo không 2 thread cùng register trùng id
         Auction existed = auctions.putIfAbsent(auction.getId(), auction);
         if (existed != null) {
-            throw new IllegalStateException(
-                    "Auction đã tồn tại với id: " + auction.getId());
+            throw new IllegalStateException("Auction đã tồn tại với id: " + auction.getId());
         }
 
         // Tự đăng ký làm observer để theo dõi lifecycle + anti-sniping
@@ -255,18 +242,13 @@ public final class AuctionManager {
         }
 
         // Validate bidder TRƯỚC khi gọi entity → fail fast
-        User bidder = UserManager.getInstance().findById(bidderId)
-                .orElseThrow(() -> new InvalidBidException(
-                        "Bidder không tồn tại: " + bidderId));
+        User bidder = UserManager.getInstance().findById(bidderId).orElseThrow(() -> new InvalidBidException("Bidder không tồn tại: " + bidderId));
         if (!bidder.canBid()) {
-            throw new InvalidBidException(
-                    "User không có quyền đấu giá (không có role BIDDER hoặc đã bị khóa)");
+            throw new InvalidBidException("User không có quyền đấu giá (không có role BIDDER hoặc đã bị khóa)");
         }
         BidderProfile profile = bidder.requireBidder();
         if (!profile.hasEnoughBalance(amount)) {
-            throw new InsufficientBalanceException(
-                    "Số dư không đủ. Hiện có: " + profile.getBalance() +
-                            ", muốn bid: " + amount);
+            throw new InsufficientBalanceException("Số dư không đủ. Hiện có: " + profile.getBalance() + ", muốn bid: " + amount);
         }
 
         BidTransaction bid = new BidTransaction(auctionId, bidderId, amount);
@@ -294,9 +276,7 @@ public final class AuctionManager {
      * Chỉ lấy phiên đang RUNNING
      */
     public List<Auction> findActive() {
-        return auctions.values().stream()
-                .filter(Auction::isActive)
-                .collect(Collectors.toUnmodifiableList());
+        return auctions.values().stream().filter(Auction::isActive).collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -304,9 +284,7 @@ public final class AuctionManager {
      */
     public List<Auction> findBySellerId(UUID sellerId) {
         Objects.requireNonNull(sellerId);
-        return auctions.values().stream()
-                .filter(a -> a.getSellerId().equals(sellerId))
-                .collect(Collectors.toUnmodifiableList());
+        return auctions.values().stream().filter(a -> a.getSellerId().equals(sellerId)).collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -314,9 +292,7 @@ public final class AuctionManager {
      */
     public List<Auction> findByStatus(AuctionStatus status) {
         Objects.requireNonNull(status);
-        return auctions.values().stream()
-                .filter(a -> a.getStatus() == status)
-                .collect(Collectors.toUnmodifiableList());
+        return auctions.values().stream().filter(a -> a.getStatus() == status).collect(Collectors.toUnmodifiableList());
     }
 
     public int count() {
@@ -373,20 +349,16 @@ public final class AuctionManager {
                 AuctionStatus status = auction.getStatus();
 
                 // PENDING → RUNNING
-                if (status == AuctionStatus.PENDING
-                        && !now.isBefore(auction.getStartTime())
-                        && now.isBefore(auction.getEndTime())) {
+                if (status == AuctionStatus.PENDING && !now.isBefore(auction.getStartTime()) && now.isBefore(auction.getEndTime())) {
                     auction.transitionTo(AuctionStatus.RUNNING);
                 }
                 // RUNNING → FINISHED
-                else if (status == AuctionStatus.RUNNING
-                        && !now.isBefore(auction.getEndTime())) {
+                else if (status == AuctionStatus.RUNNING && !now.isBefore(auction.getEndTime())) {
                     auction.transitionTo(AuctionStatus.FINISHED);
                 }
             } catch (Exception e) {
                 // Log nhưng không throw - scheduler phải tiếp tục chạy
-                System.err.println("[AuctionManager] Lỗi khi tick auction "
-                        + auction.getId() + ": " + e.getMessage());
+                System.err.println("[AuctionManager] Lỗi khi tick auction " + auction.getId() + ": " + e.getMessage());
             }
         }
     }
