@@ -1,4 +1,4 @@
-package com.auction.server.controller;
+package com.auction.controller;
 
 import com.auction.model.entity.Auction;
 import com.auction.model.entity.Item;
