@@ -4,7 +4,7 @@ import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
 import com.auction.model.entity.Item;
 import com.auction.model.entity.User;
-import com.auction.model.entity.profile.BidderProfile;
+//import com.auction.model.entity.profile.BidderProfile;
 import com.auction.model.enums.AuctionStatus;
 import com.auction.model.exception.AuctionClosedException;
 import com.auction.model.exception.InsufficientBalanceException;
@@ -162,8 +162,8 @@ public final class AuctionManager {
 
         // Check seller có quyền
         User seller = UserManager.getInstance().findById(sellerId).orElseThrow(() -> new IllegalArgumentException("Seller không tồn tại: " + sellerId));
-        if (!seller.canSell()) {
-            throw new IllegalArgumentException("User không có quyền tạo phiên đấu giá");
+        if (seller.canSell()) {
+            throw new IllegalArgumentException("User không có quyền tạo phiên đấu giá(Tài khoản bị khóa)");
         }
 
         // Check item tồn tại + thuộc về seller này (chống tạo phiên cho item của người khác)
@@ -235,23 +235,22 @@ public final class AuctionManager {
      * @throws InsufficientBalanceException nếu bidder không đủ tiền
      * @throws AuctionClosedException       nếu phiên đã đóng
      */
-    public BidTransaction placeBid(UUID auctionId, UUID bidderId, BigDecimal amount) {
+    public BidTransaction placeBid(UUID auctionId, UUID userId, BigDecimal amount) {
         Auction auction = auctions.get(auctionId);
         if (auction == null) {
             throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
         }
 
         // Validate bidder TRƯỚC khi gọi entity → fail fast
-        User bidder = UserManager.getInstance().findById(bidderId).orElseThrow(() -> new InvalidBidException("Bidder không tồn tại: " + bidderId));
-        if (!bidder.canBid()) {
-            throw new InvalidBidException("User không có quyền đấu giá (không có role BIDDER hoặc đã bị khóa)");
+        User user = UserManager.getInstance().findById(userId).orElseThrow(() -> new InvalidBidException("User không tồn tại: " + userId));
+        if (!user.canBid()) {
+            throw new InvalidBidException("User không có quyền đấu giá (Tài khoản bị khóa)");
         }
-        BidderProfile profile = bidder.requireBidder();
-        if (!profile.hasEnoughBalance(amount)) {
-            throw new InsufficientBalanceException("Số dư không đủ. Hiện có: " + profile.getBalance() + ", muốn bid: " + amount);
+        if (!user.hasEnoughBalance(amount)) {
+            throw new InsufficientBalanceException("Số dư không đủ. Hiện có: " + user.getBalance() + ", muốn bid: " + amount);
         }
 
-        BidTransaction bid = new BidTransaction(auctionId, bidderId, amount);
+        BidTransaction bid = new BidTransaction(auctionId, userId, amount);
         auction.placeBid(bid);   // tự thread-safe + tự notify
         return bid;
     }

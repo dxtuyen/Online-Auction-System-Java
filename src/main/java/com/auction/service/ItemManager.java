@@ -67,9 +67,9 @@ public final class ItemManager {
         User seller = UserManager.getInstance().findById(sellerId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Seller không tồn tại: " + sellerId));
-        if (!seller.canSell()) {
+        if (seller.canSell()) {
             throw new IllegalArgumentException(
-                    "User không có quyền tạo sản phẩm (không có role SELLER hoặc đã bị khóa)");
+                    "User không có quyền tạo sản phẩm (Tài khoản bị khóa)");
         }
 
         Item item = ItemFactory.create(category, name, description, sellerId,
