@@ -1,4 +1,4 @@
-package com.auction.server.controller;
+package com.auction.controller;
 
 import com.auction.model.entity.BidTransaction;
 import com.auction.model.entity.User;
@@ -12,7 +12,7 @@ import java.util.*;
 /**
  * Controller phía server cho các thao tác bid.
  *
- * <p>Khác với {@link com.auction.server.controller.AuctionController} là thiên về đọc/list dữ liệu,
+ * <p>Khác với {@link AuctionController} là thiên về đọc/list dữ liệu,
  * controller này đi vào các action có thay đổi state: đặt giá tay, đăng ký auto-bid
  * và đọc lịch sử bid. Phần nghiệp vụ phức tạp như bước nhảy tối thiểu, reserve balance,
  * auto-bid chain hay settlement vẫn nằm ở {@link AuctionService}.</p>

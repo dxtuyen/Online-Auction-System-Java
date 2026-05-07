@@ -1,9 +1,12 @@
-package com.auction.server.controller;
+package com.auction.controller;
 
-import com.auction.model.entity.Bidder;
-import com.auction.model.entity.Seller;
+/*import com.auction.model.entity.Bidder;
+import com.auction.model.entity.Seller;*/
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
+import com.auction.model.service.AuctionManager;
+import com.auction.model.service.ItemManager;
+import com.auction.model.service.UserManager;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.ClientHandler;
@@ -21,7 +24,9 @@ import java.util.Map;
  */
 public class UserController {
 
-    private final AuctionService service = AuctionService.getInstance();
+    private final AuctionManager auctionManager = AuctionManager.getInstance();
+    private final ItemManager itemManager = ItemManager.getInstance();
+    private final UserManager userManager = UserManager.getInstance();
     private final ClientHandler handler;
 
     public UserController(ClientHandler handler) { this.handler = handler; }
@@ -30,15 +35,20 @@ public class UserController {
         String username = req.getDataString("username");
         String password = req.getDataString("password");
 
-        User user = service.login(username, password);
+        User user = userManager.login(username, password);
         // Lưu userId vào handler để các request sau biết mình là ai
-        handler.setCurrentUserId(String.valueOf(user.getId()));
+        handler.setCurrentUserId(user.getId().toString());
 
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("userId", user.getId());
+        data.put("userId", user.getId().toString());
         data.put("username", user.getUsername());
-        data.put("role", user.getRole().name());
-        data.put("displayRole", user.getRole().getDisplayRole());
+        data.put("email", user.getEmail());
+        data.put("fullName", user.getFullName());
+        data.put("status", user.getUserStatus().name());
+        data.put("displayStatus", user.getUserStatus().getDisplayName());
+        data.put("roles", user.getRoles().stream().map(Role::name).toList());
+        data.put("displayRoles", user.getRoles().stream()
+                .map(Role::getDisplayName).toList());
 
         return Response.success("LOGIN", "Đăng nhập thành công", data);
     }
@@ -46,11 +56,12 @@ public class UserController {
     public Response register(Request req) {
         String username = req.getDataString("username");
         String password = req.getDataString("password");
-        String roleStr = req.getDataString("role");
-        double extra = req.getDataDouble("extra");
+        String email = req.getDataString("email");
+        String fullName = req.getDataString("fullName");
+
 
         Role role = Role.valueOf(roleStr);
-        User user = service.register(username, password, role, extra);
+        User user = userManager.register(username, password, role, extra);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("userId", user.getId());

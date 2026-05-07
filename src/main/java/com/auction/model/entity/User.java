@@ -1,21 +1,11 @@
 package com.auction.model.entity;
 
 import com.auction.model.enums.Role;
-import com.auction.model.entity.profile.RoleProfile;
-import com.auction.model.entity.profile.AdminProfile;
-import com.auction.model.entity.profile.BidderProfile;
-import com.auction.model.entity.profile.SellerProfile;
 import com.auction.model.enums.UserStatus;
 import com.auction.security.PasswordEncoder;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -41,13 +31,7 @@ public class User extends Entity {
     private String email;
     private String fullName;
     private UserStatus userStatus;
-
-    /*
-     * DANH SÁCH ROLE ĐÃ ĐƯỢC CẤP CỦA USER
-     *
-     * Key là Role
-     */
-    private final EnumMap<Role, RoleProfile> profiles = new EnumMap<>(Role.class);
+    private Role role;
 
     /**
      * VALIDATE
@@ -87,10 +71,15 @@ public class User extends Entity {
 
     private static String validateEmail(String email) {
         Objects.requireNonNull(email, "Email khong duoc null");
-        if (!EMAIL_PATTERN.matcher(email).matches()) {
+        String trimmed = email.trim();
+        // RFC 5321: tổng độ dài địa chỉ email tối đa 254 ký tự
+        if (trimmed.length() > 254) {
+            throw new IllegalArgumentException("Email vuot qua 254 ky tu");
+        }
+        if (!EMAIL_PATTERN.matcher(trimmed).matches()) {
             throw new IllegalArgumentException("Email khong hop le");
         }
-        return email;
+        return trimmed;
     }
 
     private static String validateFullName(String fullName) {
@@ -98,6 +87,9 @@ public class User extends Entity {
         String trimmed = fullName.trim();
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("Full name không được rỗng");
+        }
+        if (trimmed.length() > 100) {
+            throw new IllegalArgumentException("Full name khong duoc qua 100 ky tu");
         }
         return trimmed;
     }
@@ -115,6 +107,7 @@ public class User extends Entity {
         this.email = validateEmail(email);
         this.fullName = validateFullName(fullName);
         this.userStatus = UserStatus.ACTIVE;
+        this.role = Role.NORMAL;
     }
 
     /**
@@ -122,7 +115,7 @@ public class User extends Entity {
      */
     public User(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                 String username, String hashedPassword, String passwordSalt,
-                String email, String fullName, UserStatus status) {
+                String email, String fullName, UserStatus status, Role role) {
         super(id, createdAt, updatedAt);
         this.username = validateUsername(username);
         this.hashedPassword = validateHashedPassword(hashedPassword);
@@ -130,13 +123,18 @@ public class User extends Entity {
         this.email = validateEmail(email);
         this.fullName = validateFullName(fullName);
         this.userStatus = Objects.requireNonNull(status, "status must not be null");
+        this.role = Objects.requireNonNull(role, "role must not be null");
     }
 
     /**
      * KIỂM TRA PASSWORD - dùng cho login.
-     * Trả về false (không throw) nếu password sai - để caller quyết định xử lý.
+     * Trả về false (không throw) nếu password null/sai - để caller quyết định xử lý.
+     * synchronized để đọc salt+hash atomic với changePassword (tránh đọc nửa-cập-nhật).
      */
-    public boolean checkPassword(String plainPassword) {
+    public synchronized boolean checkPassword(String plainPassword) {
+        if (plainPassword == null) {
+            return false;
+        }
         return PasswordEncoder.matches(plainPassword, passwordSalt, hashedPassword);
     }
 
@@ -155,127 +153,11 @@ public class User extends Entity {
     }
 
     /**
-     * CẤP ROLE CHO USER HIỆN TẠI
-     * <p>
-     * Quy trình:
-     * 1. Kiểm tra profile không null
-     * 2. Lấy kết quả từ profile.getRole() từ profile vắn gắn vào biến role
-     * 3. Kiểm tra user đã có role này chưa
-     * <p>
-     * 1. Nếu profile là AdminProfile thì gắn owner (user hiện tại) đọc thêm
-     * <p>
-     * 1. Lưu profile vào danh sách roles
-     * 2. Đánh dấu entity đã được cập nhật
-     */
-    public synchronized void grantRole(RoleProfile profile) {
-        Objects.requireNonNull(profile, "profile khong the la null");
-        Role role = Objects.requireNonNull(profile.getRole(), "profile.role khong the la null");
-        if (profiles.containsKey(role)) {
-            throw new IllegalStateException(
-                    "User '" + username + "' đã có role " + role);
-        }
-
-        if (profile instanceof AdminProfile admin) {
-            admin.attachOwner(this);
-        }
-
-        profiles.put(role, profile);
-        markUpdated();
-    }
-
-    /**
-     * THU HỒI ROLE
-     */
-    public synchronized boolean revokeRole(Role role) {
-        Objects.requireNonNull(role, "Role khong duoc null");
-        boolean removed = profiles.remove(role) != null;    // Trả về danh sách đã bị xóa role nếu có role cần được thu hồi. Trả về null nếu không có role cần thu hồi
-        if (removed) markUpdated();
-        return removed;
-    }
-
-    /**
-     * CHECK CÓ ROLE NÀO KHÔNG
-     */
-    public boolean hasRole(Role role) {
-        return profiles.containsKey(Objects.requireNonNull(role, "Role khong the la null"));
-    }
-
-    /**
-     * LẤY DANH SÁCH ROLE
-     */
-    public Set<Role> getRoles() {
-        return Collections.unmodifiableSet(profiles.keySet());
-    }
-
-    /**
-     * KIỂM TRA XEM CÓ ROLEPFROFILE NÀO KHÔNG
-     * <p>
-     * Nếu User có role BIDDER → trả về BidderProfile tương ứng.
-     * Nếu không có role BIDDER → trả về Optional rỗng.
-     */
-    public Optional<BidderProfile> asBidder() {
-        return getProfileAs(Role.BIDDER, BidderProfile.class);
-    }
-
-    public Optional<SellerProfile> asSeller() {
-        return getProfileAs(Role.SELLER, SellerProfile.class);
-    }
-
-    public Optional<AdminProfile> asAdmin() {
-        return getProfileAs(Role.ADMIN, AdminProfile.class);
-    }
-
-    /**
-     *
-     */
-    @SuppressWarnings("unchecked")
-    public <P extends RoleProfile> Optional<P> getProfileAs(Role role, Class<P> type) {
-        Objects.requireNonNull(role);
-        Objects.requireNonNull(type);
-        RoleProfile p = profiles.get(role);
-        if (p == null) return Optional.empty();
-        if (!type.isInstance(p)) {
-            throw new ClassCastException(
-                    "Profile của role " + role + " thực ra là " + p.getClass().getSimpleName() +
-                            ", không phải " + type.getSimpleName());
-        }
-        return Optional.of((P) p);
-    }
-
-    /**
-     * Lấy BidderProfile bắt buộc của User.
-     * <p>
-     * Nếu User có role BIDDER → trả về BidderProfile.
-     * Nếu không có role BIDDER → ném lỗi (không cho tiếp tục).
-     */
-    public BidderProfile requireBidder() {
-        return asBidder().orElseThrow(() ->
-                new NoSuchElementException("User '" + username + "' không phải Bidder"));
-    }
-
-    public SellerProfile requireSeller() {
-        return asSeller().orElseThrow(() ->
-                new NoSuchElementException("User '" + username + "' không phải Seller"));
-    }
-
-    public AdminProfile requireAdmin() {
-        return asAdmin().orElseThrow(() ->
-                new NoSuchElementException("User '" + username + "' không phải Admin"));
-    }
-
-    /**
      * Check quyền
      */
-    public boolean canBid() {
-        return isActive() && hasRole(Role.BIDDER);
-    }
-
-    public boolean canSell() {
-        return isActive() && hasRole(Role.SELLER);
-    }
 
     public boolean canManageSystem() {
-        return isActive() && hasRole(Role.ADMIN);
+        return isActive() && role == Role.ADMIN;
     }
 
     /**
@@ -314,13 +196,14 @@ public class User extends Entity {
     // }
 
     /**
-     * Trả hash đã store - KHÔNG bao giờ trả plain password vì không lưu
+     * Trả hash đã store - KHÔNG bao giờ trả plain password vì không lưu.
+     * synchronized để đồng bộ với changePassword (xem checkPassword).
      */
-    public String getHashedPassword() {
+    public synchronized String getHashedPassword() {
         return hashedPassword;
     }
 
-    public String getPasswordSalt() {
+    public synchronized String getPasswordSalt() {
         return passwordSalt;
     }
 
@@ -354,13 +237,22 @@ public class User extends Entity {
         markUpdated();
     }
 
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = Objects.requireNonNull(role, "role must not be null");
+        markUpdated();
+    }
+
     @Override
     public String toString() {
         // KHÔNG bao giờ in hashedPassword/salt - tránh leak qua log
         return "User{" +
                 "id=" + getId() +
                 ", username='" + username + '\'' +
-                ", roles=" + profiles.keySet() +
+                ", role=" + role +
                 ", status=" + userStatus +
                 '}';
     }
@@ -373,7 +265,6 @@ public class User extends Entity {
      */
     public static final class Builder {
         private String username, plainPassword, email, fullName;
-        private final Map<Role, RoleProfile> stagedProfiles = new EnumMap<>(Role.class);
 
         public Builder username(String v) {
             this.username = v;
@@ -398,32 +289,6 @@ public class User extends Entity {
             return this;
         }
 
-        public Builder asBidder() {
-            return withProfile(new BidderProfile());
-        }
-
-        public Builder asBidder(java.math.BigDecimal initialBalance) {
-            return withProfile(new BidderProfile(initialBalance));
-        }
-
-        public Builder asSeller() {
-            return withProfile(new SellerProfile());
-        }
-
-        public Builder asSeller(java.math.BigDecimal initialRevenue) {
-            return withProfile(new SellerProfile(initialRevenue));
-        }
-
-        public Builder asAdmin() {
-            return withProfile(new AdminProfile());
-        }
-
-        public Builder withProfile(RoleProfile profile) {
-            Objects.requireNonNull(profile);
-            stagedProfiles.put(profile.getRole(), profile);
-            return this;
-        }
-
         public User build() {
             Objects.requireNonNull(username, "username required");
             Objects.requireNonNull(plainPassword, "password required");
@@ -436,9 +301,7 @@ public class User extends Entity {
             String salt = PasswordEncoder.generateSalt();
             String hash = PasswordEncoder.hash(plainPassword, salt);
 
-            User u = new User(username, hash, salt, email, fullName);
-            stagedProfiles.values().forEach(u::grantRole);
-            return u;
+            return new User(username, hash, salt, email, fullName);
         }
     }
 }
