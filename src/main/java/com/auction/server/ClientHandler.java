@@ -13,6 +13,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Phục vụ 1 client kết nối.
@@ -44,7 +45,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
     private final AuctionEventManager eventManager = AuctionEventManager.getInstance();
 
     // id user sau khi login — null nghĩa là chưa đăng nhập
-    private String currentUserId;
+    private UUID currentUserId;
 
     /**
      * Mỗi socket client được bọc trong đúng một handler.
@@ -134,7 +135,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
     // ============= Accessors =============
     // currentUserId chính là "session state" đơn giản nhất của connection này.
 
-    public String getCurrentUserId() { return currentUserId; }
+    public UUID getCurrentUserId() { return currentUserId; }
     public void setCurrentUserId(String currentUserId) { this.currentUserId = currentUserId; }
 
     // ============= AuctionObserver implementation =============
