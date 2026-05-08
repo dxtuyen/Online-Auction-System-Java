@@ -49,7 +49,7 @@ public class AuctionEventManager {
         observers.values().forEach(list -> list.remove(observer));
     }
 
-    /** Thông báo có bid mới — gọi sau khi AuctionService.placeBid() thành công. */
+    /** Thông báo có bid mới — gọi sau khi BidManager.placeBid() thành công. */
     public void notifyNewBid(Auction auction, BidTransaction bid) {
         List<AuctionObserver> list = observers.get(auction.getId());
         if (list != null) {
