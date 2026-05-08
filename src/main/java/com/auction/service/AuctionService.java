@@ -1,4 +1,5 @@
-package com.auction.server.service;
+/*
+package com.auction.service;
 
 import com.auction.model.entity.*;
 import com.auction.model.enums.*;
@@ -11,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
+*/
 /**
  * Service trung tâm của domain đấu giá.
  *
@@ -36,7 +38,8 @@ import java.util.stream.Collectors;
  *   <li>Lock theo user để chặn trường hợp cùng một bidder over-commit trên nhiều auction cùng lúc.</li>
  *   <li>Settlement khóa user theo thứ tự id để tránh deadlock.</li>
  * </ul>
- */
+ *//*
+
 public class AuctionService {
 
     // ============== CONFIG ==============
@@ -79,12 +82,14 @@ public class AuctionService {
         return auctionLocks.computeIfAbsent(auctionId, k -> new ReentrantLock(true));
     }
 
-    /**
+    */
+/**
      * Lock theo user được dùng cho các nghiệp vụ liên quan tới balance/reserve.
      *
      * <p>Ví dụ: nếu cùng lúc có hai request bid ở hai auction khác nhau cho cùng một bidder,
      * ta cần serialize chúng để không có chuyện cả hai cùng đọc thấy "còn tiền" rồi cùng pass.</p>
-     */
+     *//*
+
     private ReentrantLock getUserLock(int userId) {
         return userLocks.computeIfAbsent(userId, k -> new ReentrantLock(true));
     }
@@ -128,12 +133,14 @@ public class AuctionService {
     public User getUser(int id) { return users.get(id); }
     public Collection<User> getAllUsers() { return users.values(); }
 
-    /**
+    */
+/**
      * Trả về tổng tiền bidder đang "giữ chỗ" ở các auction khác mà họ đang dẫn đầu.
      *
      * <p>Con số này chưa bị trừ khỏi ví thật, nhưng vẫn phải được trừ khỏi sức mua còn lại
      * để bidder không thể cam kết vượt quá số tiền mình thực sự có.</p>
-     */
+     *//*
+
     public double getReservedBalance(int bidderId) {
         User bidder = users.get(bidderId);
         if (!(bidder instanceof Bidder)) {
@@ -142,9 +149,11 @@ public class AuctionService {
         return calculateReservedAmount(bidderId, -1);
     }
 
-    /**
+    */
+/**
      * Trả về số dư khả dụng thực tế của bidder sau khi trừ phần đang reserve ở các auction khác.
-     */
+     *//*
+
     public double getAvailableBalance(int bidderId) {
         User bidder = users.get(bidderId);
         if (!(bidder instanceof Bidder bidderEntity)) {
@@ -204,7 +213,8 @@ public class AuctionService {
         return auction;
     }
 
-    /**
+    */
+/**
      * Đóng auction theo cách "chuẩn nghiệp vụ".
      *
      * <p>Khác với việc tự đổi status, method này luôn đi qua finalize flow để:
@@ -215,7 +225,8 @@ public class AuctionService {
      *
      * <p>Quy tắc quyền hiện tại:
      * chỉ seller sở hữu auction đó hoặc admin mới được phép đóng phiên.</p>
-     */
+     *//*
+
     public void closeAuction(int auctionId, int actorUserId) {
         ReentrantLock lock = getLock(auctionId);
         lock.lock();
@@ -234,14 +245,16 @@ public class AuctionService {
 
     // ======================== BID ========================
 
-    /**
+    */
+/**
      * Entry point công khai cho bid tay.
      *
      * <p>Lock theo auction đảm bảo chỉ một luồng được sửa state của auction tại một thời điểm.
      * Bên trong sẽ đi qua cùng một pipeline:
      * validate auction -> validate bidder -> validate số dư khả dụng ->
      * ghi bid -> anti-sniping -> push event -> kích hoạt auto-bid nếu cần.</p>
-     */
+     *//*
+
     public BidTransaction placeBid(int auctionId, int bidderId, double bidAmount) {
         ReentrantLock lock = getLock(auctionId);
         lock.lock();
@@ -252,14 +265,16 @@ public class AuctionService {
         }
     }
 
-    /**
+    */
+/**
      * Core bidding logic.
      *
      * <p>Method này giả định caller đã giữ lock theo auction.
      * Cờ {@code triggerAutoBid} dùng để phân biệt:
      * bid tay ban đầu sẽ cho phép kích hoạt auto-bid chain,
      * còn bid sinh ra từ auto-bid thì không kích hoạt lại chain mới để tránh vòng lặp vô hạn.</p>
-     */
+     *//*
+
     private BidTransaction placeBidUnsafe(int auctionId, int bidderId, double bidAmount,
                                           boolean triggerAutoBid) {
         Auction auction = auctions.get(auctionId);
@@ -329,12 +344,14 @@ public class AuctionService {
         return bidHistory.getOrDefault(auctionId, new ArrayList<>());
     }
 
-    /**
+    */
+/**
      * Chặn thao tác đóng auction từ user không đủ quyền.
      *
      * <p>Rule được giữ ở service để dù request đi từ console app hay socket server
      * thì quyền hạn vẫn được áp đồng nhất ở cùng một chỗ.</p>
-     */
+     *//*
+
     private void ensureUserCanCloseAuction(int actorUserId, Auction auction) {
         User actor = users.get(actorUserId);
         if (actor == null) {
@@ -348,13 +365,15 @@ public class AuctionService {
         }
     }
 
-    /**
+    */
+/**
      * Kiểm tra bidder có đủ số dư khả dụng cho mức giá mục tiêu hay không.
      *
      * <p>"Số dư khả dụng" ở đây không đơn giản là balance hiện tại.
      * Nó bằng balance thật trừ đi phần tiền đang bị giữ chỗ ở các auction khác
      * mà bidder đang dẫn đầu.</p>
-     */
+     *//*
+
     private void ensureBidderCanCoverAmount(Bidder bidder, int auctionId, double targetAmount) {
         double maxAffordableBid = calculateMaxAffordableBid(bidder.getId(), auctionId);
         if (targetAmount > maxAffordableBid) {
@@ -364,26 +383,30 @@ public class AuctionService {
         }
     }
 
-    /**
+    */
+/**
      * Tính trần giá mà bidder còn có thể bid ở auction hiện tại.
      *
      * <p>Auction hiện tại được loại trừ khỏi reserve để bidder vẫn có thể tăng giá
      * trên chính auction mình đang dẫn đầu. Nếu không loại trừ, bidder sẽ bị "tự khóa"
      * vì bid cũ của chính họ cũng bị tính là tiền đã giữ chỗ.</p>
-     */
+     *//*
+
     private double calculateMaxAffordableBid(int bidderId, int auctionId) {
         Bidder bidder = (Bidder) users.get(bidderId);
         double reservedAmount = calculateReservedAmount(bidderId, auctionId);
         return bidder.getBalance() - reservedAmount;
     }
 
-    /**
+    */
+/**
      * Tính tổng tiền đang được reserve cho bidder ở các auction khác.
      *
      * <p>Reserve được suy ra động từ state hiện tại của auction, không lưu thêm một ledger riêng:
      * auction nào bidder đang dẫn đầu thì {@code currentPrice} của auction đó được coi là đang giữ chỗ.
      * Khi bidder bị outbid, reserve được giải phóng tự động vì leader đã đổi sang người khác.</p>
-     */
+     *//*
+
     private double calculateReservedAmount(int bidderId, int excludeAuctionId) {
         double reserved = 0;
         for (Auction currentAuction : auctions.values()) {
@@ -398,7 +421,8 @@ public class AuctionService {
         return reserved;
     }
 
-    /**
+    */
+/**
      * Chuẩn hóa việc kết thúc auction.
      *
      * <p>Method này được dùng cả khi đóng auction thủ công lẫn khi phát hiện auction đã hết giờ
@@ -406,7 +430,8 @@ public class AuctionService {
      * chuyển trạng thái sang {@code FINISHED} nếu cần,
      * settle tiền nếu có winner,
      * và phát event để client cập nhật realtime.</p>
-     */
+     *//*
+
     private void finalizeAuction(Auction auction) {
         if (auction.getStatus() == AuctionStatus.CANCELED) {
             eventManager.notifyStatusChanged(auction);
@@ -421,13 +446,15 @@ public class AuctionService {
         eventManager.notifyStatusChanged(auction);
     }
 
-    /**
+    */
+/**
      * Settlement cuối cho auction đã kết thúc.
      *
      * <p>Nếu auction không có người thắng, method này chỉ return.
      * Nếu có winner, ta khóa bidder + seller, kiểm tra lại số dư lần cuối,
      * trừ tiền bidder, cộng doanh thu seller và đánh dấu auction là {@code PAID}.</p>
-     */
+     *//*
+
     private void settleAuction(Auction auction) {
         Integer highestBidderId = auction.getHighestBidderIdOrNull();
         if (highestBidderId == null) {
@@ -479,13 +506,15 @@ public class AuctionService {
 
     // ======================== AUTO-BID ========================
 
-    /**
+    */
+/**
      * Đăng ký auto-bid cho một bidder.
      *
      * <p>Khi đăng ký, hệ thống chưa trừ tiền ngay nhưng vẫn kiểm tra số dư khả dụng
      * theo mức {@code maxBid}. Như vậy bidder không thể cấu hình một auto-bid vượt quá
      * khả năng chi trả của mình ở thời điểm đăng ký.</p>
-     */
+     *//*
+
     public void registerAutoBid(int auctionId, int bidderId, double maxBid, double increment) {
         Auction auction = auctions.get(auctionId);
         if (auction == null) throw new RuntimeException("Phiên không tồn tại!");
@@ -506,13 +535,15 @@ public class AuctionService {
         autoBids.computeIfAbsent(auctionId, k -> new ArrayList<>()).add(ab);
     }
 
-    /**
+    */
+/**
      * Chạy vòng auto-bid cho đến khi không còn ai đủ điều kiện phản ứng nữa.
      *
      * <p>Thuật toán hiện tại chọn candidate theo thứ tự đăng ký sớm hơn trước.
      * Mỗi vòng chỉ đẩy giá thêm đúng {@code increment} của candidate thắng vòng đó.
      * Nếu candidate không còn hợp lệ ở thời điểm thực thi, auto-bid của họ sẽ bị deactivate.</p>
-     */
+     *//*
+
     private void processAutoBidsRecursive(Auction auction, int lastBidderId) {
         int iterations = 0;
         while (iterations++ < AUTO_BID_MAX_ITERATIONS) {
@@ -580,3 +611,4 @@ public class AuctionService {
         System.out.println("[Seed] 3 items, 1 phiên MacBook (60 phút)");
     }
 }
+*/

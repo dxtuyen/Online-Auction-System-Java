@@ -5,9 +5,6 @@ import com.auction.model.entity.BidTransaction;
 import com.auction.model.entity.Item;
 import com.auction.model.entity.User;
 import com.auction.model.enums.AuctionStatus;
-import com.auction.model.exception.AuctionClosedException;
-import com.auction.model.exception.InsufficientBalanceException;
-import com.auction.model.exception.InvalidBidException;
 import com.auction.model.observer.AuctionObserver;
 
 import java.math.BigDecimal;
@@ -208,50 +205,6 @@ public final class AuctionManager {
             return true;
         }
         return false;
-    }
-
-    // ============== BID OPERATIONS (FACADE) ==============
-
-    /**
-     * Đặt bid vào auction.
-     * <p>
-     * Đây là FACADE method - che giấu việc:
-     * - Tìm auction
-     * - Validate bidder (tồn tại, có role BIDDER, đang active, đủ tiền)
-     * - Tạo BidTransaction
-     * - Gọi Auction.placeBid() (đã thread-safe ở tầng dưới)
-     * - Anti-sniping tự kích hoạt qua observer
-     * <p>
-     * BẢO MẬT:
-     * - User bị BANNED không bid được (canBid() = false)
-     * - Seller/Admin không bid được (không có role BIDDER)
-     * - Bidder không đủ tiền không bid được
-     * - Self-bidding (seller tự bid item của mình) → block bởi Auction.placeBid
-     *
-     * @return BidTransaction đã được xử lý (status = VALID nếu thành công)
-     * @throws IllegalArgumentException     nếu auction/bidder không tồn tại
-     * @throws InvalidBidException          nếu bid không hợp lệ về business rule
-     * @throws InsufficientBalanceException nếu bidder không đủ tiền
-     * @throws AuctionClosedException       nếu phiên đã đóng
-     */
-    public BidTransaction placeBid(UUID auctionId, UUID userId, BigDecimal amount) {
-        Auction auction = auctions.get(auctionId);
-        if (auction == null) {
-            throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
-        }
-
-        // Validate bidder TRƯỚC khi gọi entity → fail fast
-        User user = UserManager.getInstance().findById(userId).orElseThrow(() -> new InvalidBidException("User không tồn tại: " + userId));
-        if (!user.canBid()) {
-            throw new InvalidBidException("User không có quyền đấu giá (Tài khoản bị khóa)");
-        }
-        if (!user.hasEnoughBalance(amount)) {
-            throw new InsufficientBalanceException("Số dư không đủ. Hiện có: " + user.getBalance() + ", muốn bid: " + amount);
-        }
-
-        BidTransaction bid = new BidTransaction(auctionId, userId, amount);
-        auction.placeBid(bid);   // tự thread-safe + tự notify
-        return bid;
     }
 
     // ============== MANUAL CLOSE ==============
