@@ -4,6 +4,7 @@ import com.auction.model.enums.Role;
 import com.auction.model.enums.UserStatus;
 import com.auction.security.PasswordEncoder;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -32,6 +33,8 @@ public class User extends Entity {
     private String fullName;
     private UserStatus userStatus;
     private Role role;
+    private BigDecimal balance;     // số dư khả dụng để đặt cọc/thanh toán
+    private BigDecimal revenue;     // tổng doanh thu nhận được từ bán đấu giá
 
     /**
      * VALIDATE
@@ -95,11 +98,22 @@ public class User extends Entity {
     }
 
     /**
+     * Validate số tiền: không null, không âm (cho phép = 0).
+     */
+    private static BigDecimal validateNonNegativeAmount(BigDecimal amount, String fieldName) {
+        Objects.requireNonNull(amount, fieldName + " must not be null");
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException(fieldName + " khong duoc am");
+        }
+        return amount;
+    }
+
+    /**
      * TẠO USER MỚI
      * (Caller phải hash password trước - thường gọi qua UserManager.register)
      */
     public User(String username, String hashedPassword, String passwordSalt,
-                String email, String fullName) {
+                String email, String fullName, Role role) {
         super();
         this.username = validateUsername(username);
         this.hashedPassword = validateHashedPassword(hashedPassword);
@@ -107,7 +121,9 @@ public class User extends Entity {
         this.email = validateEmail(email);
         this.fullName = validateFullName(fullName);
         this.userStatus = UserStatus.ACTIVE;
-        this.role = Role.NORMAL;
+        this.role = role;
+        this.balance = BigDecimal.ZERO;
+        this.revenue = BigDecimal.ZERO;
     }
 
     /**
@@ -115,7 +131,8 @@ public class User extends Entity {
      */
     public User(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                 String username, String hashedPassword, String passwordSalt,
-                String email, String fullName, UserStatus status, Role role) {
+                String email, String fullName, UserStatus status, Role role,
+                BigDecimal balance, BigDecimal revenue) {
         super(id, createdAt, updatedAt);
         this.username = validateUsername(username);
         this.hashedPassword = validateHashedPassword(hashedPassword);
@@ -124,6 +141,8 @@ public class User extends Entity {
         this.fullName = validateFullName(fullName);
         this.userStatus = Objects.requireNonNull(status, "status must not be null");
         this.role = Objects.requireNonNull(role, "role must not be null");
+        this.balance = validateNonNegativeAmount(balance, "balance");
+        this.revenue = validateNonNegativeAmount(revenue, "revenue");
     }
 
     /**
@@ -156,6 +175,14 @@ public class User extends Entity {
      * Check quyền
      */
 
+    public boolean canSell() {
+        return isActive();
+    }
+
+    public boolean canBid() {
+        return isActive();
+    }
+
     public boolean canManageSystem() {
         return isActive() && role == Role.ADMIN;
     }
@@ -179,6 +206,13 @@ public class User extends Entity {
      */
     public void ban() {
         setUserStatus(UserStatus.BANNED);
+    }
+
+    /**
+     * Kiểm tra xem có đủ số dư để thực hiện bid
+     */
+    public boolean hasEnoughBalance(BigDecimal amount) {
+        return balance.compareTo(amount) >= 0;
     }
 
     /**
@@ -243,6 +277,24 @@ public class User extends Entity {
 
     public void setRole(Role role) {
         this.role = Objects.requireNonNull(role, "role must not be null");
+        markUpdated();
+    }
+
+    public BigDecimal getBalance() {
+        return balance;
+    }
+
+    public void setBalance(BigDecimal balance) {
+        this.balance = validateNonNegativeAmount(balance, "balance");
+        markUpdated();
+    }
+
+    public BigDecimal getRevenue() {
+        return revenue;
+    }
+
+    public void setRevenue(BigDecimal revenue) {
+        this.revenue = validateNonNegativeAmount(revenue, "revenue");
         markUpdated();
     }
 
