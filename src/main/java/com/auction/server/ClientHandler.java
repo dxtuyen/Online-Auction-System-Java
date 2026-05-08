@@ -136,7 +136,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
     // currentUserId chính là "session state" đơn giản nhất của connection này.
 
     public UUID getCurrentUserId() { return currentUserId; }
-    public void setCurrentUserId(String currentUserId) { this.currentUserId = currentUserId; }
+    public void setCurrentUserId(UUID currentUserId) { this.currentUserId = currentUserId; }
 
     // ============= AuctionObserver implementation =============
     // Mỗi callback dưới đây sẽ được AuctionEventManager gọi khi auction mà client đang
