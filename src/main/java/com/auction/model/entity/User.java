@@ -121,7 +121,7 @@ public class User extends Entity {
         this.email = validateEmail(email);
         this.fullName = validateFullName(fullName);
         this.userStatus = UserStatus.ACTIVE;
-        this.role = role;
+        this.role = Objects.requireNonNull(role, "role must not be null");
         this.balance = BigDecimal.ZERO;
         this.revenue = BigDecimal.ZERO;
     }
@@ -176,11 +176,11 @@ public class User extends Entity {
      */
 
     public boolean canSell() {
-        return isActive();
+        return isActive() && role != Role.ADMIN;
     }
 
     public boolean canBid() {
-        return isActive();
+        return isActive() && role != Role.ADMIN;
     }
 
     public boolean canManageSystem() {
@@ -212,6 +212,7 @@ public class User extends Entity {
      * Kiểm tra xem có đủ số dư để thực hiện bid
      */
     public boolean hasEnoughBalance(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
         return balance.compareTo(amount) >= 0;
     }
 
@@ -317,6 +318,7 @@ public class User extends Entity {
      */
     public static final class Builder {
         private String username, plainPassword, email, fullName;
+        private Role role;
 
         public Builder username(String v) {
             this.username = v;
@@ -341,11 +343,17 @@ public class User extends Entity {
             return this;
         }
 
+        public Builder role(Role v) {
+            this.role = v;
+            return this;
+        }
+
         public User build() {
             Objects.requireNonNull(username, "username required");
             Objects.requireNonNull(plainPassword, "password required");
             Objects.requireNonNull(email, "email required");
             Objects.requireNonNull(fullName, "fullName required");
+            Objects.requireNonNull(role, "role required");
             if (plainPassword.length() < 6) {
                 throw new IllegalArgumentException("Password phải >= 6 ký tự");
             }
@@ -353,7 +361,7 @@ public class User extends Entity {
             String salt = PasswordEncoder.generateSalt();
             String hash = PasswordEncoder.hash(plainPassword, salt);
 
-            return new User(username, hash, salt, email, fullName);
+            return new User(username, hash, salt, email, fullName, role);
         }
     }
 }

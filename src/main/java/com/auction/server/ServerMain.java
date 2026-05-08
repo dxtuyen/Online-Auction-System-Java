@@ -1,6 +1,6 @@
 package com.auction.server;
 
-import com.auction.service.AuctionService;
+import com.auction.bootstrap.DataSeeder;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -21,7 +21,7 @@ public class ServerMain {
 
     public static void main(String[] args) {
         // Seed data sẵn để có user/phiên để login ngay
-        AuctionService.getInstance().seedData();
+        DataSeeder.run();
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("[Server] Đang lắng nghe trên port " + PORT);
