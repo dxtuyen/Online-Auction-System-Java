@@ -5,6 +5,7 @@ import com.auction.model.entity.BidTransaction;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -22,7 +23,7 @@ public class AuctionEventManager {
     private static AuctionEventManager instance;
 
     /** Map: auctionId → list observer đang xem phiên đó. */
-    private final Map<Integer, List<AuctionObserver>> observers = new ConcurrentHashMap<>();
+    private final Map<UUID, List<AuctionObserver>> observers = new ConcurrentHashMap<>();
 
     private AuctionEventManager() {}
 
@@ -32,13 +33,13 @@ public class AuctionEventManager {
     }
 
     /** Client đăng ký xem phiên. */
-    public void subscribe(int auctionId, AuctionObserver observer) {
+    public void subscribe(UUID auctionId, AuctionObserver observer) {
         observers.computeIfAbsent(auctionId, k -> new CopyOnWriteArrayList<>())
                 .add(observer);
     }
 
     /** Client rời khỏi phiên. */
-    public void unsubscribe(int auctionId, AuctionObserver observer) {
+    public void unsubscribe(UUID auctionId, AuctionObserver observer) {
         List<AuctionObserver> list = observers.get(auctionId);
         if (list != null) list.remove(observer);
     }

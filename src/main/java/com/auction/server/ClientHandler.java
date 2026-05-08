@@ -161,7 +161,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
     @Override
     public void onAuctionStatusChanged(Auction auction) {
         // Client dùng event này để disable nút bid, cập nhật status label, đóng countdown...
-        Integer highestBidderId = auction.getHighestBidderIdOrNull();
+        UUID highestBidderId = auction.getHighestBidderId();
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId());
         data.put("status", auction.getStatus().name());

@@ -4,7 +4,6 @@ import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
 import com.auction.model.entity.Item;
 import com.auction.model.entity.User;
-//import com.auction.model.entity.profile.BidderProfile;
 import com.auction.model.enums.AuctionStatus;
 import com.auction.model.exception.AuctionClosedException;
 import com.auction.model.exception.InsufficientBalanceException;
@@ -162,7 +161,7 @@ public final class AuctionManager {
 
         // Check seller có quyền
         User seller = UserManager.getInstance().findById(sellerId).orElseThrow(() -> new IllegalArgumentException("Seller không tồn tại: " + sellerId));
-        if (seller.canSell()) {
+        if (!seller.canSell()) {
             throw new IllegalArgumentException("User không có quyền tạo phiên đấu giá(Tài khoản bị khóa)");
         }
 
@@ -253,6 +252,45 @@ public final class AuctionManager {
         BidTransaction bid = new BidTransaction(auctionId, userId, amount);
         auction.placeBid(bid);   // tự thread-safe + tự notify
         return bid;
+    }
+
+    // ============== MANUAL CLOSE ==============
+
+    /**
+     * Đóng phiên theo yêu cầu của seller (hoặc admin) thay vì đợi scheduler hết giờ.
+     * <p>
+     * - PENDING → CANCELED: phiên chưa start, seller đổi ý → hủy
+     * - RUNNING → FINISHED: phiên đang chạy → kết thúc sớm, settlement chạy như bình thường
+     * - Trạng thái khác (FINISHED/PAID/CANCELED) → không đóng được nữa
+     * <p>
+     * Bảo mật: chỉ chính seller của phiên mới được đóng. Actor id phải lấy từ session,
+     * KHÔNG được tin client tự gửi.
+     *
+     * @return auction sau khi đã chuyển trạng thái
+     * @throws IllegalArgumentException nếu auction không tồn tại
+     * @throws SecurityException        nếu actor không phải seller của phiên
+     * @throws IllegalStateException    nếu phiên đã ở terminal state
+     */
+    public Auction closeAuction(UUID auctionId, UUID actorUserId) {
+        Objects.requireNonNull(auctionId, "auctionId");
+        Objects.requireNonNull(actorUserId, "actorUserId");
+
+        Auction auction = auctions.get(auctionId);
+        if (auction == null) {
+            throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
+        }
+        if (!auction.getSellerId().equals(actorUserId)) {
+            throw new SecurityException("Bạn không có quyền đóng phiên đấu giá này");
+        }
+
+        AuctionStatus current = auction.getStatus();
+        switch (current) {
+            case PENDING -> auction.transitionTo(AuctionStatus.CANCELED);
+            case RUNNING -> auction.transitionTo(AuctionStatus.FINISHED);
+            default -> throw new IllegalStateException(
+                    "Phiên đang ở trạng thái " + current + ", không thể đóng thủ công");
+        }
+        return auction;
     }
 
     // ============== QUERY OPERATIONS (REPOSITORY-LIKE) ==============
