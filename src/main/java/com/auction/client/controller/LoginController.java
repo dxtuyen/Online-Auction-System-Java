@@ -53,7 +53,7 @@ public class LoginController {
                     if (res != null && res.isSuccess()) {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> data = (Map<String, Object>) res.getData();
-                        model.setUserId(String.valueOf(((Number) data.get("userId")).intValue()));
+                        model.setUserId((String) data.get("userId"));
                         model.setUsername((String) data.get("username"));
                         model.setRole((String) data.get("role"));
                         ClientApp.switchScene("auction_list.fxml");

@@ -34,7 +34,7 @@
 
             <TableView fx:id="tblAuctions" VBox.vgrow="ALWAYS">
                 <columns>
-                    <TableColumn fx:id="colId" text="ID" prefWidth="60"/>
+                    <TableColumn fx:id="colId" text="ID" prefWidth="90"/>
                     <TableColumn fx:id="colItem" text="Sản phẩm" prefWidth="260"/>
                     <TableColumn fx:id="colCategory" text="Danh mục" prefWidth="120"/>
                     <TableColumn fx:id="colPrice" text="Giá hiện tại" prefWidth="160"/>
