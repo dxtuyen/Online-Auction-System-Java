@@ -2,10 +2,11 @@ package com.auction.server;
 
 import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
-import com.auction.server.observer.AuctionEventManager;
-import com.auction.server.observer.AuctionObserver;
+import com.auction.model.enums.AuctionStatus;
+import com.auction.model.observer.AuctionObserver;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
+import com.auction.server.observer.AuctionEventManager;
 import com.auction.util.JsonHelper;
 
 import java.io.*;
@@ -139,11 +140,11 @@ public class ClientHandler implements Runnable, AuctionObserver {
     public void setCurrentUserId(UUID currentUserId) { this.currentUserId = currentUserId; }
 
     // ============= AuctionObserver implementation =============
-    // Mỗi callback dưới đây sẽ được AuctionEventManager gọi khi auction mà client đang
+    // Mỗi callback dưới đây sẽ được AuctionEventManager forward khi auction mà client đang
     // subscribe có thay đổi. Handler chỉ map event domain thành JSON push tương ứng.
 
     @Override
-    public void onNewBid(Auction auction, BidTransaction bid) {
+    public void onBidPlaced(Auction auction, BidTransaction bid) {
         // Dùng LinkedHashMap để giữ thứ tự field JSON đẹp
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId());
@@ -159,12 +160,13 @@ public class ClientHandler implements Runnable, AuctionObserver {
     }
 
     @Override
-    public void onAuctionStatusChanged(Auction auction) {
+    public void onStatusChanged(Auction auction, AuctionStatus oldStatus, AuctionStatus newStatus) {
         // Client dùng event này để disable nút bid, cập nhật status label, đóng countdown...
         UUID highestBidderId = auction.getHighestBidderId();
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId());
-        data.put("status", auction.getStatus().name());
+        data.put("oldStatus", oldStatus.name());
+        data.put("status", newStatus.name());
         data.put("currentPrice", auction.getCurrentPrice());
         // Auction có thể kết thúc mà không có ai bid, nên field leader phải chấp nhận null.
         data.put("highestBidderId", highestBidderId);
@@ -173,11 +175,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
     }
 
     @Override
-    public void onAuctionExtended(Auction auction) {
+    public void onAuctionExtended(Auction auction, int extendedSeconds) {
         // Event riêng cho anti-sniping, để client cập nhật lại endTime mà không cần reload toàn bộ detail.
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId());
         data.put("newEndTime", auction.getEndTime().toString());
+        data.put("extendedSeconds", extendedSeconds);
 
         send(Response.push("AUCTION_EXTENDED", data));
     }
