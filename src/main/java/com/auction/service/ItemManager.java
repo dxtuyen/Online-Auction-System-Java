@@ -1,4 +1,4 @@
-package com.auction.model.service;
+package com.auction.service;
 
 import com.auction.model.entity.Item;
 import com.auction.model.entity.User;
@@ -69,7 +69,7 @@ public final class ItemManager {
                         "Seller không tồn tại: " + sellerId));
         if (!seller.canSell()) {
             throw new IllegalArgumentException(
-                    "User không có quyền tạo sản phẩm (không có role SELLER hoặc đã bị khóa)");
+                    "User không có quyền tạo sản phẩm (Tài khoản bị khóa)");
         }
 
         Item item = ItemFactory.create(category, name, description, sellerId,

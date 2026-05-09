@@ -40,10 +40,16 @@ public class SellerDashboardController {
         cboCategory.setValue("ELECTRONICS");
         cboCondition.setValue("NEW");
 
-        colItemId.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "itemId")));
+        // ID là UUID dài 36 ký tự — hiển thị 8 ký tự đầu cho gọn, full UUID giữ trong row data.
+        colItemId.setCellValueFactory(cd -> new SimpleStringProperty(shortId(s(cd.getValue(), "itemId"))));
         colItemName.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "name")));
         colItemPrice.setCellValueFactory(cd -> new SimpleStringProperty(money(cd.getValue().get("startingPrice"))));
         tblItems.setItems(itemsData);
+
+        // Click row → auto-fill ô Item ID bên panel tạo phiên (UUID khó copy thủ công).
+        tblItems.getSelectionModel().selectedItemProperty().addListener((obs, oldRow, newRow) -> {
+            if (newRow != null) txtAuctionItemId.setText(s(newRow, "itemId"));
+        });
 
         loadProfileSummary();
         loadMyItems();
@@ -84,6 +90,7 @@ public class SellerDashboardController {
         String brand = txtBrand.getText().trim();
         String modelVal = txtModel.getText().trim();
 
+        // Key phải khớp với ItemFactory.create — sai key là factory ném "Thiếu thuộc tính bắt buộc".
         switch (category) {
             case "ELECTRONICS" -> {
                 attrs.put("brand", brand);
@@ -92,20 +99,15 @@ public class SellerDashboardController {
             }
             case "ART" -> {
                 attrs.put("artist", brand);
-                attrs.put("year", modelVal.isEmpty() ? "2024" : modelVal);
+                attrs.put("yearCreated", modelVal.isEmpty() ? "2024" : modelVal);
             }
             case "VEHICLE" -> {
-                attrs.put("brand", brand);
+                attrs.put("make", brand);
                 attrs.put("model", modelVal);
-                attrs.put("manufactureYear", "2022");
-                attrs.put("mileage", "0");
-                attrs.put("color", "Đen");
-                attrs.put("fuelType", "Xăng");
-                attrs.put("transmission", "Số tay");
-                attrs.put("ownerCount", "1");
-                attrs.put("hasRegistration", "true");
+                attrs.put("year", "2022");
+                attrs.put("mileageKm", "0");
             }
-            default -> { /* OtherItem */ }
+            default -> { /* OtherItem — không có thuộc tính bắt buộc */ }
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -136,15 +138,18 @@ public class SellerDashboardController {
 
     @FXML
     private void handleCreateAuction() {
-        int itemId;
+        String itemId = txtAuctionItemId.getText().trim();
+        if (itemId.isEmpty()) {
+            lblAuctionStatus.setText("Chọn item ở bảng bên trái hoặc nhập Item ID");
+            return;
+        }
         int duration;
         double incr;
         try {
-            itemId = Integer.parseInt(txtAuctionItemId.getText().trim());
             duration = Integer.parseInt(txtDuration.getText().trim());
             incr = Double.parseDouble(txtMinIncrement.getText().trim().replace(",", ""));
         } catch (NumberFormatException e) {
-            lblAuctionStatus.setText("Nhập số hợp lệ");
+            lblAuctionStatus.setText("Nhập thời gian/bước nhảy hợp lệ");
             return;
         }
 
@@ -180,8 +185,10 @@ public class SellerDashboardController {
 
     private void loadProfileSummary() {
         requestProfile(data -> {
-            String summary = String.format("%s | Doanh thu: %s",
-                    s(data, "username"), money(data.get("totalRevenue")));
+            String summary = String.format("%s | Số dư: %s | Doanh thu: %s",
+                    s(data, "username"),
+                    money(data.get("balance")),
+                    money(data.get("revenue")));
             lblUserInfo.setText(summary);
         });
     }
@@ -206,11 +213,12 @@ public class SellerDashboardController {
     }
 
     private String formatProfileDetails(Map<String, Object> data) {
-        return String.format("Tài khoản: %s%nVai trò: %s%nTrạng thái: %s%nDoanh thu hiện tại: %s",
+        return String.format("Tài khoản: %s%nVai trò: %s%nTrạng thái: %s%nSố dư: %s%nDoanh thu: %s",
                 s(data, "username"),
                 s(data, "displayRole"),
                 s(data, "displayStatus"),
-                money(data.get("totalRevenue")));
+                money(data.get("balance")),
+                money(data.get("revenue")));
     }
 
     private void clearItemForm() {
@@ -224,8 +232,14 @@ public class SellerDashboardController {
     private String s(Map<String, Object> m, String k) {
         Object v = m.get(k);
         if (v == null) return "";
-        if (v instanceof Number n) return String.valueOf(n.intValue());
+        if (v instanceof Number n) return String.valueOf(n.longValue());
         return v.toString();
+    }
+
+    /** Hiển thị 8 ký tự đầu của UUID cho gọn — UUID đầy đủ 36 ký tự khó đọc. */
+    private String shortId(String id) {
+        if (id == null || id.length() <= 8) return id == null ? "" : id;
+        return id.substring(0, 8);
     }
 
     private String money(Object v) {

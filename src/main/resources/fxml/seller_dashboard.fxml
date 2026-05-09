@@ -29,7 +29,7 @@
                 <Label text="📦 Sản phẩm của tôi" style="-fx-font-weight: bold;"/>
                 <TableView fx:id="tblItems" prefHeight="220">
                     <columns>
-                        <TableColumn fx:id="colItemId" text="ID" prefWidth="50"/>
+                        <TableColumn fx:id="colItemId" text="ID" prefWidth="90"/>
                         <TableColumn fx:id="colItemName" text="Tên" prefWidth="200"/>
                         <TableColumn fx:id="colItemPrice" text="Giá KĐ" prefWidth="140"/>
                     </columns>
@@ -45,6 +45,7 @@
                     </columnConstraints>
                     <Label text="Item ID:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
                     <TextField fx:id="txtAuctionItemId" styleClass="text-input"
+                               promptText="Click vào sản phẩm ở bảng trên để chọn"
                                GridPane.columnIndex="1" GridPane.rowIndex="0"/>
                     <Label text="Thời gian (phút):" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
                     <TextField fx:id="txtDuration" text="30" styleClass="text-input"

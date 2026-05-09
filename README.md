@@ -1,68 +1,89 @@
-com.auction/
-├── model/                          # Domain layer (dùng chung Client+Server)
-│   ├── entity/                     # ⚠️ CHỈ CHỨA ENTITY
-│   │   ├── Entity.java
+com.auction
+│
+├── common/                         # Shared giữa client & server
+│   ├── protocol/                   # Giao tiếp network
+│   │   ├── Request.java
+│   │   ├── Response.java
+│   │   └── ActionType.java        # enum thay vì String
+│   │
+│   └── dto/                        # Data Transfer Object (record)
+│       ├── AuctionDto.java
+│       ├── BidDto.java
+│       ├── UserDto.java
+│       └── ItemDto.java
+│
+├── domain/                         # Core business (model mới)
+│   ├── entity/
 │   │   ├── User.java
-│   │   ├── Admin.java
-│   │   ├── Bidder.java
-│   │   ├── Seller.java
-│   │   ├── Item.java
-│   │   ├── Electronics.java        # ❗ rename từ Electronic
-│   │   ├── Art.java
-│   │   ├── Vehicle.java
-│   │   ├── OtherItem.java
 │   │   ├── Auction.java
-│   │   └── BidTransaction.java
+│   │   ├── Item.java
+│   │   └── profile/                # Strategy pattern cho role
+│   │       ├── BidderProfile.java
+│   │       ├── SellerProfile.java
+│   │       └── AdminProfile.java
+│   │
 │   ├── enums/
-│   │   ├── Role.java
-│   │   ├── UserStatus.java
-│   │   ├── AuctionStatus.java
-│   │   ├── BidStatus.java
-│   │   ├── ItemCategory.java
-│   │   └── ItemCondition.java
-│   ├── exception/                  # ✅ Bạn đã làm đúng
-│   │   ├── AuctionException.java
-│   │   ├── AuctionClosedException.java
-│   │   ├── IllegalAuctionStateException.java
-│   │   ├── InsufficientBalanceException.java
-│   │   └── InvalidBidException.java
-│   ├── factory/                    # 🆕 Move ItemFactory vào đây
-│   │   └── ItemFactory.java
-│   └── observer/                   # 🆕 Thêm package này
-│       └── AuctionObserver.java
+│   ├── exception/
+│   ├── factory/
+│   └── observer/                   # CHỈ giữ 1 hệ observer
+│       ├── AuctionObserver.java
+│       └── AuctionEvent.java
 │
-├── service/                        # Business logic (Singleton, orchestration)
-│   ├── AuctionManager.java         # Singleton - quản lý tất cả Auction
-│   ├── BiddingService.java         # Logic đặt bid + check balance
-│   ├── UserService.java            # Đăng ký/đăng nhập
-│   └── AutoBidService.java         # Cho chức năng nâng cao
+├── service/                        # Business logic (KHÔNG static singleton)
+│   ├── AuctionService.java
+│   ├── BiddingService.java
+│   ├── UserService.java
+│   ├── AutoBidService.java
+│   └── PaymentService.java
 │
-├── repository/                     # 🆕 Persistence layer (Serialization/DAO)
+├── repository/                     # Persistence abstraction
 │   ├── UserRepository.java
 │   ├── AuctionRepository.java
-│   └── BidRepository.java
+│   ├── BidRepository.java
+│   ├── ItemRepository.java
+│   │
+│   └── inmemory/                   # Implement tạm (thi là đủ)
+│       ├── InMemoryUserRepository.java
+│       ├── InMemoryAuctionRepository.java
+│       ├── InMemoryBidRepository.java
+│       └── InMemoryItemRepository.java
 │
-├── network/                        # 🆕 Network protocol (Client+Server share)
-│   ├── Message.java
-│   ├── MessageType.java
-│   └── dto/                        # DTOs cho gửi qua socket
-│       ├── BidRequest.java
-│       └── AuctionResponse.java
+├── security/
+│   ├── PasswordEncoder.java
+│   └── SessionManager.java         # Token-based session
 │
-├── server/                         # 🆕 Server-side only
-│   ├── ServerApp.java
+├── server/
+│   ├── ServerApp.java              # Entry point server
 │   ├── ClientHandler.java
-│   └── handler/
-│       └── BidRequestHandler.java
+│   ├── RequestRouter.java
+│   │
+│   ├── controller/                 # Nhận request → gọi service
+│   │   ├── AuthController.java
+│   │   ├── AuctionController.java
+│   │   ├── BidController.java
+│   │   └── ItemController.java
+│   │
+│   └── push/                       # Thay cho observer cũ phía server
+│       ├── PushBroker.java
+│       └── ClientPushAdapter.java
 │
-├── client/                         # 🆕 JavaFX client (MVC)
+├── client/                         # JavaFX app
 │   ├── ClientApp.java
-│   ├── controller/                 # FXML controllers
-│   ├── view/                       # FXML resources nên ở src/main/resources
-│   └── service/                    # Client-side service (network calls)
+│   │
+│   ├── controller/
+│   ├── service/                    # gọi API server
+│   │   └── ClientApiService.java
+│   │
+│   └── viewmodel/                  # (optional nhưng rất nên có)
 │
-├── util/                           # Helpers
-│   ├── PasswordHasher.java
-│   └── JsonUtil.java
+├── util/
+│   ├── IdGenerator.java
+│   ├── JsonHelper.java
+│   └── Logger.java
 │
-└── Main.java                       # Có thể bỏ nếu đã có ServerApp + ClientApp
+├── config/
+│   └── AppConfig.java
+│
+└── resources/
+├── fxml/
+└── css/

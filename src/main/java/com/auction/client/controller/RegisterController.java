@@ -13,34 +13,29 @@ public class RegisterController {
 
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
-    @FXML private ComboBox<String> cboRole;
-    @FXML private TextField txtExtra;
+    @FXML private TextField txtEmail;
+    @FXML private TextField txtFullName;
     @FXML private Label lblError;
     @FXML private Button btnRegister;
 
     @FXML
     private void initialize() {
         lblError.setText("");
-        cboRole.setValue("BIDDER");
-        txtExtra.setText("10000000");
     }
 
     @FXML
     private void handleRegister() {
         String username = txtUsername.getText().trim();
         String password = txtPassword.getText();
-        String role = cboRole.getValue();
-        double extra;
-        try { extra = Double.parseDouble(txtExtra.getText().trim().replace(",", "")); }
-        catch (NumberFormatException e) { extra = 0; }
+        String email = txtEmail.getText().trim();
+        String fullName = txtFullName.getText().trim();
 
-        if (username.isEmpty() || password.isEmpty() || role == null) {
+        if (username.isEmpty() || password.isEmpty() || email.isEmpty() || fullName.isEmpty()) {
             lblError.setText("Nhập đầy đủ thông tin");
             return;
         }
 
         btnRegister.setDisable(true);
-        double finalExtra = extra;
 
         new Thread(() -> {
             try {
@@ -48,8 +43,10 @@ public class RegisterController {
                 if (!model.isConnected()) model.connect("localhost", 8888);
 
                 model.sendRequest("REGISTER", Map.of(
-                        "username", username, "password", password,
-                        "role", role, "extra", finalExtra));
+                        "username", username,
+                        "password", password,
+                        "email", email,
+                        "fullName", fullName));
                 Response res = model.waitForResponse("REGISTER", 5000);
 
                 Platform.runLater(() -> {

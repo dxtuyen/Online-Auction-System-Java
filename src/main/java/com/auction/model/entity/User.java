@@ -1,21 +1,12 @@
 package com.auction.model.entity;
 
 import com.auction.model.enums.Role;
-import com.auction.model.entity.profile.RoleProfile;
-import com.auction.model.entity.profile.AdminProfile;
-import com.auction.model.entity.profile.BidderProfile;
-import com.auction.model.entity.profile.SellerProfile;
 import com.auction.model.enums.UserStatus;
 import com.auction.security.PasswordEncoder;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -41,13 +32,9 @@ public class User extends Entity {
     private String email;
     private String fullName;
     private UserStatus userStatus;
-
-    /*
-     * DANH SÁCH ROLE ĐÃ ĐƯỢC CẤP CỦA USER
-     *
-     * Key là Role
-     */
-    private final EnumMap<Role, RoleProfile> profiles = new EnumMap<>(Role.class);
+    private Role role;
+    private BigDecimal balance;     // số dư khả dụng để đặt cọc/thanh toán
+    private BigDecimal revenue;     // tổng doanh thu nhận được từ bán đấu giá
 
     /**
      * VALIDATE
@@ -87,10 +74,15 @@ public class User extends Entity {
 
     private static String validateEmail(String email) {
         Objects.requireNonNull(email, "Email khong duoc null");
-        if (!EMAIL_PATTERN.matcher(email).matches()) {
+        String trimmed = email.trim();
+        // RFC 5321: tổng độ dài địa chỉ email tối đa 254 ký tự
+        if (trimmed.length() > 254) {
+            throw new IllegalArgumentException("Email vuot qua 254 ky tu");
+        }
+        if (!EMAIL_PATTERN.matcher(trimmed).matches()) {
             throw new IllegalArgumentException("Email khong hop le");
         }
-        return email;
+        return trimmed;
     }
 
     private static String validateFullName(String fullName) {
@@ -99,7 +91,21 @@ public class User extends Entity {
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("Full name không được rỗng");
         }
+        if (trimmed.length() > 100) {
+            throw new IllegalArgumentException("Full name khong duoc qua 100 ky tu");
+        }
         return trimmed;
+    }
+
+    /**
+     * Validate số tiền: không null, không âm (cho phép = 0).
+     */
+    private static BigDecimal validateNonNegativeAmount(BigDecimal amount, String fieldName) {
+        Objects.requireNonNull(amount, fieldName + " must not be null");
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException(fieldName + " khong duoc am");
+        }
+        return amount;
     }
 
     /**
@@ -107,7 +113,7 @@ public class User extends Entity {
      * (Caller phải hash password trước - thường gọi qua UserManager.register)
      */
     public User(String username, String hashedPassword, String passwordSalt,
-                String email, String fullName) {
+                String email, String fullName, Role role) {
         super();
         this.username = validateUsername(username);
         this.hashedPassword = validateHashedPassword(hashedPassword);
@@ -115,6 +121,9 @@ public class User extends Entity {
         this.email = validateEmail(email);
         this.fullName = validateFullName(fullName);
         this.userStatus = UserStatus.ACTIVE;
+        this.role = Objects.requireNonNull(role, "role must not be null");
+        this.balance = BigDecimal.ZERO;
+        this.revenue = BigDecimal.ZERO;
     }
 
     /**
@@ -122,7 +131,8 @@ public class User extends Entity {
      */
     public User(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                 String username, String hashedPassword, String passwordSalt,
-                String email, String fullName, UserStatus status) {
+                String email, String fullName, UserStatus status, Role role,
+                BigDecimal balance, BigDecimal revenue) {
         super(id, createdAt, updatedAt);
         this.username = validateUsername(username);
         this.hashedPassword = validateHashedPassword(hashedPassword);
@@ -130,13 +140,20 @@ public class User extends Entity {
         this.email = validateEmail(email);
         this.fullName = validateFullName(fullName);
         this.userStatus = Objects.requireNonNull(status, "status must not be null");
+        this.role = Objects.requireNonNull(role, "role must not be null");
+        this.balance = validateNonNegativeAmount(balance, "balance");
+        this.revenue = validateNonNegativeAmount(revenue, "revenue");
     }
 
     /**
      * KIỂM TRA PASSWORD - dùng cho login.
-     * Trả về false (không throw) nếu password sai - để caller quyết định xử lý.
+     * Trả về false (không throw) nếu password null/sai - để caller quyết định xử lý.
+     * synchronized để đọc salt+hash atomic với changePassword (tránh đọc nửa-cập-nhật).
      */
-    public boolean checkPassword(String plainPassword) {
+    public synchronized boolean checkPassword(String plainPassword) {
+        if (plainPassword == null) {
+            return false;
+        }
         return PasswordEncoder.matches(plainPassword, passwordSalt, hashedPassword);
     }
 
@@ -155,127 +172,19 @@ public class User extends Entity {
     }
 
     /**
-     * CẤP ROLE CHO USER HIỆN TẠI
-     * <p>
-     * Quy trình:
-     * 1. Kiểm tra profile không null
-     * 2. Lấy kết quả từ profile.getRole() từ profile vắn gắn vào biến role
-     * 3. Kiểm tra user đã có role này chưa
-     * <p>
-     * 1. Nếu profile là AdminProfile thì gắn owner (user hiện tại) đọc thêm
-     * <p>
-     * 1. Lưu profile vào danh sách roles
-     * 2. Đánh dấu entity đã được cập nhật
-     */
-    public synchronized void grantRole(RoleProfile profile) {
-        Objects.requireNonNull(profile, "profile khong the la null");
-        Role role = Objects.requireNonNull(profile.getRole(), "profile.role khong the la null");
-        if (profiles.containsKey(role)) {
-            throw new IllegalStateException(
-                    "User '" + username + "' đã có role " + role);
-        }
-
-        if (profile instanceof AdminProfile admin) {
-            admin.attachOwner(this);
-        }
-
-        profiles.put(role, profile);
-        markUpdated();
-    }
-
-    /**
-     * THU HỒI ROLE
-     */
-    public synchronized boolean revokeRole(Role role) {
-        Objects.requireNonNull(role, "Role khong duoc null");
-        boolean removed = profiles.remove(role) != null;    // Trả về danh sách đã bị xóa role nếu có role cần được thu hồi. Trả về null nếu không có role cần thu hồi
-        if (removed) markUpdated();
-        return removed;
-    }
-
-    /**
-     * CHECK CÓ ROLE NÀO KHÔNG
-     */
-    public boolean hasRole(Role role) {
-        return profiles.containsKey(Objects.requireNonNull(role, "Role khong the la null"));
-    }
-
-    /**
-     * LẤY DANH SÁCH ROLE
-     */
-    public Set<Role> getRoles() {
-        return Collections.unmodifiableSet(profiles.keySet());
-    }
-
-    /**
-     * KIỂM TRA XEM CÓ ROLEPFROFILE NÀO KHÔNG
-     * <p>
-     * Nếu User có role BIDDER → trả về BidderProfile tương ứng.
-     * Nếu không có role BIDDER → trả về Optional rỗng.
-     */
-    public Optional<BidderProfile> asBidder() {
-        return getProfileAs(Role.BIDDER, BidderProfile.class);
-    }
-
-    public Optional<SellerProfile> asSeller() {
-        return getProfileAs(Role.SELLER, SellerProfile.class);
-    }
-
-    public Optional<AdminProfile> asAdmin() {
-        return getProfileAs(Role.ADMIN, AdminProfile.class);
-    }
-
-    /**
-     *
-     */
-    @SuppressWarnings("unchecked")
-    public <P extends RoleProfile> Optional<P> getProfileAs(Role role, Class<P> type) {
-        Objects.requireNonNull(role);
-        Objects.requireNonNull(type);
-        RoleProfile p = profiles.get(role);
-        if (p == null) return Optional.empty();
-        if (!type.isInstance(p)) {
-            throw new ClassCastException(
-                    "Profile của role " + role + " thực ra là " + p.getClass().getSimpleName() +
-                            ", không phải " + type.getSimpleName());
-        }
-        return Optional.of((P) p);
-    }
-
-    /**
-     * Lấy BidderProfile bắt buộc của User.
-     * <p>
-     * Nếu User có role BIDDER → trả về BidderProfile.
-     * Nếu không có role BIDDER → ném lỗi (không cho tiếp tục).
-     */
-    public BidderProfile requireBidder() {
-        return asBidder().orElseThrow(() ->
-                new NoSuchElementException("User '" + username + "' không phải Bidder"));
-    }
-
-    public SellerProfile requireSeller() {
-        return asSeller().orElseThrow(() ->
-                new NoSuchElementException("User '" + username + "' không phải Seller"));
-    }
-
-    public AdminProfile requireAdmin() {
-        return asAdmin().orElseThrow(() ->
-                new NoSuchElementException("User '" + username + "' không phải Admin"));
-    }
-
-    /**
      * Check quyền
      */
-    public boolean canBid() {
-        return isActive() && hasRole(Role.BIDDER);
-    }
 
     public boolean canSell() {
-        return isActive() && hasRole(Role.SELLER);
+        return isActive() && role != Role.ADMIN;
+    }
+
+    public boolean canBid() {
+        return isActive() && role != Role.ADMIN;
     }
 
     public boolean canManageSystem() {
-        return isActive() && hasRole(Role.ADMIN);
+        return isActive() && role == Role.ADMIN;
     }
 
     /**
@@ -300,6 +209,67 @@ public class User extends Entity {
     }
 
     /**
+     * Kiểm tra xem có đủ số dư để thực hiện bid.
+     *
+     * <p>Đây chỉ là eligibility check không đảm bảo atomicity với mutate sau đó —
+     * code đặt bid phải dùng {@link #tryReserve(BigDecimal)} để check-and-deduct atomic.</p>
+     */
+    public synchronized boolean hasEnoughBalance(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        return balance.compareTo(amount) >= 0;
+    }
+
+    /**
+     * RESERVE - Atomic check-and-deduct: nếu đủ tiền → trừ ngay khỏi {@code balance} và trả {@code true}.
+     *
+     * <p>Mục đích: khi user đặt bid và trở thành highest bidder, số tiền đó được "giữ"
+     * khỏi balance để chống user spend cùng một số tiền cho nhiều phiên cùng lúc
+     * (race khi 2 thread placeBid song song).</p>
+     *
+     * <p>Cặp với {@link #release(BigDecimal)} (hoàn lại khi bị outbid hoặc phiên CANCELED)
+     * và {@link #addRevenue(BigDecimal)} (chuyển cho seller khi phiên FINISHED→PAID).</p>
+     */
+    public synchronized boolean tryReserve(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount phải > 0");
+        }
+        if (balance.compareTo(amount) < 0) return false;
+        balance = balance.subtract(amount);
+        markUpdated();
+        return true;
+    }
+
+    /**
+     * RELEASE - Hoàn lại số tiền đã reserve. Dùng khi:
+     * <ul>
+     *   <li>User bị outbid → trả lại reservation cũ.</li>
+     *   <li>Phiên CANCELED khi user đang là highest bidder.</li>
+     * </ul>
+     */
+    public synchronized void release(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount phải > 0");
+        }
+        balance = balance.add(amount);
+        markUpdated();
+    }
+
+    /**
+     * Tăng doanh thu cho seller khi phiên FINISHED→PAID. Tiền winner đã reserve trước đó
+     * (đã trừ khỏi balance) được chuyển hết sang revenue của seller.
+     */
+    public synchronized void addRevenue(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount phải > 0");
+        }
+        revenue = revenue.add(amount);
+        markUpdated();
+    }
+
+    /**
      * GETTER SETTER
      */
     public String getUsername() {
@@ -314,13 +284,14 @@ public class User extends Entity {
     // }
 
     /**
-     * Trả hash đã store - KHÔNG bao giờ trả plain password vì không lưu
+     * Trả hash đã store - KHÔNG bao giờ trả plain password vì không lưu.
+     * synchronized để đồng bộ với changePassword (xem checkPassword).
      */
-    public String getHashedPassword() {
+    public synchronized String getHashedPassword() {
         return hashedPassword;
     }
 
-    public String getPasswordSalt() {
+    public synchronized String getPasswordSalt() {
         return passwordSalt;
     }
 
@@ -354,13 +325,45 @@ public class User extends Entity {
         markUpdated();
     }
 
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = Objects.requireNonNull(role, "role must not be null");
+        markUpdated();
+    }
+
+    public synchronized BigDecimal getBalance() {
+        return balance;
+    }
+
+    /**
+     * Đặt balance trực tiếp - chỉ dùng cho admin / data seeding.
+     * Mutate balance thông thường (đặt bid) PHẢI đi qua {@link #tryReserve}/{@link #release}
+     * để giữ atomic check-and-modify.
+     */
+    public synchronized void setBalance(BigDecimal balance) {
+        this.balance = validateNonNegativeAmount(balance, "balance");
+        markUpdated();
+    }
+
+    public synchronized BigDecimal getRevenue() {
+        return revenue;
+    }
+
+    public synchronized void setRevenue(BigDecimal revenue) {
+        this.revenue = validateNonNegativeAmount(revenue, "revenue");
+        markUpdated();
+    }
+
     @Override
     public String toString() {
         // KHÔNG bao giờ in hashedPassword/salt - tránh leak qua log
         return "User{" +
                 "id=" + getId() +
                 ", username='" + username + '\'' +
-                ", roles=" + profiles.keySet() +
+                ", role=" + role +
                 ", status=" + userStatus +
                 '}';
     }
@@ -373,7 +376,7 @@ public class User extends Entity {
      */
     public static final class Builder {
         private String username, plainPassword, email, fullName;
-        private final Map<Role, RoleProfile> stagedProfiles = new EnumMap<>(Role.class);
+        private Role role;
 
         public Builder username(String v) {
             this.username = v;
@@ -398,29 +401,8 @@ public class User extends Entity {
             return this;
         }
 
-        public Builder asBidder() {
-            return withProfile(new BidderProfile());
-        }
-
-        public Builder asBidder(java.math.BigDecimal initialBalance) {
-            return withProfile(new BidderProfile(initialBalance));
-        }
-
-        public Builder asSeller() {
-            return withProfile(new SellerProfile());
-        }
-
-        public Builder asSeller(java.math.BigDecimal initialRevenue) {
-            return withProfile(new SellerProfile(initialRevenue));
-        }
-
-        public Builder asAdmin() {
-            return withProfile(new AdminProfile());
-        }
-
-        public Builder withProfile(RoleProfile profile) {
-            Objects.requireNonNull(profile);
-            stagedProfiles.put(profile.getRole(), profile);
+        public Builder role(Role v) {
+            this.role = v;
             return this;
         }
 
@@ -429,6 +411,7 @@ public class User extends Entity {
             Objects.requireNonNull(plainPassword, "password required");
             Objects.requireNonNull(email, "email required");
             Objects.requireNonNull(fullName, "fullName required");
+            Objects.requireNonNull(role, "role required");
             if (plainPassword.length() < 6) {
                 throw new IllegalArgumentException("Password phải >= 6 ký tự");
             }
@@ -436,9 +419,7 @@ public class User extends Entity {
             String salt = PasswordEncoder.generateSalt();
             String hash = PasswordEncoder.hash(plainPassword, salt);
 
-            User u = new User(username, hash, salt, email, fullName);
-            stagedProfiles.values().forEach(u::grantRole);
-            return u;
+            return new User(username, hash, salt, email, fullName, role);
         }
     }
 }
