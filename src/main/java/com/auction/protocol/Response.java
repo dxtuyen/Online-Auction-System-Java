@@ -13,7 +13,7 @@ package com.auction.protocol;
 public class Response {
 
     private String action;   // echo lại action từ Request để client biết response cho gì
-    private String status;   // SUCCESS / ERROR / PUSH
+    private ResponseStatus status;   // SUCCESS / ERROR / PUSH
     private String message;  // thông báo dành cho user
     private Object data;     // kết quả (Map, List,... tùy action)
 
@@ -24,41 +24,42 @@ public class Response {
     public static Response success(String action, String message, Object data) {
         Response r = new Response();
         r.action = action;
-        r.status = "SUCCESS";
+        r.status = ResponseStatus.SUCCESS;
         r.message = message;
         r.data = data;
         return r;
     }
 
-    public static Response error(String action, String message) {
+    public static Response error(String action, String message, Object data) {
         Response r = new Response();
         r.action = action;
-        r.status = "ERROR";
+        r.status = ResponseStatus.ERROR;
         r.message = message;
+        r.data = data;
         return r;
     }
-
-    public static Response push(String action, Object data) {
+    public static Response push(String action, String message, Object data) {
         Response r = new Response();
         r.action = action;
-        r.status = "PUSH";
+        r.status = ResponseStatus.PUSH;
+        r.message = message;
         r.data = data;
         return r;
     }
 
     // Getters / Setters (Gson cần setter để parse JSON)
     public String getAction() { return action; }
-    public String getStatus() { return status; }
+    public ResponseStatus getStatus() { return status; }
     public String getMessage() { return message; }
     public Object getData() { return data; }
 
     public void setAction(String action) { this.action = action; }
-    public void setStatus(String status) { this.status = status; }
+    public void setStatus(ResponseStatus status) { this.status = status; }
     public void setMessage(String message) { this.message = message; }
     public void setData(Object data) { this.data = data; }
 
     // Shortcuts tiện dụng
-    public boolean isSuccess() { return "SUCCESS".equals(status); }
-    public boolean isError()   { return "ERROR".equals(status); }
-    public boolean isPush()    { return "PUSH".equals(status); }
+    public boolean isSuccess() { return ResponseStatus.SUCCESS == status; }
+    public boolean isError()   { return ResponseStatus.ERROR == status; }
+    public boolean isPush()    { return ResponseStatus.PUSH == status; }
 }
