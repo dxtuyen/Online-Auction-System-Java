@@ -209,11 +209,64 @@ public class User extends Entity {
     }
 
     /**
-     * Kiểm tra xem có đủ số dư để thực hiện bid
+     * Kiểm tra xem có đủ số dư để thực hiện bid.
+     *
+     * <p>Đây chỉ là eligibility check không đảm bảo atomicity với mutate sau đó —
+     * code đặt bid phải dùng {@link #tryReserve(BigDecimal)} để check-and-deduct atomic.</p>
      */
-    public boolean hasEnoughBalance(BigDecimal amount) {
+    public synchronized boolean hasEnoughBalance(BigDecimal amount) {
         Objects.requireNonNull(amount, "amount must not be null");
         return balance.compareTo(amount) >= 0;
+    }
+
+    /**
+     * RESERVE - Atomic check-and-deduct: nếu đủ tiền → trừ ngay khỏi {@code balance} và trả {@code true}.
+     *
+     * <p>Mục đích: khi user đặt bid và trở thành highest bidder, số tiền đó được "giữ"
+     * khỏi balance để chống user spend cùng một số tiền cho nhiều phiên cùng lúc
+     * (race khi 2 thread placeBid song song).</p>
+     *
+     * <p>Cặp với {@link #release(BigDecimal)} (hoàn lại khi bị outbid hoặc phiên CANCELED)
+     * và {@link #addRevenue(BigDecimal)} (chuyển cho seller khi phiên FINISHED→PAID).</p>
+     */
+    public synchronized boolean tryReserve(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount phải > 0");
+        }
+        if (balance.compareTo(amount) < 0) return false;
+        balance = balance.subtract(amount);
+        markUpdated();
+        return true;
+    }
+
+    /**
+     * RELEASE - Hoàn lại số tiền đã reserve. Dùng khi:
+     * <ul>
+     *   <li>User bị outbid → trả lại reservation cũ.</li>
+     *   <li>Phiên CANCELED khi user đang là highest bidder.</li>
+     * </ul>
+     */
+    public synchronized void release(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount phải > 0");
+        }
+        balance = balance.add(amount);
+        markUpdated();
+    }
+
+    /**
+     * Tăng doanh thu cho seller khi phiên FINISHED→PAID. Tiền winner đã reserve trước đó
+     * (đã trừ khỏi balance) được chuyển hết sang revenue của seller.
+     */
+    public synchronized void addRevenue(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount phải > 0");
+        }
+        revenue = revenue.add(amount);
+        markUpdated();
     }
 
     /**
@@ -281,20 +334,25 @@ public class User extends Entity {
         markUpdated();
     }
 
-    public BigDecimal getBalance() {
+    public synchronized BigDecimal getBalance() {
         return balance;
     }
 
-    public void setBalance(BigDecimal balance) {
+    /**
+     * Đặt balance trực tiếp - chỉ dùng cho admin / data seeding.
+     * Mutate balance thông thường (đặt bid) PHẢI đi qua {@link #tryReserve}/{@link #release}
+     * để giữ atomic check-and-modify.
+     */
+    public synchronized void setBalance(BigDecimal balance) {
         this.balance = validateNonNegativeAmount(balance, "balance");
         markUpdated();
     }
 
-    public BigDecimal getRevenue() {
+    public synchronized BigDecimal getRevenue() {
         return revenue;
     }
 
-    public void setRevenue(BigDecimal revenue) {
+    public synchronized void setRevenue(BigDecimal revenue) {
         this.revenue = validateNonNegativeAmount(revenue, "revenue");
         markUpdated();
     }

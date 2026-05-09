@@ -129,21 +129,38 @@ public final class BidManager {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Không tìm thấy auction: " + auctionId));
 
-        // Validate bidder TRƯỚC khi gọi entity → fail fast
+        // Validate bidder TRƯỚC khi reserve → fail fast và không phải refund vô ích
         User user = UserManager.getInstance().findById(userId)
                 .orElseThrow(() -> new InvalidBidException("User không tồn tại: " + userId));
         if (!user.canBid()) {
             throw new InvalidBidException("User không có quyền đấu giá (Tài khoản bị khóa)");
         }
-        if (!user.hasEnoughBalance(amount)) {
+
+        // RESERVE atomic check-and-deduct: chống user dùng cùng số tiền cho 2 bid song song.
+        // Phải reserve TRƯỚC khi gọi auction.placeBid() vì sau đó balance đã giảm sẽ không bị
+        // user khác "nẫng tay trên" qua thread khác.
+        if (!user.tryReserve(amount)) {
             throw new InsufficientBalanceException(
                     "Số dư không đủ. Hiện có: " + user.getBalance() + ", muốn bid: " + amount);
         }
 
         BidTransaction bid = new BidTransaction(auctionId, userId, amount);
-        auction.placeBid(bid);   // entity-level thread-safe, throws nếu không hợp lệ
+        Auction.BidOutcome outcome;
+        try {
+            outcome = auction.placeBid(bid);   // entity-level thread-safe, throws nếu không hợp lệ
+        } catch (RuntimeException e) {
+            // Bid bị reject (phiên đóng / giá không đủ / bidder là seller...) → rollback reservation
+            user.release(amount);
+            throw e;
+        }
 
-        // Sau khi auction.placeBid() return → bid chắc chắn đã VALID. Record + thử auto-bid.
+        // Bid hợp lệ → leader cũ được hoàn lại reservation. UserManager có thể không tìm thấy
+        // user (đã bị xóa) → bỏ qua, tiền "treo" rất hiếm và không vỡ flow chính.
+        if (outcome.previousBidderId() != null) {
+            UserManager.getInstance().findById(outcome.previousBidderId())
+                    .ifPresent(prev -> prev.release(outcome.previousAmount()));
+        }
+
         recordBid(auction, bid);
         tryTriggerAutoBids(auction, bid);
         return bid;

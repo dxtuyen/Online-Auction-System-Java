@@ -239,7 +239,12 @@ public final class AuctionManager {
         AuctionStatus current = auction.getStatus();
         switch (current) {
             case PENDING -> auction.transitionTo(AuctionStatus.CANCELED);
-            case RUNNING -> auction.transitionTo(AuctionStatus.FINISHED);
+            // Đóng RUNNING = "kết thúc sớm, vẫn nhận winner hiện tại" → đi qua FINISHED
+            // rồi settle ngay (tương đương hết giờ tự nhiên).
+            case RUNNING -> {
+                auction.transitionTo(AuctionStatus.FINISHED);
+                trySettle(auction);
+            }
             default -> throw new IllegalStateException(
                     "Phiên đang ở trạng thái " + current + ", không thể đóng thủ công");
         }
@@ -342,14 +347,52 @@ public final class AuctionManager {
                 if (status == AuctionStatus.PENDING && !now.isBefore(auction.getStartTime()) && now.isBefore(auction.getEndTime())) {
                     auction.transitionTo(AuctionStatus.RUNNING);
                 }
-                // RUNNING → FINISHED
+                // RUNNING → FINISHED → (settle) → PAID
                 else if (status == AuctionStatus.RUNNING && !now.isBefore(auction.getEndTime())) {
                     auction.transitionTo(AuctionStatus.FINISHED);
+                    trySettle(auction);
                 }
             } catch (Exception e) {
                 // Log nhưng không throw - scheduler phải tiếp tục chạy
                 System.err.println("[AuctionManager] Lỗi khi tick auction " + auction.getId() + ": " + e.getMessage());
             }
+        }
+    }
+
+    // ============== SETTLEMENT ==============
+
+    /**
+     * Settle 1 phiên đã FINISHED: chuyển reservation của winner thành revenue cho seller,
+     * rồi đẩy auction sang PAID.
+     *
+     * <p>Gọi NGOÀI lifecycle observer (gọi trực tiếp ngay sau transitionTo FINISHED) để
+     * tránh đảo thứ tự notification — client nhận được FINISHED rồi mới đến PAID, không
+     * bị PAID trước.</p>
+     *
+     * <p>Edge cases:
+     * <ul>
+     *   <li>Phiên không có ai bid (highestBidderId = null): không có gì để settle, giữ nguyên FINISHED.</li>
+     *   <li>Seller account đã bị xóa: skip cộng revenue, vẫn transition PAID — coi như "money lost".</li>
+     *   <li>Lần gọi thứ 2 (đã PAID): transitionTo throw, ta swallow — idempotent.</li>
+     * </ul>
+     * </p>
+     */
+    private void trySettle(Auction auction) {
+        UUID winnerId = auction.getHighestBidderId();
+        if (winnerId == null) {
+            // Phiên kết thúc mà không có ai bid — không settle, giữ FINISHED.
+            return;
+        }
+
+        BigDecimal price = auction.getCurrentPrice();
+        UserManager.getInstance().findById(auction.getSellerId())
+                .ifPresent(seller -> seller.addRevenue(price));
+
+        try {
+            auction.transitionTo(AuctionStatus.PAID);
+        } catch (RuntimeException e) {
+            // Auction đã ở terminal khác (PAID/CANCELED) — settle 2 lần là idempotent.
+            System.err.println("[AuctionManager] Settle bỏ qua: " + e.getMessage());
         }
     }
 
