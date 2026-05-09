@@ -1,7 +1,7 @@
 package com.auction.service;
 
 import com.auction.model.entity.User;
-import com.auction.model.entity.profile.RoleProfile;
+import com.auction.model.enums.Role;
 import com.auction.model.exception.AuthException;
 import com.auction.security.PasswordEncoder;
 
@@ -70,19 +70,15 @@ public final class UserManager {
      * tại trong memory lâu hơn cần thiết.
      *
      * @param plainPassword password do user nhập (plain text - sẽ hash bên trong)
-     * @param profiles      ít nhất 1 profile (Bidder/Seller/Admin)
      * @return User vừa tạo
      * @throws IllegalArgumentException nếu input không hợp lệ
      * @throws IllegalStateException    nếu username đã tồn tại
      */
     public User register(String username, String plainPassword, String email,
-                         String fullName, RoleProfile... profiles) {
+                         String fullName, Role role) {
         Objects.requireNonNull(plainPassword, "password must not be null");
         if (plainPassword.length() < 6) {
             throw new IllegalArgumentException("Password phải >= 6 ký tự");
-        }
-        if (profiles == null || profiles.length == 0) {
-            throw new IllegalArgumentException("Phải có ít nhất 1 profile");
         }
 
         // Check trùng username TRƯỚC khi tạo User để khỏi phí công hash
@@ -98,10 +94,7 @@ public final class UserManager {
         String hash = PasswordEncoder.hash(plainPassword, salt);
 
         // Tạo user (constructor đã validate username/email/fullName)
-        User user = new User(trimmedUsername, hash, salt, email, fullName);
-        for (RoleProfile p : profiles) {
-            user.grantRole(p);
-        }
+        User user = new User(trimmedUsername, hash, salt, email, fullName, role);
 
         // Reserve username atomic - nếu thua race, hủy
         UUID prev = usernameIndex.putIfAbsent(user.getUsername(), user.getId());

@@ -4,11 +4,7 @@ import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
 import com.auction.model.entity.Item;
 import com.auction.model.entity.User;
-import com.auction.model.entity.profile.BidderProfile;
 import com.auction.model.enums.AuctionStatus;
-import com.auction.model.exception.AuctionClosedException;
-import com.auction.model.exception.InsufficientBalanceException;
-import com.auction.model.exception.InvalidBidException;
 import com.auction.model.observer.AuctionObserver;
 
 import java.math.BigDecimal;
@@ -163,7 +159,7 @@ public final class AuctionManager {
         // Check seller có quyền
         User seller = UserManager.getInstance().findById(sellerId).orElseThrow(() -> new IllegalArgumentException("Seller không tồn tại: " + sellerId));
         if (!seller.canSell()) {
-            throw new IllegalArgumentException("User không có quyền tạo phiên đấu giá");
+            throw new IllegalArgumentException("User không có quyền tạo phiên đấu giá(Tài khoản bị khóa)");
         }
 
         // Check item tồn tại + thuộc về seller này (chống tạo phiên cho item của người khác)
@@ -211,49 +207,43 @@ public final class AuctionManager {
         return false;
     }
 
-    // ============== BID OPERATIONS (FACADE) ==============
+    // ============== MANUAL CLOSE ==============
 
     /**
-     * Đặt bid vào auction.
+     * Đóng phiên theo yêu cầu của seller (hoặc admin) thay vì đợi scheduler hết giờ.
      * <p>
-     * Đây là FACADE method - che giấu việc:
-     * - Tìm auction
-     * - Validate bidder (tồn tại, có role BIDDER, đang active, đủ tiền)
-     * - Tạo BidTransaction
-     * - Gọi Auction.placeBid() (đã thread-safe ở tầng dưới)
-     * - Anti-sniping tự kích hoạt qua observer
+     * - PENDING → CANCELED: phiên chưa start, seller đổi ý → hủy
+     * - RUNNING → FINISHED: phiên đang chạy → kết thúc sớm, settlement chạy như bình thường
+     * - Trạng thái khác (FINISHED/PAID/CANCELED) → không đóng được nữa
      * <p>
-     * BẢO MẬT:
-     * - User bị BANNED không bid được (canBid() = false)
-     * - Seller/Admin không bid được (không có role BIDDER)
-     * - Bidder không đủ tiền không bid được
-     * - Self-bidding (seller tự bid item của mình) → block bởi Auction.placeBid
+     * Bảo mật: chỉ chính seller của phiên mới được đóng. Actor id phải lấy từ session,
+     * KHÔNG được tin client tự gửi.
      *
-     * @return BidTransaction đã được xử lý (status = VALID nếu thành công)
-     * @throws IllegalArgumentException     nếu auction/bidder không tồn tại
-     * @throws InvalidBidException          nếu bid không hợp lệ về business rule
-     * @throws InsufficientBalanceException nếu bidder không đủ tiền
-     * @throws AuctionClosedException       nếu phiên đã đóng
+     * @return auction sau khi đã chuyển trạng thái
+     * @throws IllegalArgumentException nếu auction không tồn tại
+     * @throws SecurityException        nếu actor không phải seller của phiên
+     * @throws IllegalStateException    nếu phiên đã ở terminal state
      */
-    public BidTransaction placeBid(UUID auctionId, UUID bidderId, BigDecimal amount) {
+    public Auction closeAuction(UUID auctionId, UUID actorUserId) {
+        Objects.requireNonNull(auctionId, "auctionId");
+        Objects.requireNonNull(actorUserId, "actorUserId");
+
         Auction auction = auctions.get(auctionId);
         if (auction == null) {
             throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
         }
-
-        // Validate bidder TRƯỚC khi gọi entity → fail fast
-        User bidder = UserManager.getInstance().findById(bidderId).orElseThrow(() -> new InvalidBidException("Bidder không tồn tại: " + bidderId));
-        if (!bidder.canBid()) {
-            throw new InvalidBidException("User không có quyền đấu giá (không có role BIDDER hoặc đã bị khóa)");
-        }
-        BidderProfile profile = bidder.requireBidder();
-        if (!profile.hasEnoughBalance(amount)) {
-            throw new InsufficientBalanceException("Số dư không đủ. Hiện có: " + profile.getBalance() + ", muốn bid: " + amount);
+        if (!auction.getSellerId().equals(actorUserId)) {
+            throw new SecurityException("Bạn không có quyền đóng phiên đấu giá này");
         }
 
-        BidTransaction bid = new BidTransaction(auctionId, bidderId, amount);
-        auction.placeBid(bid);   // tự thread-safe + tự notify
-        return bid;
+        AuctionStatus current = auction.getStatus();
+        switch (current) {
+            case PENDING -> auction.transitionTo(AuctionStatus.CANCELED);
+            case RUNNING -> auction.transitionTo(AuctionStatus.FINISHED);
+            default -> throw new IllegalStateException(
+                    "Phiên đang ở trạng thái " + current + ", không thể đóng thủ công");
+        }
+        return auction;
     }
 
     // ============== QUERY OPERATIONS (REPOSITORY-LIKE) ==============

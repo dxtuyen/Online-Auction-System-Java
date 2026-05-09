@@ -1,19 +1,15 @@
 package com.auction.controller;
 
-/*import com.auction.model.entity.Bidder;
-import com.auction.model.entity.Seller;*/
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
-import com.auction.model.service.AuctionManager;
-import com.auction.model.service.ItemManager;
-import com.auction.model.service.UserManager;
+import com.auction.service.UserManager;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.ClientHandler;
-import com.auction.server.service.AuctionService;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Controller xử lý action liên quan đến User: LOGIN, REGISTER, LOGOUT, GET_PROFILE.
@@ -24,8 +20,6 @@ import java.util.Map;
  */
 public class UserController {
 
-    private final AuctionManager auctionManager = AuctionManager.getInstance();
-    private final ItemManager itemManager = ItemManager.getInstance();
     private final UserManager userManager = UserManager.getInstance();
     private final ClientHandler handler;
 
@@ -37,7 +31,7 @@ public class UserController {
 
         User user = userManager.login(username, password);
         // Lưu userId vào handler để các request sau biết mình là ai
-        handler.setCurrentUserId(user.getId().toString());
+        handler.setCurrentUserId(user.getId());
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("userId", user.getId().toString());
@@ -46,9 +40,8 @@ public class UserController {
         data.put("fullName", user.getFullName());
         data.put("status", user.getUserStatus().name());
         data.put("displayStatus", user.getUserStatus().getDisplayName());
-        data.put("roles", user.getRoles().stream().map(Role::name).toList());
-        data.put("displayRoles", user.getRoles().stream()
-                .map(Role::getDisplayName).toList());
+        data.put("role", user.getRole().name());
+        data.put("displayRole", user.getRole().getDisplayRole());
 
         return Response.success("LOGIN", "Đăng nhập thành công", data);
     }
@@ -59,13 +52,15 @@ public class UserController {
         String email = req.getDataString("email");
         String fullName = req.getDataString("fullName");
 
-
-        Role role = Role.valueOf(roleStr);
-        User user = userManager.register(username, password, role, extra);
+        User user = userManager.register(username, password, email, fullName, Role.NORMAL);
 
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("userId", user.getId());
+        data.put("userId", user.getId().toString());
         data.put("username", user.getUsername());
+        data.put("email", user.getEmail());
+        data.put("fullName", user.getFullName());
+        data.put("role", user.getRole().name());
+        data.put("displayRole", user.getRole().getDisplayRole());
 
         return Response.success("REGISTER", "Đăng ký thành công", data);
     }
@@ -78,35 +73,31 @@ public class UserController {
     /**
      * Trả thông tin tài khoản của user đang đăng nhập.
      *
-     * <p>Bidder sẽ nhận thêm 3 số quan trọng:
-     * số dư ví, số tiền đang giữ chỗ ở các auction đang dẫn đầu, và số dư khả dụng.
-     * Seller sẽ nhận doanh thu hiện tại. Admin hiện chỉ trả thông tin cơ bản.</p>
+     * <p>Mỗi user có balance (số dư khả dụng để đặt cọc/thanh toán) và revenue
+     * (tổng doanh thu nhận được từ bán đấu giá) đính kèm trong response.</p>
      */
     public Response getProfile(Request req) {
-        if (handler.getCurrentUserId() == null)
+        UUID userId = handler.getCurrentUserId();
+        if (userId == null) {
             return Response.error("GET_PROFILE", "Chưa đăng nhập");
+        }
 
-        int userId = Integer.parseInt(handler.getCurrentUserId());
-        User user = service.getUser(userId);
+        User user = userManager.findById(userId).orElse(null);
         if (user == null) {
             return Response.error("GET_PROFILE", "Không tìm thấy người dùng hiện tại");
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("userId", user.getId());
+        data.put("userId", user.getId().toString());
         data.put("username", user.getUsername());
+        data.put("email", user.getEmail());
+        data.put("fullName", user.getFullName());
         data.put("role", user.getRole().name());
         data.put("displayRole", user.getRole().getDisplayRole());
         data.put("status", user.getUserStatus().name());
-        data.put("displayStatus", user.getUserStatus().getDisplayStatus());
-
-        if (user instanceof Bidder bidder) {
-            data.put("balance", bidder.getBalance());
-            data.put("reservedBalance", service.getReservedBalance(userId));
-            data.put("availableBalance", service.getAvailableBalance(userId));
-        } else if (user instanceof Seller seller) {
-            data.put("totalRevenue", seller.getTotalRevenue());
-        }
+        data.put("displayStatus", user.getUserStatus().getDisplayName());
+        data.put("balance", user.getBalance());
+        data.put("revenue", user.getRevenue());
 
         return Response.success("GET_PROFILE", null, data);
     }

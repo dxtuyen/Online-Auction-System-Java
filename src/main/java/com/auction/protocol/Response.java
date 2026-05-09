@@ -38,6 +38,12 @@ public class Response {
         r.data = data;
         return r;
     }
+
+    /** Overload tiện dụng — error không cần data. */
+    public static Response error(String action, String message) {
+        return error(action, message, null);
+    }
+
     public static Response push(String action, String message, Object data) {
         Response r = new Response();
         r.action = action;
@@ -45,6 +51,11 @@ public class Response {
         r.message = message;
         r.data = data;
         return r;
+    }
+
+    /** Overload tiện dụng — push không cần message. */
+    public static Response push(String action, Object data) {
+        return push(action, null, data);
     }
 
     // Getters / Setters (Gson cần setter để parse JSON)
