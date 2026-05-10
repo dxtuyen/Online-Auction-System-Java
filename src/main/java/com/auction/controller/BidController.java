@@ -47,7 +47,7 @@ public class BidController {
         if (bidderId == null) return Response.error("PLACE_BID", "Chưa đăng nhập");
 
         UUID auctionId = req.requireUUID("auctionId");
-        BigDecimal amount = BigDecimal.valueOf(req.requireDouble("amount"));
+        BigDecimal amount = req.requireBigDecimal("amount");
 
         BidTransaction bid = bidManager.placeBid(auctionId, bidderId, amount);
 
@@ -68,8 +68,8 @@ public class BidController {
         if (bidderId == null) return Response.error("SET_AUTO_BID", "Chưa đăng nhập");
 
         UUID auctionId = req.requireUUID("auctionId");
-        BigDecimal maxBid = BigDecimal.valueOf(req.requireDouble("maxBid"));
-        BigDecimal increment = BigDecimal.valueOf(req.requireDouble("increment"));
+        BigDecimal maxBid = req.requireBigDecimal("maxBid");
+        BigDecimal increment = req.requireBigDecimal("increment");
 
         AutoBid ab = bidManager.registerAutoBid(auctionId, bidderId, maxBid, increment);
         return Response.success("SET_AUTO_BID",

@@ -13,6 +13,7 @@ package com.auction.protocol;
 public class Response {
 
     private String action;   // echo lại action từ Request để client biết response cho gì
+    private String requestId; // echo requestId để client ghép đúng response
     private String status;   // SUCCESS / ERROR / PUSH
     private String message;  // thông báo dành cho user
     private Object data;     // kết quả (Map, List,... tùy action)
@@ -48,14 +49,21 @@ public class Response {
 
     // Getters / Setters (Gson cần setter để parse JSON)
     public String getAction() { return action; }
+    public String getRequestId() { return requestId; }
     public String getStatus() { return status; }
     public String getMessage() { return message; }
     public Object getData() { return data; }
 
     public void setAction(String action) { this.action = action; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
     public void setStatus(String status) { this.status = status; }
     public void setMessage(String message) { this.message = message; }
     public void setData(Object data) { this.data = data; }
+
+    public Response withRequestId(String requestId) {
+        this.requestId = requestId;
+        return this;
+    }
 
     // Shortcuts tiện dụng
     public boolean isSuccess() { return "SUCCESS".equals(status); }

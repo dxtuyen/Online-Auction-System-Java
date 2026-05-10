@@ -42,12 +42,11 @@ public class RegisterController {
                 ClientModel model = ClientModel.getInstance();
                 if (!model.isConnected()) model.connect("localhost", 8888);
 
-                model.sendRequest("REGISTER", Map.of(
+                Response res = model.sendRequestAndWait("REGISTER", Map.of(
                         "username", username,
                         "password", password,
                         "email", email,
-                        "fullName", fullName));
-                Response res = model.waitForResponse("REGISTER", 5000);
+                        "fullName", fullName), 5000);
 
                 Platform.runLater(() -> {
                     btnRegister.setDisable(false);
