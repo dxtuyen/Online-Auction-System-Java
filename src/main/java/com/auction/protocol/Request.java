@@ -1,5 +1,8 @@
 package com.auction.protocol;
 
+import com.auction.util.MoneyHelper;
+
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
@@ -11,6 +14,7 @@ import java.util.UUID;
  * {
  *   "action": "LOGIN",                    // tên hành động
  *   "data":   { "username":"alice", ... },// tham số tùy action
+ *   "requestId":"550e8400-e29b-41d4-a716-446655440000", // correlation id
  *   "token":  "1"                         // id user đã đăng nhập, null nếu chưa
  * }
  * </pre>
@@ -23,6 +27,9 @@ public class Request {
     /** Các tham số đi kèm action, có thể rỗng. */
     private Map<String, Object> data;
 
+    /** Correlation id để ghép đúng response với request tương ứng. */
+    private String requestId;
+
     /** Id user đang đăng nhập, dạng String để tiện serialize JSON. */
     private String token;
 
@@ -30,18 +37,21 @@ public class Request {
     public Request() {}
 
     /** Constructor đầy đủ — dùng khi code Java muốn tạo Request rồi gửi đi. */
-    public Request(String action, Map<String, Object> data, String token) {
+    public Request(String action, Map<String, Object> data, String requestId, String token) {
         this.action = action;
         this.data = data;
+        this.requestId = requestId;
         this.token = token;
     }
 
     public String getAction() { return action; }
     public Map<String, Object> getData() { return data; }
+    public String getRequestId() { return requestId; }
     public String getToken() { return token; }
 
     public void setAction(String action) { this.action = action; }
     public void setData(Map<String, Object> data) { this.data = data; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
     public void setToken(String token) { this.token = token; }
 
     // ---------- Helpers lấy value từ data an toàn ----------
@@ -64,6 +74,12 @@ public class Request {
         Object val = data != null ? data.get(key) : null;
         if (val instanceof Number n) return n.intValue();
         return 0;
+    }
+
+    /** Lấy BigDecimal, trả về 0 nếu không có. */
+    public BigDecimal getDataBigDecimal(String key) {
+        Object val = data != null ? data.get(key) : null;
+        return val == null ? BigDecimal.ZERO : MoneyHelper.parseRequestAmount(val, key);
     }
 
     // ---------- Helpers BẮT BUỘC: ném IllegalArgumentException nếu thiếu/sai ----------
@@ -110,6 +126,12 @@ public class Request {
         if (val instanceof Number n) return n.doubleValue();
         throw new IllegalArgumentException(
                 "Trường '" + key + "' phải là số: " + val);
+    }
+
+    /** Lấy BigDecimal bắt buộc — giữ độ chính xác thay vì đi qua double. */
+    public BigDecimal requireBigDecimal(String key) {
+        Object val = data != null ? data.get(key) : null;
+        return MoneyHelper.parseRequestAmount(val, key);
     }
 
     /** Lấy int bắt buộc — phân biệt "thiếu" với "không phải số". */

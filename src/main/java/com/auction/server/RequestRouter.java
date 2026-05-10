@@ -42,9 +42,10 @@ public class RequestRouter {
      */
     public Response route(Request req) {
         String action = req.getAction();
+        String requestId = req.getRequestId();
 
         try {
-            return switch (action) {
+            Response response = switch (action) {
                 // User
                 case "LOGIN"    -> userCtrl.login(req);
                 case "REGISTER" -> userCtrl.register(req);
@@ -69,9 +70,10 @@ public class RequestRouter {
                 // Action lạ không làm rớt connection; server chỉ trả lỗi protocol cho client.
                 default -> Response.error(action, "Action không hỗ trợ: " + action);
             };
+            return response.withRequestId(requestId);
         } catch (RuntimeException e) {
             // Toàn bộ lỗi nghiệp vụ được normalize về ERROR response ở đây.
-            return Response.error(action, e.getMessage());
+            return Response.error(action, e.getMessage()).withRequestId(requestId);
         }
     }
 }

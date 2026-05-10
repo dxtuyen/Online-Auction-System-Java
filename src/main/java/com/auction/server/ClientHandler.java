@@ -90,7 +90,8 @@ public class ClientHandler implements Runnable, AuctionObserver {
         try {
             Request req = JsonHelper.parseRequest(line);
             if (req == null || req.getAction() == null) {
-                send(Response.error("UNKNOWN", "Request không hợp lệ"));
+                String requestId = req != null ? req.getRequestId() : null;
+                send(Response.error("UNKNOWN", "Request không hợp lệ").withRequestId(requestId));
                 return;
             }
 

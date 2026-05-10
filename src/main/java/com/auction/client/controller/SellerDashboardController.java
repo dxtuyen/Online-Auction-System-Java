@@ -3,12 +3,14 @@ package com.auction.client.controller;
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
 import com.auction.protocol.Response;
+import com.auction.util.MoneyHelper;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.*;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 public class SellerDashboardController {
@@ -58,8 +60,7 @@ public class SellerDashboardController {
     private void loadMyItems() {
         new Thread(() -> {
             ClientModel model = ClientModel.getInstance();
-            model.sendRequest("LIST_MY_ITEMS", Map.of());
-            Response res = model.waitForResponse("LIST_MY_ITEMS", 5000);
+            Response res = model.sendRequestAndWait("LIST_MY_ITEMS", Map.of(), 5000);
             if (res != null && res.isSuccess()) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> data = (Map<String, Object>) res.getData();
@@ -77,9 +78,15 @@ public class SellerDashboardController {
     private void handleCreateItem() {
         String name = txtName.getText().trim();
         String desc = txtDesc.getText().trim();
-        double price = parseMoney(txtStartPrice.getText());
+        BigDecimal price;
+        try {
+            price = MoneyHelper.parseWholeAmountInput(txtStartPrice.getText(), "Giá khởi điểm");
+        } catch (IllegalArgumentException e) {
+            lblItemStatus.setText(e.getMessage());
+            return;
+        }
 
-        if (name.isEmpty() || price <= 0) {
+        if (name.isEmpty() || price.signum() <= 0) {
             lblItemStatus.setText("Nhập tên và giá khởi điểm hợp lệ");
             return;
         }
@@ -114,14 +121,13 @@ public class SellerDashboardController {
         data.put("category", category);
         data.put("name", name);
         data.put("description", desc);
-        data.put("startingPrice", price);
+        data.put("startingPrice", price.toPlainString());
         data.put("condition", cboCondition.getValue());
         data.put("specificAttributes", attrs);
 
         new Thread(() -> {
             ClientModel model = ClientModel.getInstance();
-            model.sendRequest("CREATE_ITEM", data);
-            Response res = model.waitForResponse("CREATE_ITEM", 5000);
+            Response res = model.sendRequestAndWait("CREATE_ITEM", data, 5000);
             Platform.runLater(() -> {
                 if (res != null && res.isSuccess()) {
                     lblItemStatus.setStyle("-fx-text-fill: #059669;");
@@ -144,22 +150,25 @@ public class SellerDashboardController {
             return;
         }
         int duration;
-        double incr;
+        BigDecimal incr;
         try {
             duration = Integer.parseInt(txtDuration.getText().trim());
-            incr = Double.parseDouble(txtMinIncrement.getText().trim().replace(",", ""));
-        } catch (NumberFormatException e) {
+            incr = MoneyHelper.parseWholeAmountInput(txtMinIncrement.getText(), "Bước nhảy tối thiểu");
+        } catch (Exception e) {
             lblAuctionStatus.setText("Nhập thời gian/bước nhảy hợp lệ");
+            return;
+        }
+        if (incr.signum() <= 0) {
+            lblAuctionStatus.setText("Bước nhảy tối thiểu phải > 0");
             return;
         }
 
         new Thread(() -> {
             ClientModel model = ClientModel.getInstance();
-            model.sendRequest("CREATE_AUCTION", Map.of(
+            Response res = model.sendRequestAndWait("CREATE_AUCTION", Map.of(
                     "itemId", itemId,
                     "durationMinutes", duration,
-                    "minimumIncrement", incr));
-            Response res = model.waitForResponse("CREATE_AUCTION", 5000);
+                    "minimumIncrement", incr.toPlainString()), 5000);
 
             Platform.runLater(() -> {
                 if (res != null && res.isSuccess()) {
@@ -197,8 +206,7 @@ public class SellerDashboardController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("GET_PROFILE", Map.of());
-                Response res = model.waitForResponse("GET_PROFILE", 5000);
+                Response res = model.sendRequestAndWait("GET_PROFILE", Map.of(), 5000);
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) res.getData();
@@ -247,8 +255,4 @@ public class SellerDashboardController {
         return "0 VNĐ";
     }
 
-    private double parseMoney(String s) {
-        try { return Double.parseDouble(s.trim().replace(",", "").replace(".", "")); }
-        catch (Exception e) { return -1; }
-    }
 }

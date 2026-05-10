@@ -43,9 +43,8 @@ public class LoginController {
                 ClientModel model = ClientModel.getInstance();
                 if (!model.isConnected()) model.connect("localhost", 8888);
 
-                model.sendRequest("LOGIN", Map.of(
-                        "username", username, "password", password));
-                Response res = model.waitForResponse("LOGIN", 5000);
+                Response res = model.sendRequestAndWait("LOGIN", Map.of(
+                        "username", username, "password", password), 5000);
 
                 // Cập nhật UI phải chạy trên JavaFX thread — dùng Platform.runLater
                 Platform.runLater(() -> {

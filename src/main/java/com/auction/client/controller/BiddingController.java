@@ -11,10 +11,13 @@ import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.util.Duration;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+
+import com.auction.util.MoneyHelper;
 
 /**
  * Controller màn hình đấu giá realtime — trái tim của dự án.
@@ -91,8 +94,7 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("GET_AUCTION", Map.of("auctionId", auctionId));
-                Response res = model.waitForResponse("GET_AUCTION", 5000);
+                Response res = model.sendRequestAndWait("GET_AUCTION", Map.of("auctionId", auctionId), 5000);
 
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
@@ -109,8 +111,7 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("BID_HISTORY", Map.of("auctionId", auctionId));
-                Response res = model.waitForResponse("BID_HISTORY", 5000);
+                Response res = model.sendRequestAndWait("BID_HISTORY", Map.of("auctionId", auctionId), 5000);
 
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
@@ -141,9 +142,9 @@ public class BiddingController {
         }
 
         // Gợi ý giá tiếp theo
-        double curr = num(data.get("currentPrice"));
-        double incr = num(data.get("minimumIncrement"));
-        txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", curr + incr));
+        BigDecimal curr = amount(data.get("currentPrice"));
+        BigDecimal incr = amount(data.get("minimumIncrement"));
+        txtBidAmount.setPromptText("Tối thiểu " + formatMoney(curr.add(incr)));
     }
 
     private void renderHistory(List<Map<String, Object>> bids) {
@@ -227,8 +228,14 @@ public class BiddingController {
 
     @FXML
     private void handlePlaceBid() {
-        double amount = parseMoney(txtBidAmount.getText());
-        if (amount <= 0) { lblError.setText("Giá không hợp lệ"); return; }
+        BigDecimal amount;
+        try {
+            amount = MoneyHelper.parseWholeAmountInput(txtBidAmount.getText(), "Giá đấu");
+        } catch (IllegalArgumentException e) {
+            lblError.setText(e.getMessage());
+            return;
+        }
+        if (amount.signum() <= 0) { lblError.setText("Giá đấu phải > 0"); return; }
 
         lblError.setText("");
         btnPlaceBid.setDisable(true);
@@ -236,9 +243,8 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("PLACE_BID", Map.of(
-                        "auctionId", auctionId, "amount", amount));
-                Response res = model.waitForResponse("PLACE_BID", 5000);
+                Response res = model.sendRequestAndWait("PLACE_BID", Map.of(
+                        "auctionId", auctionId, "amount", amount.toPlainString()), 5000);
 
                 Platform.runLater(() -> {
                     btnPlaceBid.setDisable(false);
@@ -262,20 +268,26 @@ public class BiddingController {
 
     @FXML
     private void handleSetAutoBid() {
-        double maxBid = parseMoney(txtMaxBid.getText());
-        double incr = parseMoney(txtIncrementAuto.getText());
-        if (maxBid <= 0 || incr <= 0) {
-            lblAutoBidStatus.setText("Nhập giá tối đa và bước nhảy");
+        BigDecimal maxBid;
+        BigDecimal incr;
+        try {
+            maxBid = MoneyHelper.parseWholeAmountInput(txtMaxBid.getText(), "Giá tối đa");
+            incr = MoneyHelper.parseWholeAmountInput(txtIncrementAuto.getText(), "Bước nhảy auto-bid");
+        } catch (IllegalArgumentException e) {
+            lblAutoBidStatus.setText(e.getMessage());
+            return;
+        }
+        if (maxBid.signum() <= 0 || incr.signum() <= 0) {
+            lblAutoBidStatus.setText("Giá tối đa và bước nhảy phải > 0");
             return;
         }
 
         new Thread(() -> {
             ClientModel model = ClientModel.getInstance();
-            model.sendRequest("SET_AUTO_BID", Map.of(
+            Response res = model.sendRequestAndWait("SET_AUTO_BID", Map.of(
                     "auctionId", auctionId,
-                    "maxBid", maxBid,
-                    "increment", incr));
-            Response res = model.waitForResponse("SET_AUTO_BID", 5000);
+                    "maxBid", maxBid.toPlainString(),
+                    "increment", incr.toPlainString()), 5000);
 
             Platform.runLater(() -> {
                 if (res != null && res.isSuccess()) {
@@ -334,8 +346,7 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("GET_PROFILE", Map.of());
-                Response res = model.waitForResponse("GET_PROFILE", 5000);
+                Response res = model.sendRequestAndWait("GET_PROFILE", Map.of(), 5000);
 
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
@@ -379,14 +390,18 @@ public class BiddingController {
         return v instanceof Number n ? n.doubleValue() : 0;
     }
 
+    private BigDecimal amount(Object v) {
+        if (v == null) return BigDecimal.ZERO;
+        try {
+            return MoneyHelper.parseRequestAmount(v, "amount");
+        } catch (IllegalArgumentException e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
     private String formatMoney(Object v) {
         if (v instanceof Number n) return String.format("%,.0f VNĐ", n.doubleValue());
         return "0 VNĐ";
-    }
-
-    private double parseMoney(String s) {
-        try { return Double.parseDouble(s.trim().replace(",", "").replace(".", "")); }
-        catch (Exception e) { return -1; }
     }
 
     /** "2026-04-22T14:30:15.xxx" → "14:30:15" */

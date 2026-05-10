@@ -3,6 +3,7 @@ package com.auction.protocol;
 import com.auction.util.JsonHelper;
 import org.junit.jupiter.api.*;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,12 +22,14 @@ class JsonHelperTest {
     @DisplayName("Request → JSON: chứa đủ các field action, data, token")
     void toJson_request_correctFormat() {
         Request req = new Request("LOGIN",
-                Map.of("username", "alice", "password", "123"), null);
+                Map.of("username", "alice", "password", "123"),
+                "req-1", null);
 
         String json = JsonHelper.toJson(req);
 
         assertNotNull(json);
         assertTrue(json.contains("\"action\":\"LOGIN\""));
+        assertTrue(json.contains("\"requestId\":\"req-1\""));
         assertTrue(json.contains("\"username\":\"alice\""));
         assertTrue(json.contains("\"password\":\"123\""));
     }
@@ -35,22 +38,33 @@ class JsonHelperTest {
     @DisplayName("JSON → Request: parse lại lấy được data đúng")
     void parseRequest_validJson_correctObject() {
         String json = "{\"action\":\"PLACE_BID\","
-                    + "\"data\":{\"auctionId\":1,\"amount\":32000000},"
+                    + "\"data\":{\"auctionId\":1,\"amount\":\"32000000\"},"
                     + "\"token\":\"5\"}";
 
         Request req = JsonHelper.parseRequest(json);
 
         assertEquals("PLACE_BID", req.getAction());
+        assertNull(req.getRequestId());
         assertEquals("5", req.getToken());
         assertEquals(1, req.getDataInt("auctionId"));
-        assertEquals(32_000_000, req.getDataDouble("amount"));
+        assertEquals(new BigDecimal("32000000"), req.requireBigDecimal("amount"));
     }
 
     @Test
     @DisplayName("Helper getDataString trả null nếu key không tồn tại")
     void getDataString_missingKey_returnsNull() {
-        Request req = new Request("ACTION", Map.of("a", "1"), null);
+        Request req = new Request("ACTION", Map.of("a", "1"), "req-2", null);
         assertNull(req.getDataString("notExist"));
+    }
+
+    @Test
+    @DisplayName("requireBigDecimal parse exact amount từ String payload")
+    void requireBigDecimal_stringPayload_parsesExactly() {
+        Request req = new Request("CREATE_ITEM",
+                Map.of("startingPrice", "25000000"),
+                "req-money", null);
+
+        assertEquals(new BigDecimal("25000000"), req.requireBigDecimal("startingPrice"));
     }
 
     // ==================== RESPONSE ====================
@@ -100,12 +114,14 @@ class JsonHelperTest {
     @DisplayName("Round-trip: Java → JSON → Java vẫn giữ nguyên data")
     void roundTrip_requestPreservesData() {
         Request original = new Request("CREATE_AUCTION",
-                Map.of("itemId", 1, "durationMinutes", 60), "3");
+                Map.of("itemId", 1, "durationMinutes", 60),
+                "req-4", "3");
 
         String json = JsonHelper.toJson(original);
         Request parsed = JsonHelper.parseRequest(json);
 
         assertEquals(original.getAction(), parsed.getAction());
+        assertEquals(original.getRequestId(), parsed.getRequestId());
         assertEquals(original.getToken(), parsed.getToken());
         assertEquals(original.getDataInt("itemId"), parsed.getDataInt("itemId"));
         assertEquals(original.getDataInt("durationMinutes"),
@@ -116,12 +132,14 @@ class JsonHelperTest {
     @DisplayName("Response round-trip giữ status, message và data")
     void roundTrip_responsePreservesData() {
         Response original = Response.success("PLACE_BID", "Đặt giá thành công",
-                Map.of("bidId", 5, "amount", 40_000_000));
+                Map.of("bidId", 5, "amount", 40_000_000))
+                .withRequestId("req-3");
 
         String json = JsonHelper.toJson(original);
         Response parsed = JsonHelper.parseResponse(json);
 
         assertEquals(original.getAction(), parsed.getAction());
+        assertEquals(original.getRequestId(), parsed.getRequestId());
         assertEquals(original.getStatus(), parsed.getStatus());
         assertEquals(original.getMessage(), parsed.getMessage());
         assertNotNull(parsed.getData());

@@ -118,7 +118,7 @@ public class AuctionController {
         String name = req.requireString("name");
         // description có thể trống (item không bắt buộc mô tả) → giữ getDataString
         String description = req.getDataString("description");
-        BigDecimal startingPrice = BigDecimal.valueOf(req.requireDouble("startingPrice"));
+        BigDecimal startingPrice = req.requireBigDecimal("startingPrice");
         ItemCondition condition = req.requireEnum(ItemCondition.class, "condition");
 
         // specificAttributes đi qua JSON nên khi vào đây chỉ còn raw Map; controller chỉ
@@ -158,12 +158,12 @@ public class AuctionController {
         if (sellerId == null) return Response.error("CREATE_AUCTION", "Chưa đăng nhập");
 
         UUID itemId = req.requireUUID("itemId");
-        // duration & increment có default → vẫn dùng getDataInt/getDataDouble (trả 0 nếu thiếu)
+        // duration có default; minimumIncrement parse bằng BigDecimal để không đi qua double.
         int duration = req.getDataInt("durationMinutes");
-        double increment = req.getDataDouble("minimumIncrement");
+        BigDecimal increment = req.getDataBigDecimal("minimumIncrement");
 
         if (duration <= 0) duration = 30;
-        if (increment <= 0) increment = 100_000;
+        if (increment.signum() <= 0) increment = new BigDecimal("100000");
 
         Item item = itemManager.findById(itemId)
                 .orElseThrow(() -> new IllegalArgumentException("Item không tồn tại: " + itemId));
@@ -172,7 +172,7 @@ public class AuctionController {
         LocalDateTime end = start.plusMinutes(duration);
 
         Auction a = auctionManager.createAuction(itemId, sellerId, start, end,
-                item.getStartingPrice(), BigDecimal.valueOf(increment));
+                item.getStartingPrice(), increment);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", a.getId().toString());
