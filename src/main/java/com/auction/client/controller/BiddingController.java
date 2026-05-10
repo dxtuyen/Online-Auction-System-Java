@@ -56,7 +56,7 @@ public class BiddingController {
     @FXML private LineChart<String, Number> chartPrice;
 
     // State
-    private int auctionId;
+    private String auctionId;
     private LocalDateTime endTime;
     private Timeline countdown;
     private XYChart.Series<String, Number> priceSeries;
@@ -64,7 +64,7 @@ public class BiddingController {
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     /** Gọi từ AuctionListController sau khi load FXML. */
-    public void setAuctionId(int auctionId) {
+    public void setAuctionId(String auctionId) {
         this.auctionId = auctionId;
         loadAuctionDetail();
         loadBidHistory();
@@ -182,7 +182,7 @@ public class BiddingController {
         ClientModel model = ClientModel.getInstance();
 
         model.addPushHandler("BID_UPDATE", data -> {
-            if (num(data.get("auctionId")) != auctionId) return;
+            if (!isForCurrentAuction(data)) return;
 
             Platform.runLater(() -> {
                 lblCurrentPrice.setText(formatMoney(data.get("amount")));
@@ -194,7 +194,7 @@ public class BiddingController {
         });
 
         model.addPushHandler("AUCTION_STATUS", data -> {
-            if (num(data.get("auctionId")) != auctionId) return;
+            if (!isForCurrentAuction(data)) return;
             Platform.runLater(() -> {
                 String status = str(data, "status");
                 if ("FINISHED".equals(status) || "PAID".equals(status) || "CANCELED".equals(status)) {
@@ -207,7 +207,7 @@ public class BiddingController {
         });
 
         model.addPushHandler("AUCTION_EXTENDED", data -> {
-            if (num(data.get("auctionId")) != auctionId) return;
+            if (!isForCurrentAuction(data)) return;
             Platform.runLater(() -> {
                 try { endTime = LocalDateTime.parse(str(data, "newEndTime")); }
                 catch (Exception ignored) {}
@@ -215,6 +215,12 @@ public class BiddingController {
                 lblError.setText("⏰ Phiên đã được gia hạn!");
             });
         });
+    }
+
+    /** Kiểm tra push này có phải dành cho phiên đang xem không — UUID so sánh dạng String. */
+    private boolean isForCurrentAuction(Map<String, Object> data) {
+        Object incoming = data == null ? null : data.get("auctionId");
+        return auctionId != null && auctionId.equals(String.valueOf(incoming));
     }
 
     // =========== BID ===========
@@ -364,7 +370,8 @@ public class BiddingController {
     private String str(Map<String, Object> m, String k) {
         Object v = m == null ? null : m.get(k);
         if (v == null) return "";
-        if (v instanceof Number n) return String.valueOf(n.intValue());
+        // Gson parse số JSON thành Double — render integer cho gọn (totalBids = "3" thay vì "3.0").
+        if (v instanceof Number n) return String.valueOf(n.longValue());
         return v.toString();
     }
 
@@ -396,14 +403,9 @@ public class BiddingController {
         sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
         sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
         sb.append("Trạng thái: ").append(str(data, "displayStatus"));
-
-        String role = str(data, "role");
-        if ("BIDDER".equals(role)) {
-            sb.append('\n').append("Số dư ví: ").append(formatMoney(data.get("balance")));
-            sb.append('\n').append("Đang giữ chỗ: ").append(formatMoney(data.get("reservedBalance")));
-            sb.append('\n').append("Số dư khả dụng: ").append(formatMoney(data.get("availableBalance")));
-        } else if ("SELLER".equals(role)) {
-            sb.append('\n').append("Doanh thu hiện tại: ").append(formatMoney(data.get("totalRevenue")));
+        if (!"ADMIN".equals(str(data, "role"))) {
+            sb.append('\n').append("Số dư: ").append(formatMoney(data.get("balance")));
+            sb.append('\n').append("Doanh thu: ").append(formatMoney(data.get("revenue")));
         }
         return sb.toString();
     }

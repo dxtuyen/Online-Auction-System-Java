@@ -2,9 +2,9 @@ package com.auction.server;
 
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
-import com.auction.server.controller.AuctionController;
-import com.auction.server.controller.BidController;
-import com.auction.server.controller.UserController;
+import com.auction.controller.AuctionController;
+import com.auction.controller.BidController;
+import com.auction.controller.UserController;
 
 /**
  * Router phân phối request tới controller tương ứng dựa trên action name.

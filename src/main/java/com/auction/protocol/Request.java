@@ -1,6 +1,7 @@
 package com.auction.protocol;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Request từ Client gửi lên Server.
@@ -63,5 +64,62 @@ public class Request {
         Object val = data != null ? data.get(key) : null;
         if (val instanceof Number n) return n.intValue();
         return 0;
+    }
+
+    // ---------- Helpers BẮT BUỘC: ném IllegalArgumentException nếu thiếu/sai ----------
+    // RequestRouter đã catch RuntimeException và bọc thành Response.error(action, message),
+    // nên client sẽ nhận về message thân thiện thay vì stack trace của NPE.
+
+    /** Bắt buộc có giá trị String non-blank, ném lỗi friendly nếu thiếu. */
+    public String requireString(String key) {
+        String val = getDataString(key);
+        if (val == null || val.isBlank()) {
+            throw new IllegalArgumentException("Thiếu trường '" + key + "'");
+        }
+        return val;
+    }
+
+    /** Parse UUID bắt buộc — chuẩn hóa lỗi "thiếu" và "sai format" thành cùng format message. */
+    public UUID requireUUID(String key) {
+        String val = requireString(key);
+        try {
+            return UUID.fromString(val);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Trường '" + key + "' không phải UUID hợp lệ: " + val);
+        }
+    }
+
+    /** Parse enum bắt buộc — báo lỗi friendly nếu giá trị không thuộc enum. */
+    public <E extends Enum<E>> E requireEnum(Class<E> enumClass, String key) {
+        String val = requireString(key);
+        try {
+            return Enum.valueOf(enumClass, val);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Trường '" + key + "' không hợp lệ: " + val);
+        }
+    }
+
+    /** Lấy double bắt buộc — phân biệt "thiếu" với "không phải số". */
+    public double requireDouble(String key) {
+        Object val = data != null ? data.get(key) : null;
+        if (val == null) {
+            throw new IllegalArgumentException("Thiếu trường '" + key + "'");
+        }
+        if (val instanceof Number n) return n.doubleValue();
+        throw new IllegalArgumentException(
+                "Trường '" + key + "' phải là số: " + val);
+    }
+
+    /** Lấy int bắt buộc — phân biệt "thiếu" với "không phải số". */
+    public int requireInt(String key) {
+        Object val = data != null ? data.get(key) : null;
+        if (val == null) {
+            throw new IllegalArgumentException("Thiếu trường '" + key + "'");
+        }
+        if (val instanceof Number n) return n.intValue();
+        throw new IllegalArgumentException(
+                "Trường '" + key + "' phải là số: " + val);
     }
 }

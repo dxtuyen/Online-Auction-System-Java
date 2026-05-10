@@ -1,93 +1,121 @@
 package com.auction.model.entity;
 
+import com.auction.model.enums.BidStatus;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.UUID;
 
-/*
-BidTransaction: chứa thông tin của giao dịch đặt giá trong phiên đấu giá
+/**
+ * Một lượt đặt giá.
+ * <p>
+ * Design pattern:
+ * - State Machine: status chỉ chuyển theo BidStatus.canTransitionTo
+ * - Immutable core: auctionId/bidderId/bidAmount KHÔNG đổi sau khi tạo
+ * <p>
+ * Note: Đã BỎ field `timestamp` riêng vì TRÙNG với createdAt từ Entity.
+ * Dùng getCreatedAt() làm timestamp đặt bid - tránh duplicate data.
  */
-
 public class BidTransaction extends Entity {
 
     private static final long serialVersionUID = 1L;
 
-    private int auctionId; //id của phiên đấu giá
-    private int bidderId; //id của người đặt giá
-    private double bidAmount; //giá tiền người đó đặt
-    private LocalDateTime timestamp; //thời gian đặt
-    private boolean isValid; //tính hợp lệ
+    private final UUID auctionId;
+    private final UUID bidderId;
+    private final BigDecimal bidAmount;
+    private BidStatus status;
 
-    public BidTransaction() {
+    // ============== CONSTRUCTORS ==============
+
+    public BidTransaction(UUID auctionId, UUID bidderId, BigDecimal bidAmount) {
         super();
+        this.auctionId = Objects.requireNonNull(auctionId, "auctionId must not be null");
+        this.bidderId = Objects.requireNonNull(bidderId, "bidderId must not be null");
+        this.bidAmount = validateAmount(bidAmount);
+        this.status = BidStatus.PENDING;
     }
 
-    public BidTransaction(int auctionId, int bidderId, double bidAmount) {
-        super();
-        this.auctionId = auctionId;
-        this.bidderId = bidderId;
-        this.bidAmount = bidAmount;
-        this.timestamp = LocalDateTime.now();
-        this.isValid = true;
+    public BidTransaction(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
+                          UUID auctionId, UUID bidderId, BigDecimal bidAmount,
+                          BidStatus status) {
+        super(id, createdAt, updatedAt);
+        this.auctionId = Objects.requireNonNull(auctionId);
+        this.bidderId = Objects.requireNonNull(bidderId);
+        this.bidAmount = validateAmount(bidAmount);
+        this.status = Objects.requireNonNull(status);
     }
 
-    public BidTransaction(int id, int auctionId, int bidderId, double bidAmount, LocalDateTime timestamp, boolean isValid) {
-        super(id);
-        this.auctionId = auctionId;
-        this.bidderId = bidderId;
-        this.bidAmount = bidAmount;
-        this.timestamp = timestamp;
-        this.isValid = isValid;
-    }
-
-    //Getter & Setter
-    public int getauctionId() {
+    // ============== GETTERS ==============
+    public UUID getAuctionId() {
         return auctionId;
     }
 
-    public void setauctionId(int auctionId) {
-        this.auctionId = auctionId;
-    }
-
-    public int getBidderId() {
+    public UUID getBidderId() {
         return bidderId;
     }
 
-    public void setBidderId(int bidderId) {
-        this.bidderId = bidderId;
-    }
-
-    public double getBidAmount() {
+    public BigDecimal getBidAmount() {
         return bidAmount;
     }
 
-    public void setBidAmount(double bidAmount) {
-        this.bidAmount = bidAmount;
+    public BidStatus getStatus() {
+        return status;
     }
 
+    /**
+     * Alias dễ hiểu - thực ra là createdAt từ Entity
+     */
     public LocalDateTime getTimestamp() {
-        return timestamp;
+        return getCreatedAt();
     }
 
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
+    // ============== STATE TRANSITIONS ==============
+
+    public void markValid() {
+        changeStatus(BidStatus.VALID);
     }
 
-    public boolean isValid() {
-        return isValid;
+    public void markOutbid() {
+        changeStatus(BidStatus.OUTBID);
     }
 
-    public void setValid(boolean valid) {
-        isValid = valid;
+    public void reject() {
+        changeStatus(BidStatus.REJECTED);
     }
 
-    //Methods
+    public void cancel() {
+        changeStatus(BidStatus.CANCELED);
+    }
+
+    private void changeStatus(BidStatus newStatus) {
+        if (this.status == newStatus) return;
+        if (!this.status.canTransitionTo(newStatus)) {
+            throw new IllegalStateException(
+                    "Không thể chuyển bid từ " + status + " sang " + newStatus);
+        }
+        this.status = newStatus;
+        markUpdated();
+    }
+
+    // ============== VALIDATION ==============
+    private static BigDecimal validateAmount(BigDecimal amount) {
+        Objects.requireNonNull(amount, "bidAmount must not be null");
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("bidAmount phải > 0");
+        }
+        return amount;
+    }
+
     @Override
     public String toString() {
         return "BidTransaction{" +
-                "auctionId=" + auctionId +
+                "id=" + getId() +
+                ", auctionId=" + auctionId +
                 ", bidderId=" + bidderId +
                 ", bidAmount=" + bidAmount +
-                ", timestamp=" + timestamp +
-                ", isValid=" + isValid +
+                ", status=" + status +
+                ", timestamp=" + getCreatedAt() +
                 '}';
     }
 }

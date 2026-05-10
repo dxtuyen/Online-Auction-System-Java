@@ -2,10 +2,10 @@ package com.auction.model.enums;
 
 public enum Role {
     ADMIN("Quản trị viên"),
-    BIDDER("Người đấu giá"),
-    SELLER("Người bán");
+    NORMAL("Người đấu giá");
 
     private final String displayRole;
+
     Role(String displayRole) {
         this.displayRole = displayRole;
     }

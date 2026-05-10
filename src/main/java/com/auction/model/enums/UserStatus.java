@@ -4,12 +4,13 @@ public enum UserStatus {
     ACTIVE("Đang hoạt động"),
     BANNED("Đã bị ban");
 
-    private final String displayStatus;
-    UserStatus(String displayStatus) {
-        this.displayStatus = displayStatus;
+    private final String displayName;
+
+    UserStatus(String displayName) {
+        this.displayName = displayName;
     }
 
-    public String getDisplayStatus() {
-        return displayStatus;
+    public String getDisplayName() {
+        return displayName;
     }
 }

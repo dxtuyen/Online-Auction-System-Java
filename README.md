@@ -1,84 +1,89 @@
-# Hệ thống Đấu giá Trực tuyến
-
-![Java CI](https://github.com/YOUR_USERNAME/Online-Auction-System-Java/actions/workflows/ci.yml/badge.svg)
-
-Hệ thống đấu giá Client-Server bằng Java 17, JavaFX, Socket TCP và JSON.
-
-## Tính năng
-
-### Bắt buộc
-- Đăng ký / đăng nhập 3 vai trò (Bidder / Seller / Admin)
-- Seller quản lý sản phẩm (Electronics / Art / Vehicle / Other)
-- Tạo phiên đấu giá với thời gian + bước nhảy
-- Đặt giá realtime, validate giá + trạng thái phiên
-- Phiên tự đóng khi hết giờ + settlement
-- GUI JavaFX: Login / Register / List / Bidding / Seller Dashboard
-- Realtime push cho mọi client đang xem phiên
-
-### Nâng cao
-- Anti-Sniping — bid trong 30s cuối → gia hạn 60s
-- Auto-Bidding — maxBid + increment + xử lý đệ quy
-- Reserved Balance — bidder không thể "ôm" giá vượt số dư khả dụng
-
-### Kỹ thuật
-- Concurrency-safe: ReentrantLock per-auction & per-user, ConcurrentHashMap
-- Observer pattern cho realtime push qua socket
-- Factory Method cho Item
-- Singleton cho AuctionService, ClientModel, AuctionEventManager
-- JUnit 5: AuctionServiceTest (19 tests) + JsonHelperTest (8 tests)
-- GitHub Actions CI/CD
-
-## Cài đặt & Chạy
-
-### Yêu cầu
-- JDK 17+
-- Maven 3.8+
-
-### Build
-```bash
-mvn clean compile
-```
-
-### Chạy Server (terminal 1)
-```bash
-mvn exec:java -Dexec.mainClass="com.auction.server.ServerMain"
-```
-
-### Chạy Client JavaFX (terminal 2, 3, ...)
-```bash
-mvn javafx:run
-```
-
-### Chạy Console demo
-```bash
-mvn exec:java -Dexec.mainClass="com.auction.Main"
-```
-
-### Tài khoản test (seed data)
-| Username | Password | Role |
-|----------|----------|------|
-| alice | 123 | BIDDER |
-| bob | 123 | BIDDER |
-| seller1 | 123 | SELLER |
-| admin | 123 | ADMIN |
-
-## Test
-```bash
-mvn test
-```
-
-##  Design Patterns
-
-| Pattern | Ở đâu | Mục đích |
-|---------|-------|----------|
-| Singleton | AuctionService, ClientModel, AuctionEventManager | 1 instance toàn hệ thống |
-| Factory Method | ItemFactory | Tạo Item theo category |
-| Observer | AuctionEventManager → ClientHandler | Realtime push bid mới |
-
-## CI/CD
-
-Workflow `.github/workflows/ci.yml` chạy tự động khi push hoặc tạo PR:
-1. Setup JDK 17 (Temurin)
-2. `mvn clean compile`
-3. `mvn test`
-4. Upload test report
+com.auction
+│
+├── common/                         # Shared giữa client & server
+│   ├── protocol/                   # Giao tiếp network
+│   │   ├── Request.java
+│   │   ├── Response.java
+│   │   └── ActionType.java        # enum thay vì String
+│   │
+│   └── dto/                        # Data Transfer Object (record)
+│       ├── AuctionDto.java
+│       ├── BidDto.java
+│       ├── UserDto.java
+│       └── ItemDto.java
+│
+├── domain/                         # Core business (model mới)
+│   ├── entity/
+│   │   ├── User.java
+│   │   ├── Auction.java
+│   │   ├── Item.java
+│   │   └── profile/                # Strategy pattern cho role
+│   │       ├── BidderProfile.java
+│   │       ├── SellerProfile.java
+│   │       └── AdminProfile.java
+│   │
+│   ├── enums/
+│   ├── exception/
+│   ├── factory/
+│   └── observer/                   # CHỈ giữ 1 hệ observer
+│       ├── AuctionObserver.java
+│       └── AuctionEvent.java
+│
+├── service/                        # Business logic (KHÔNG static singleton)
+│   ├── AuctionService.java
+│   ├── BiddingService.java
+│   ├── UserService.java
+│   ├── AutoBidService.java
+│   └── PaymentService.java
+│
+├── repository/                     # Persistence abstraction
+│   ├── UserRepository.java
+│   ├── AuctionRepository.java
+│   ├── BidRepository.java
+│   ├── ItemRepository.java
+│   │
+│   └── inmemory/                   # Implement tạm (thi là đủ)
+│       ├── InMemoryUserRepository.java
+│       ├── InMemoryAuctionRepository.java
+│       ├── InMemoryBidRepository.java
+│       └── InMemoryItemRepository.java
+│
+├── security/
+│   ├── PasswordEncoder.java
+│   └── SessionManager.java         # Token-based session
+│
+├── server/
+│   ├── ServerApp.java              # Entry point server
+│   ├── ClientHandler.java
+│   ├── RequestRouter.java
+│   │
+│   ├── controller/                 # Nhận request → gọi service
+│   │   ├── AuthController.java
+│   │   ├── AuctionController.java
+│   │   ├── BidController.java
+│   │   └── ItemController.java
+│   │
+│   └── push/                       # Thay cho observer cũ phía server
+│       ├── PushBroker.java
+│       └── ClientPushAdapter.java
+│
+├── client/                         # JavaFX app
+│   ├── ClientApp.java
+│   │
+│   ├── controller/
+│   ├── service/                    # gọi API server
+│   │   └── ClientApiService.java
+│   │
+│   └── viewmodel/                  # (optional nhưng rất nên có)
+│
+├── util/
+│   ├── IdGenerator.java
+│   ├── JsonHelper.java
+│   └── Logger.java
+│
+├── config/
+│   └── AppConfig.java
+│
+└── resources/
+├── fxml/
+└── css/
