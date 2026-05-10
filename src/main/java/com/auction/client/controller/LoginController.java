@@ -14,7 +14,7 @@ import java.util.Map;
 public class LoginController {
 
 
-    public void handleShowRegister(ActionEvent event) {
+    public void goToRegister(ActionEvent event) {
     }
 
     public void handleLogin(ActionEvent event) {

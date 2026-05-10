@@ -24,7 +24,7 @@ public class ClientApp extends Application {
     public void start(Stage stage) throws Exception {
         primaryStage = stage;
 
-        Parent root = FXMLLoader.load(getClass().getResource("/fxml/login.fxml"));
+        Parent root = FXMLLoader.load(getClass().getResource("/fxml/register.fxml"));
         Scene scene = new Scene(root, 920, 620);
 
         // Load CSS nếu có

@@ -25,10 +25,9 @@ public class AuctionListController {
     public void handleRefresh(ActionEvent event) {
     }
 
-    public void goToCreateAuction(ActionEvent event) {
+    public void goToSellerDashboard(ActionEvent event) {
 
     }
 
-    public void handleTableClick(MouseEvent mouseEvent) {
-    }
+
 }

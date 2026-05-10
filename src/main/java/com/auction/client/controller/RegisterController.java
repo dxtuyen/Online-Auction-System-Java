@@ -12,9 +12,9 @@ import java.util.Map;
 
 public class RegisterController {
 
-    public void handleBackToLogin(ActionEvent event) {
+    public void goToLogin(ActionEvent event) {
     }
 
-    public void handleDoRegister(ActionEvent event) {
+    public void handleRegister(ActionEvent event) {
     }
 }
