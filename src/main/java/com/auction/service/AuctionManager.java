@@ -134,11 +134,7 @@ public final class AuctionManager {
 
     private AuctionManager() {
         // Daemon thread - không block JVM shutdown
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "AuctionManager-Scheduler");
-            t.setDaemon(true);
-            return t;
-        });
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {Thread t = new Thread(r, "AuctionManager-Scheduler"); t.setDaemon(true); return t;});
         startLifecycleScheduler();
     }
 
@@ -315,6 +311,7 @@ public final class AuctionManager {
         }
         this.snipingThresholdSeconds = thresholdSeconds;
         this.snipingExtensionSeconds = extensionSeconds;
+
     }
 
     // ============== SCHEDULED TASKS ==============

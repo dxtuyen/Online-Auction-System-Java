@@ -39,6 +39,8 @@ public final class UserManager {
 
     // ============== SINGLETON (Bill Pugh idiom) ==============
 
+    private UserManager() { /* singleton */ }
+
     private static final class Holder {
         private static final UserManager INSTANCE = new UserManager();
     }
@@ -58,8 +60,6 @@ public final class UserManager {
      * Index theo username để check trùng O(1) và login nhanh
      */
     private final ConcurrentHashMap<String, UUID> usernameIndex = new ConcurrentHashMap<>();
-
-    private UserManager() { /* singleton */ }
 
     // ============== REGISTRATION ==============
 
@@ -117,12 +117,19 @@ public final class UserManager {
      * - Vẫn check password ngay cả khi username không tồn tại để timing đồng đều
      * (chống timing attack — attacker không thể đoán username dựa vào response time).
      */
+
     public User login(String username, String plainPassword) {
         Objects.requireNonNull(username, "username");
         Objects.requireNonNull(plainPassword, "password");
 
         UUID userId = usernameIndex.get(username.trim());
-        User user = userId == null ? null : users.get(userId);
+        User user;
+
+        if (userId == null) {
+            user = null;
+        } else {
+            user = users.get(userId);
+        }
 
         // Luôn chạy hash để timing đều - không expose việc user có tồn tại hay không
         boolean passwordOk;
