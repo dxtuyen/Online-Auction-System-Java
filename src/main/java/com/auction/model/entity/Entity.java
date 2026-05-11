@@ -61,7 +61,6 @@ public abstract class Entity implements Serializable {
 
     /**
      * equals/hashCode dựa HOÀN TOÀN trên id (DDD pattern).
-     * Đánh dấu final để subclass không thể override sai.
      */
     @Override
     public final boolean equals(Object o) {
@@ -85,22 +84,3 @@ public abstract class Entity implements Serializable {
                 "}";
     }
 }
-
-/*
-Domain-Driven Design (DDD) Entity Pattern
-→ Entity được định danh bằng id, không phải bằng dữ liệu bên trong
-Identity-based Equality Pattern
-→ equals() và hashCode() chỉ dựa trên id
-Base Entity / Inheritance Pattern
-→ Một class cha dùng chung cho tất cả entity trong hệ thống
-Template Method Pattern (một phần)
-→ Constructor tạo mới vs constructor restore từ DB định nghĩa lifecycle chuẩn
-Immutability Pattern (một phần)
-→ id, createdAt là final, không thể thay đổi sau khi tạo
-Encapsulation + Controlled Mutation
-→ markUpdated() kiểm soát việc update updatedAt
-Defensive Programming
-→ Objects.requireNonNull() để chặn data null từ DB sớm
-Serialization Support Pattern
-→ implements Serializable để hỗ trợ cache / network / persistence
- */

@@ -33,13 +33,33 @@ public class AutoBid {
         this.active = true;
     }
 
-    public UUID getBidderId()           { return bidderId; }
-    public UUID getAuctionId()          { return auctionId; }
-    public BigDecimal getMaxBid()       { return maxBid; }
-    public BigDecimal getIncrement()    { return increment; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public boolean isActive()           { return active; }
-    public void deactivate()            { this.active = false; }
+    public UUID getBidderId() {
+        return bidderId;
+    }
+
+    public UUID getAuctionId() {
+        return auctionId;
+    }
+
+    public BigDecimal getMaxBid() {
+        return maxBid;
+    }
+
+    public BigDecimal getIncrement() {
+        return increment;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void deactivate() {
+        this.active = false;
+    }
 
     private static BigDecimal validatePositive(BigDecimal value, String field) {
         Objects.requireNonNull(value, field + " must not be null");
