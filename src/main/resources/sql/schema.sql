@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS items (
     vehicle_year    INT,
     mileage_km      INT,
 
+    -- OtherItem (FASHION/COLLECTIBLE/OTHER)
+    extra_info      TEXT,
+
     CONSTRAINT fk_items_seller FOREIGN KEY (seller_id) REFERENCES users(id)
 );
 

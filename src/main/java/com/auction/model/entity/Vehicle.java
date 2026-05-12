@@ -5,6 +5,7 @@ import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +27,22 @@ public class Vehicle extends Item {
                    String make, String model, int year, int mileageKm) {
         super(name, description, sellerId, startingPrice, images,
                 ItemCategory.VEHICLE, condition);
+        this.make = make;
+        this.model = model;
+        if (year < 1900) throw new IllegalArgumentException("year không hợp lệ");
+        if (mileageKm < 0) throw new IllegalArgumentException("mileageKm phải >= 0");
+        this.year = year;
+        this.mileageKm = mileageKm;
+    }
+
+    /** Restore từ DB - giữ nguyên id và timestamps. */
+    public Vehicle(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
+                   String name, String description, UUID sellerId,
+                   BigDecimal startingPrice, List<String> images,
+                   ItemCondition condition,
+                   String make, String model, int year, int mileageKm) {
+        super(id, createdAt, updatedAt, name, description, sellerId,
+                startingPrice, images, ItemCategory.VEHICLE, condition);
         this.make = make;
         this.model = model;
         if (year < 1900) throw new IllegalArgumentException("year không hợp lệ");
