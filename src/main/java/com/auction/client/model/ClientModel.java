@@ -62,21 +62,17 @@ public class ClientModel {
     public void disconnect() {
         if (connection != null) connection.disconnect();
         pendingResponses.clear();
+        pushHandlers.clear();
         userId = null;
         username = null;
         role = null;
-        // Tránh để queue/handler của session cũ rò sang session mới khi user logout rồi login lại.
-        responseQueues.clear();
-        pushHandlers.clear();
     }
 
     // ============= GỬI REQUEST =============
 
-    public String sendRequest(String action, Map<String, Object> data) {
-        String requestId = UUID.randomUUID().toString();
-        Request req = new Request(action, data, requestId, userId);
+    public void sendRequest(String action, Map<String, Object> data) {
+        Request req = new Request(action, data, userId);
         connection.send(JsonHelper.toJson(req));
-        return requestId;
     }
 
     /**
@@ -88,7 +84,8 @@ public class ClientModel {
         BlockingQueue<Response> queue = new LinkedBlockingQueue<>();
         pendingResponses.put(requestId, queue);
         try {
-            Request req = new Request(action, data, requestId, userId);
+            Request req = new Request(action, data, userId);
+            req.setRequestId(requestId);
             connection.send(JsonHelper.toJson(req));
             return queue.poll(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
