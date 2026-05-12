@@ -61,7 +61,6 @@ public class ClientModel {
 
     public void disconnect() {
         if (connection != null) connection.disconnect();
-        pendingResponses.clear();
         userId = null;
         username = null;
         role = null;
