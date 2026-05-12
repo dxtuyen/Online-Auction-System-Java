@@ -1,79 +1,123 @@
 package com.auction.server;
 
-import com.auction.protocol.Request;
-import com.auction.protocol.Response;
 import com.auction.controller.AuctionController;
 import com.auction.controller.BidController;
 import com.auction.controller.UserController;
+import com.auction.protocol.ActionType;
+import com.auction.protocol.Request;
+import com.auction.protocol.Response;
+import com.auction.server.command.AuthLevel;
+import com.auction.server.command.CommandHandler;
+
+import java.util.EnumMap;
+import java.util.Map;
 
 /**
- * Router phân phối request tới controller tương ứng dựa trên action name.
+ * Router phân phối request tới command handler dựa trên {@link ActionType}.
  *
- * <p>Mỗi {@link ClientHandler} có một router riêng vì mỗi connection mang theo session
- * đăng nhập khác nhau. Controller bên dưới đều dùng chung service singleton,
- * nhưng ngữ cảnh "user hiện tại là ai" lại nằm ở handler của connection đó.</p>
+ * <p>SAU REFACTOR áp dụng <b>Command pattern + map dispatch</b>:
+ * <ul>
+ *   <li>Mỗi action được đăng ký kèm {@link AuthLevel} và một {@link CommandHandler}
+ *       (method reference của controller).</li>
+ *   <li>Thay vì switch-case String dài, router dùng {@link EnumMap} tra cứu O(1).</li>
+ *   <li>Thêm action mới = thêm 1 dòng {@code register(...)} — không cần sửa logic dispatch.
+ *       Đây chính là <i>Open/Closed Principle</i> trong SOLID.</li>
+ * </ul>
  *
- * <p>Router này cố ý mỏng: nó không chứa business rule, chỉ làm 2 việc:
- * chọn đúng controller method theo {@code action},
- * và chuẩn hóa exception runtime thành {@link Response#error(String, String)}
- * để protocol trả về cho client luôn thống nhất.</p>
+ * <p><b>Auth middleware:</b> tất cả check "Chưa đăng nhập" đều tập trung tại đây
+ * (xem {@link #dispatch(Request, ClientHandler)}). Controller giờ không phải lặp lại
+ * {@code if (userId == null) return error("Chưa đăng nhập")} ở mỗi method.</p>
+ *
+ * <p>Router là <b>singleton stateless</b>: 1 instance dùng chung cho toàn bộ
+ * connection trong server (vì map handler là read-only sau khi khởi tạo).</p>
  */
-public class RequestRouter {
+public final class RequestRouter {
 
-    private final UserController userCtrl;
-    private final AuctionController auctionCtrl;
-    private final BidController bidCtrl;
+    // ============== SINGLETON (Bill Pugh) ==============
+    private static final class Holder {
+        private static final RequestRouter INSTANCE = new RequestRouter();
+    }
+    public static RequestRouter getInstance() { return Holder.INSTANCE; }
 
     /**
-     * Khởi tạo bộ controller gắn với đúng handler/session hiện tại.
+     * Một "command spec" — gắn action với yêu cầu xác thực và handler thực thi.
+     * Bản chất là record bất biến, dùng làm value trong map dispatch.
      */
-    public RequestRouter(ClientHandler handler) {
-        this.userCtrl = new UserController(handler);
-        this.auctionCtrl = new AuctionController(handler);
-        this.bidCtrl = new BidController(handler);
+    private record Spec(AuthLevel auth, CommandHandler handler) {}
+
+    /**
+     * EnumMap nhanh hơn HashMap khi key là enum. Khởi tạo 1 lần trong constructor
+     * và không bao giờ mutate sau đó → an toàn cho mọi thread đọc.
+     */
+    private final Map<ActionType, Spec> table = new EnumMap<>(ActionType.class);
+
+    private RequestRouter() {
+        // Đăng ký tất cả action ở đây — đây là điểm DUY NHẤT cần sửa khi thêm/bớt action.
+        UserController user = UserController.getInstance();
+        AuctionController auction = AuctionController.getInstance();
+        BidController bid = BidController.getInstance();
+
+        // ===== USER =====
+        register(ActionType.LOGIN,        AuthLevel.PUBLIC, user::login);
+        register(ActionType.REGISTER,     AuthLevel.PUBLIC, user::register);
+        register(ActionType.LOGOUT,       AuthLevel.USER,   user::logout);
+        register(ActionType.GET_PROFILE,  AuthLevel.USER,   user::getProfile);
+
+        // ===== AUCTION & ITEM =====
+        register(ActionType.LIST_AUCTIONS,  AuthLevel.PUBLIC, auction::listAuctions);
+        register(ActionType.GET_AUCTION,    AuthLevel.PUBLIC, auction::getAuction);
+        register(ActionType.CREATE_ITEM,    AuthLevel.USER,   auction::createItem);
+        register(ActionType.LIST_MY_ITEMS,  AuthLevel.USER,   auction::listMyItems);
+        register(ActionType.CREATE_AUCTION, AuthLevel.USER,   auction::createAuction);
+        register(ActionType.CLOSE_AUCTION,  AuthLevel.USER,   auction::closeAuction);
+        register(ActionType.WATCH_AUCTION,  AuthLevel.PUBLIC, auction::watchAuction);
+        register(ActionType.UNWATCH_AUCTION, AuthLevel.PUBLIC, auction::unwatchAuction);
+
+        // ===== BID =====
+        register(ActionType.PLACE_BID,    AuthLevel.USER,   bid::placeBid);
+        register(ActionType.SET_AUTO_BID, AuthLevel.USER,   bid::setAutoBid);
+        register(ActionType.BID_HISTORY,  AuthLevel.PUBLIC, bid::bidHistory);
+    }
+
+    private void register(ActionType action, AuthLevel auth, CommandHandler handler) {
+        table.put(action, new Spec(auth, handler));
     }
 
     /**
-     * Điều phối request dựa trên tên action trong payload JSON.
+     * Điều phối request.
      *
-     * <p>Nếu một controller/service ném {@link RuntimeException}, router sẽ bắt lại
-     * và đổi thành {@code Response.error(...)}. Nhờ vậy các tầng dưới chỉ cần ném lỗi
-     * nghiệp vụ tự nhiên, còn tầng protocol vẫn trả về cùng một shape response cho client.</p>
+     * <p>Trình tự:
+     * <ol>
+     *   <li>Parse action name → enum. Sai enum → trả lỗi.</li>
+     *   <li>Tra map → tìm spec. Không có spec → action chưa hỗ trợ.</li>
+     *   <li><b>Auth middleware:</b> spec yêu cầu USER mà session chưa login → từ chối.</li>
+     *   <li>Gọi handler. RuntimeException của business layer được normalize thành
+     *       {@code Response.error} để protocol đồng nhất.</li>
+     * </ol>
      */
-    public Response route(Request req) {
-        String action = req.getAction();
-        String requestId = req.getRequestId();
+    public Response dispatch(Request req, ClientHandler ctx) {
+        String rawAction = req.getAction();
+        ActionType action = ActionType.from(rawAction);
+        if (action == null) {
+            return Response.error(rawAction, "Action không hỗ trợ: " + rawAction);
+        }
+
+        Spec spec = table.get(action);
+        if (spec == null) {
+            return Response.error(rawAction, "Action chưa được đăng ký: " + action);
+        }
+
+        // ===== Auth middleware =====
+        if (spec.auth() == AuthLevel.USER && !ctx.getSession().isAuthenticated()) {
+            return Response.error(rawAction, "Chưa đăng nhập");
+        }
 
         try {
-            Response response = switch (action) {
-                // User
-                case "LOGIN"    -> userCtrl.login(req);
-                case "REGISTER" -> userCtrl.register(req);
-                case "LOGOUT"   -> userCtrl.logout(req);
-                case "GET_PROFILE" -> userCtrl.getProfile(req);
-
-                // Auction
-                case "LIST_AUCTIONS"  -> auctionCtrl.listAuctions(req);
-                case "GET_AUCTION"    -> auctionCtrl.getAuction(req);
-                case "CREATE_AUCTION" -> auctionCtrl.createAuction(req);
-                case "CLOSE_AUCTION"  -> auctionCtrl.closeAuction(req);
-                case "CREATE_ITEM"    -> auctionCtrl.createItem(req);
-                case "LIST_MY_ITEMS"  -> auctionCtrl.listMyItems(req);
-                case "WATCH_AUCTION"  -> auctionCtrl.watchAuction(req);
-                case "UNWATCH_AUCTION" -> auctionCtrl.unwatchAuction(req);
-
-                // Bid
-                case "PLACE_BID"    -> bidCtrl.placeBid(req);
-                case "SET_AUTO_BID" -> bidCtrl.setAutoBid(req);
-                case "BID_HISTORY"  -> bidCtrl.bidHistory(req);
-
-                // Action lạ không làm rớt connection; server chỉ trả lỗi protocol cho client.
-                default -> Response.error(action, "Action không hỗ trợ: " + action);
-            };
-            return response.withRequestId(requestId);
+            return spec.handler().handle(req, ctx);
         } catch (RuntimeException e) {
-            // Toàn bộ lỗi nghiệp vụ được normalize về ERROR response ở đây.
-            return Response.error(action, e.getMessage()).withRequestId(requestId);
+            // Toàn bộ lỗi nghiệp vụ (InvalidBidException, AuctionClosedException,
+            // SecurityException...) được gom về 1 dạng response để client xử lý đồng nhất.
+            return Response.error(rawAction, e.getMessage());
         }
     }
 }

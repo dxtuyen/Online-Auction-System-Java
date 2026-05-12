@@ -88,7 +88,10 @@ public class BidTransaction extends Entity {
         changeStatus(BidStatus.CANCELED);
     }
 
-    private void changeStatus(BidStatus newStatus) {
+    // synchronized: đảm bảo thread-safe khi có thread khác (vd outbid notifier) đồng thời mutate status.
+    // Hiện tại đa số call site đều nằm trong Auction.placeBid lock, nhưng đặt synchronized
+    // ở đây phòng thủ rẻ tiền — tránh race nếu sau này thêm code path chạy ngoài lock.
+    private synchronized void changeStatus(BidStatus newStatus) {
         if (this.status == newStatus) return;
         if (!this.status.canTransitionTo(newStatus)) {
             throw new IllegalStateException(

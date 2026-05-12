@@ -23,29 +23,33 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Controller phía server cho nhóm use case Auction + Item.
+ * Controller cho nhóm action Auction + Item.
  *
- * <p>Vai trò: đứng giữa socket request và service layer — đọc dữ liệu thô từ {@link Request},
- * kiểm tra session tối thiểu, gọi đúng nghiệp vụ ở các *Manager (singleton), rồi map kết quả
- * về {@link Response} để client JavaFX hoặc client console dùng được ngay.</p>
+ * <p>SAU REFACTOR:
+ * <ul>
+ *   <li>Singleton stateless — xem {@link UserController}.</li>
+ *   <li>Auth check tập trung ở router middleware, không lặp ở từng method.</li>
+ *   <li>Số tiền (startingPrice, minimumIncrement) đọc bằng {@code getDataDecimal()}
+ *       để giữ precision.</li>
+ * </ul>
  *
- * <p>Controller không chứa business rule nặng. Quyền sở hữu, bước nhảy giá, reserve balance,
- * settlement... đã được chốt ở entity/manager.</p>
+ * <p>Controller chỉ làm orchestration: đọc raw từ Request, gọi đúng service,
+ * map kết quả thành Response. Business rule (quyền sở hữu, bước nhảy giá,
+ * anti-sniping, settlement) đã nằm hết ở entity/manager.</p>
  */
-public class AuctionController {
+public final class AuctionController {
+
+    private AuctionController() {}
+    private static final class Holder { static final AuctionController I = new AuctionController(); }
+    public static AuctionController getInstance() { return Holder.I; }
 
     private final AuctionManager auctionManager = AuctionManager.getInstance();
     private final ItemManager itemManager = ItemManager.getInstance();
     private final UserManager userManager = UserManager.getInstance();
     private final AuctionEventManager eventManager = AuctionEventManager.getInstance();
-    private final ClientHandler handler;
 
-    public AuctionController(ClientHandler handler) { this.handler = handler; }
-
-    /**
-     * Trả danh sách auction tóm tắt để client render màn hình list.
-     */
-    public Response listAuctions(Request req) {
+    /** PUBLIC — ai cũng xem danh sách phiên đấu giá được. */
+    public Response listAuctions(Request req, ClientHandler ctx) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Auction a : auctionManager.findAll()) {
             Item item = itemManager.findById(a.getItemId()).orElse(null);
@@ -67,11 +71,9 @@ public class AuctionController {
         return Response.success("LIST_AUCTIONS", null, data);
     }
 
-    /**
-     * Lấy đầy đủ thông tin auction để client mở màn hình chi tiết/bidding.
-     */
-    public Response getAuction(Request req) {
-        UUID auctionId = req.requireUUID("auctionId");
+    /** PUBLIC — chi tiết phiên dành cho mọi visitor. */
+    public Response getAuction(Request req, ClientHandler ctx) {
+        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
         Auction a = auctionManager.findById(auctionId).orElse(null);
         if (a == null) return Response.error("GET_AUCTION", "Phiên không tồn tại");
 
@@ -105,21 +107,19 @@ public class AuctionController {
     }
 
     /**
-     * Tạo item mới cho seller đang đăng nhập.
-     *
-     * <p>Quyền sell và validate category-specific attribute do {@link ItemManager}/factory đảm nhiệm.
-     * Controller chỉ xác thực session và normalize dữ liệu raw từ JSON.</p>
+     * USER — tạo item mới. sellerId lấy từ session, không tin client.
      */
-    public Response createItem(Request req) {
-        UUID sellerId = handler.getCurrentUserId();
-        if (sellerId == null) return Response.error("CREATE_ITEM", "Chưa đăng nhập");
+    public Response createItem(Request req, ClientHandler ctx) {
+        UUID sellerId = ctx.getSession().getCurrentUserId();
 
-        ItemCategory category = req.requireEnum(ItemCategory.class, "category");
-        String name = req.requireString("name");
-        // description có thể trống (item không bắt buộc mô tả) → giữ getDataString
+        ItemCategory category = ItemCategory.valueOf(req.getDataString("category"));
+        String name = req.getDataString("name");
         String description = req.getDataString("description");
-        BigDecimal startingPrice = req.requireBigDecimal("startingPrice");
-        ItemCondition condition = req.requireEnum(ItemCondition.class, "condition");
+        BigDecimal startingPrice = req.getDataDecimal("startingPrice");
+        if (startingPrice == null) {
+            return Response.error("CREATE_ITEM", "Giá khởi điểm không hợp lệ");
+        }
+        ItemCondition condition = ItemCondition.valueOf(req.getDataString("condition"));
 
         // specificAttributes đi qua JSON nên khi vào đây chỉ còn raw Map; controller chỉ
         // chuẩn hóa lại key thành String, value giữ nguyên Object cho factory tự cast.
@@ -147,23 +147,22 @@ public class AuctionController {
     }
 
     /**
-     * Mở phiên đấu giá mới cho item của seller hiện tại.
+     * USER — mở phiên đấu giá cho item của seller hiện tại.
      *
-     * <p>Client chỉ gửi {@code durationMinutes} cho gọn; controller tự derive
-     * {@code startTime = now} và {@code endTime = now + duration}. Giá khởi điểm
-     * lấy thẳng từ Item để client không thể override.</p>
+     * <p>Client chỉ gửi {@code durationMinutes}; server tự derive {@code endTime}.
+     * Giá khởi điểm lấy thẳng từ Item để client không thể override.</p>
      */
-    public Response createAuction(Request req) {
-        UUID sellerId = handler.getCurrentUserId();
-        if (sellerId == null) return Response.error("CREATE_AUCTION", "Chưa đăng nhập");
+    public Response createAuction(Request req, ClientHandler ctx) {
+        UUID sellerId = ctx.getSession().getCurrentUserId();
 
-        UUID itemId = req.requireUUID("itemId");
-        // duration có default; minimumIncrement parse bằng BigDecimal để không đi qua double.
+        UUID itemId = UUID.fromString(req.getDataString("itemId"));
         int duration = req.getDataInt("durationMinutes");
-        BigDecimal increment = req.getDataBigDecimal("minimumIncrement");
+        BigDecimal increment = req.getDataDecimal("minimumIncrement");
 
         if (duration <= 0) duration = 30;
-        if (increment.signum() <= 0) increment = new BigDecimal("100000");
+        if (increment == null || increment.signum() <= 0) {
+            increment = new BigDecimal("100000");
+        }
 
         Item item = itemManager.findById(itemId)
                 .orElseThrow(() -> new IllegalArgumentException("Item không tồn tại: " + itemId));
@@ -180,26 +179,17 @@ public class AuctionController {
         return Response.success("CREATE_AUCTION", "Đã tạo phiên đấu giá", data);
     }
 
-    /**
-     * Đóng phiên thủ công theo yêu cầu seller (PENDING→CANCELED hoặc RUNNING→FINISHED).
-     *
-     * <p>Actor id luôn lấy từ session; AuctionManager kiểm tra actor có phải seller của phiên hay không.</p>
-     */
-    public Response closeAuction(Request req) {
-        UUID actorUserId = handler.getCurrentUserId();
-        if (actorUserId == null) return Response.error("CLOSE_AUCTION", "Chưa đăng nhập");
-
-        UUID auctionId = req.requireUUID("auctionId");
+    /** USER — đóng phiên thủ công. AuctionManager kiểm tra actor có phải seller. */
+    public Response closeAuction(Request req, ClientHandler ctx) {
+        UUID actorUserId = ctx.getSession().getCurrentUserId();
+        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
         auctionManager.closeAuction(auctionId, actorUserId);
         return Response.success("CLOSE_AUCTION", "Đã đóng phiên", null);
     }
 
-    /**
-     * Trả danh sách item của user hiện tại để seller chọn item nào sẽ mở auction.
-     */
-    public Response listMyItems(Request req) {
-        UUID sellerId = handler.getCurrentUserId();
-        if (sellerId == null) return Response.error("LIST_MY_ITEMS", "Chưa đăng nhập");
+    /** USER — danh sách item của user hiện tại (dashboard Seller). */
+    public Response listMyItems(Request req, ClientHandler ctx) {
+        UUID sellerId = ctx.getSession().getCurrentUserId();
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Item item : itemManager.findBySellerId(sellerId)) {
@@ -217,20 +207,21 @@ public class AuctionController {
     }
 
     /**
-     * Đăng ký client hiện tại vào danh sách observer của auction để nhận push realtime.
+     * PUBLIC — đăng ký client hiện tại vào danh sách observer để nhận push realtime.
+     *
+     * <p>Bản thân handler chính là observer (xem {@link ClientHandler} implement
+     * {@code AuctionObserver}). Không cần đăng nhập để xem realtime — như xem livestream
+     * đấu giá; chỉ khi PLACE_BID mới cần đăng nhập.</p>
      */
-    public Response watchAuction(Request req) {
-        UUID auctionId = req.requireUUID("auctionId");
-        eventManager.subscribe(auctionId, handler);
+    public Response watchAuction(Request req, ClientHandler ctx) {
+        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        eventManager.subscribe(auctionId, ctx);
         return Response.success("WATCH_AUCTION", "Đang theo dõi phiên " + auctionId, null);
     }
 
-    /**
-     * Hủy theo dõi realtime cho client hiện tại.
-     */
-    public Response unwatchAuction(Request req) {
-        UUID auctionId = req.requireUUID("auctionId");
-        eventManager.unsubscribe(auctionId, handler);
+    public Response unwatchAuction(Request req, ClientHandler ctx) {
+        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        eventManager.unsubscribe(auctionId, ctx);
         return Response.success("UNWATCH_AUCTION", "Ngừng theo dõi", null);
     }
 }

@@ -18,20 +18,19 @@ import java.util.Map;
 /**
  * Seed dữ liệu mẫu cho môi trường dev/demo.
  *
- * <p>Gọi {@link #run()} một lần ở {@code Main} TRƯỚC khi server bắt đầu accept connection.
- * Tự skip nếu đã có user trong hệ thống → idempotent, gọi nhiều lần vô hại.</p>
+ * <p>Gọi {@link #run()} một lần ở {@code ServerMain} TRƯỚC khi accept connection.
+ * Tự skip nếu đã có user → idempotent, an toàn khi gọi nhiều lần.</p>
  *
- * <p>Bật/tắt qua biến môi trường {@code SEED_ENABLED=true}. Mặc định tắt
- * để tránh dữ liệu giả lọt vào production.</p>
+ * <p>Item được tạo bằng cả 3 subclass {@code Electronics}/{@code Art}/{@code Vehicle}
+ * (không chỉ {@code OtherItem}) để demo inheritance + factory pattern — đây là tiêu chí
+ * chấm điểm "phân cấp lớp rõ ràng" của đề BTL.</p>
  */
 public final class DataSeeder {
 
     private DataSeeder() { /* static-only */ }
 
     public static void run() {
-        if (!"true".equalsIgnoreCase(System.getenv("SEED_ENABLED"))) {
-            return;
-        }
+        // Idempotent: đã có user nghĩa là DB đã được seed/persist từ trước → bỏ qua.
         if (UserManager.getInstance().count() > 0) {
             System.out.println("[Seed] Bỏ qua — hệ thống đã có dữ liệu");
             return;
@@ -49,9 +48,6 @@ public final class DataSeeder {
 
     // ============== USERS ==============
 
-    /**
-     * Tạo vài user mẫu. Cấp balance để bidder đủ tiền đặt giá khi test luồng đấu giá.
-     */
     private static Map<String, User> seedUsers() {
         UserManager um = UserManager.getInstance();
         Map<String, User> map = new HashMap<>();
@@ -66,8 +62,8 @@ public final class DataSeeder {
                 "Carol (Bidder)", Role.NORMAL);
 
         // Nạp balance để bob/carol có thể bid trong demo
-        bob.setBalance(new BigDecimal("10000000"));
-        carol.setBalance(new BigDecimal("20000000"));
+        bob.setBalance(new BigDecimal("50000000"));
+        carol.setBalance(new BigDecimal("80000000"));
 
         map.put("admin", admin);
         map.put("alice", alice);
@@ -79,64 +75,90 @@ public final class DataSeeder {
     // ============== ITEMS ==============
 
     /**
-     * Tạo vài item cho seller alice. {@code attrs} để rỗng — nếu category khác
-     * yêu cầu attribute đặc thù (vd ELECTRONICS cần "brand"), điền vào map dưới đây.
+     * Tạo item của 3 subclass khác nhau để demo polymorphism (Item → Electronics/Art/Vehicle).
+     * Tên attribute phải khớp với {@link com.auction.model.factory.ItemFactory}:
+     * <ul>
+     *   <li>ELECTRONICS: brand, model, warrantyMonths</li>
+     *   <li>ART: artist, yearCreated, medium</li>
+     *   <li>VEHICLE: make, model, year, mileageKm</li>
+     * </ul>
      */
     private static Map<String, Item> seedItems(Map<String, User> users) {
         ItemManager im = ItemManager.getInstance();
         Map<String, Item> map = new HashMap<>();
-
-        Map<String, Object> emptyAttrs = new HashMap<>();
         List<String> noImages = List.of();
 
-        Item iphone = im.createItem(ItemCategory.OTHER,
-                "iPhone 15 Pro Max",
+        Map<String, Object> phoneAttrs = new HashMap<>();
+        phoneAttrs.put("brand", "Apple");
+        phoneAttrs.put("model", "iPhone 15 Pro Max");
+        phoneAttrs.put("warrantyMonths", 12);
+        Item phone = im.createItem(ItemCategory.ELECTRONICS,
+                "iPhone 15 Pro Max 256GB",
                 "Máy chính hãng, fullbox, bảo hành 12 tháng",
                 users.get("alice").getId(),
                 new BigDecimal("25000000"),
-                noImages,
-                ItemCondition.NEW,
-                emptyAttrs);
+                noImages, ItemCondition.NEW, phoneAttrs);
 
-        Item painting = im.createItem(ItemCategory.OTHER,
+        Map<String, Object> artAttrs = new HashMap<>();
+        artAttrs.put("artist", "Bùi Xuân Phái");
+        artAttrs.put("yearCreated", 1985);
+        artAttrs.put("medium", "Sơn dầu trên canvas");
+        Item painting = im.createItem(ItemCategory.ART,
                 "Tranh sơn dầu Hà Nội phố",
                 "Tranh chép, kích thước 80x120cm",
                 users.get("alice").getId(),
                 new BigDecimal("3000000"),
-                noImages,
-                ItemCondition.USED,
-                emptyAttrs);
+                noImages, ItemCondition.USED, artAttrs);
 
-        map.put("iphone", iphone);
+        Map<String, Object> carAttrs = new HashMap<>();
+        carAttrs.put("make", "Toyota");
+        carAttrs.put("model", "Camry 2.5Q");
+        carAttrs.put("year", 2022);
+        carAttrs.put("mileageKm", 15000);
+        Item car = im.createItem(ItemCategory.VEHICLE,
+                "Toyota Camry 2.5Q 2022",
+                "Xe đi 15,000 km, một đời chủ, full đồ",
+                users.get("alice").getId(),
+                new BigDecimal("950000000"),
+                noImages, ItemCondition.USED, carAttrs);
+
+        map.put("phone", phone);
         map.put("painting", painting);
+        map.put("car", car);
         return map;
     }
 
     // ============== AUCTIONS ==============
 
-    /**
-     * Tạo 2 phiên: 1 đang chạy (RUNNING ngay khi scheduler tick) và 1 sắp diễn ra (PENDING).
-     */
     private static void seedAuctions(Map<String, User> users, Map<String, Item> items) {
         AuctionManager am = AuctionManager.getInstance();
         LocalDateTime now = LocalDateTime.now();
 
-        // Phiên đang chạy
+        // Phiên đang chạy — bid ngay được
         am.createAuction(
-                items.get("iphone").getId(),
+                items.get("phone").getId(),
                 users.get("alice").getId(),
                 now.minusMinutes(1),
                 now.plusMinutes(30),
-                items.get("iphone").getStartingPrice(),
+                items.get("phone").getStartingPrice(),
                 new BigDecimal("100000"));
 
-        // Phiên chuẩn bị bắt đầu sau 5 phút
+        // Phiên tranh — đang chạy
         am.createAuction(
                 items.get("painting").getId(),
                 users.get("alice").getId(),
-                now.plusMinutes(5),
-                now.plusMinutes(60),
+                now.minusSeconds(10),
+                now.plusMinutes(20),
                 items.get("painting").getStartingPrice(),
                 new BigDecimal("50000"));
+
+        // Phiên xe — chuẩn bị bắt đầu sau 5 phút
+        am.createAuction(
+                items.get("car").getId(),
+                users.get("alice").getId(),
+                now.plusMinutes(5),
+                now.plusMinutes(60),
+                items.get("car").getStartingPrice(),
+                new BigDecimal("1000000"));
     }
 }
