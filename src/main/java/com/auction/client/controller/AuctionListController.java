@@ -75,8 +75,7 @@ public class AuctionListController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("LIST_AUCTIONS", Map.of());
-                Response res = model.waitForResponse("LIST_AUCTIONS", 5000);
+                Response res = model.sendRequestAndWait("LIST_AUCTIONS", Map.of(), 5000);
 
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
@@ -140,8 +139,7 @@ public class AuctionListController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("GET_PROFILE", Map.of());
-                Response res = model.waitForResponse("GET_PROFILE", 5000);
+                Response res = model.sendRequestAndWait("GET_PROFILE", Map.of(), 5000);
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) res.getData();

@@ -186,6 +186,15 @@ public class Auction extends Entity {
     // ============== STATE MUTATION (THREAD-SAFE) ==============
 
     /**
+     * Kết quả của 1 lần placeBid thành công — chứa thông tin leader cũ để caller
+     * (BidManager) có thể release reservation tương ứng.
+     *
+     * @param previousBidderId leader cũ ngay trước khi bid này được chấp nhận, null nếu phiên chưa từng có bid
+     * @param previousAmount   giá hiện tại ngay trước khi bid này được chấp nhận, null nếu chưa từng có bid
+     */
+    public record BidOutcome(UUID previousBidderId, BigDecimal previousAmount) {}
+
+    /**
      * Đặt bid - METHOD CỐT LÕI của hệ thống.
      * <p>
      * Đảm bảo:
@@ -193,18 +202,22 @@ public class Auction extends Entity {
      * - Validation đầy đủ: status, time, amount, bidder khác seller
      * - Cập nhật BidTransaction về VALID/REJECTED đúng logic
      * - Notify observers SAU KHI release lock (tránh deadlock nếu observer gọi lại auction)
+     * - Trả về {@link BidOutcome} để caller (BidManager) refund reservation cho leader cũ.
+     *   Phải lấy snapshot leader cũ TRONG lock, vì ngoài lock có thể bị bid khác overwrite.
      *
      * @param bid bid đang ở trạng thái PENDING
      * @throws AuctionClosedException nếu phiên đã đóng
      * @throws InvalidBidException    nếu bid không hợp lệ
      */
-    public void placeBid(BidTransaction bid) {
+    public BidOutcome placeBid(BidTransaction bid) {
         Objects.requireNonNull(bid, "bid must not be null");
         if (!bid.getAuctionId().equals(getId())) {
             throw new InvalidBidException("Bid không thuộc phiên này");
         }
 
-        BidTransaction oldHighest = null;     // sẽ markOutbid sau khi release lock
+        UUID prevBidderId;
+        BigDecimal prevAmount;
+        boolean hadPrevious;
 
         lock.lock();
         try {
@@ -223,7 +236,12 @@ public class Auction extends Entity {
                         "Giá đấu phải >= " + required + " (hiện tại: " + bid.getBidAmount() + ")");
             }
 
-            // 4. PASS - cập nhật state
+            // 4. SNAPSHOT leader cũ TRƯỚC khi overwrite (caller dùng để release reservation)
+            hadPrevious = this.totalBids > 0;
+            prevBidderId = this.highestBidderId;
+            prevAmount = this.currentPrice;
+
+            // 5. PASS - cập nhật state
             this.currentPrice = bid.getBidAmount();
             this.highestBidderId = bid.getBidderId();
             this.totalBids++;
@@ -236,6 +254,9 @@ public class Auction extends Entity {
 
         // Notify NGOÀI lock: tránh deadlock + observer chạy lâu cũng không block các bid khác
         notifyBidPlaced(bid);
+        return hadPrevious
+                ? new BidOutcome(prevBidderId, prevAmount)
+                : new BidOutcome(null, null);
     }
 
     /**

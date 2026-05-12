@@ -17,7 +17,7 @@ import java.util.function.Consumer;
  *   <li>Giữ connection tới server</li>
  *   <li>Lưu thông tin user đang login</li>
  *   <li>Route message từ server: response vào BlockingQueue, push sang handler</li>
- *   <li>Cho Controller gọi {@code sendRequest} + {@code waitForResponse} dễ dàng</li>
+ *   <li>Ghép response theo {@code requestId} để không đè nhau khi nhiều request cùng action</li>
  * </ul>
  */
 public class ClientModel {
@@ -36,9 +36,9 @@ public class ClientModel {
     private String username;
     private String role;
 
-    // Response queue — Controller gửi request rồi chờ response ở đây
-    // Key = action name, Value = queue chứa response matching
-    private final Map<String, BlockingQueue<Response>> responseQueues = new ConcurrentHashMap<>();
+    // Response queue cho các request đang chờ phản hồi.
+    // Key = requestId, Value = queue chứa đúng một response tương ứng.
+    private final Map<String, BlockingQueue<Response>> pendingResponses = new ConcurrentHashMap<>();
 
     // Push handlers — Controller đăng ký lắng nghe push notification
     // Key = push action, Value = list handler nhận data
@@ -61,6 +61,8 @@ public class ClientModel {
 
     public void disconnect() {
         if (connection != null) connection.disconnect();
+        pendingResponses.clear();
+        pushHandlers.clear();
         userId = null;
         username = null;
         role = null;
@@ -77,16 +79,20 @@ public class ClientModel {
      * Blocking — gọi trên thread riêng, KHÔNG gọi trên JavaFX thread.
      * Trả về Response hoặc null nếu timeout.
      */
-    public Response waitForResponse(String action, long timeoutMs) {
+    public Response sendRequestAndWait(String action, Map<String, Object> data, long timeoutMs) {
+        String requestId = UUID.randomUUID().toString();
         BlockingQueue<Response> queue = new LinkedBlockingQueue<>();
-        responseQueues.put(action, queue);
+        pendingResponses.put(requestId, queue);
         try {
+            Request req = new Request(action, data, userId);
+            req.setRequestId(requestId);
+            connection.send(JsonHelper.toJson(req));
             return queue.poll(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
         } finally {
-            responseQueues.remove(action);
+            pendingResponses.remove(requestId);
         }
     }
 
@@ -101,8 +107,10 @@ public class ClientModel {
             if (res.isPush()) {
                 dispatchPush(action, res);
             } else {
-                // SUCCESS hoặc ERROR → đưa vào queue để waitForResponse() unblock
-                BlockingQueue<Response> queue = responseQueues.get(action);
+                // SUCCESS hoặc ERROR → ghép theo requestId để không lẫn response
+                // của 2 request cùng action.
+                String requestId = res.getRequestId();
+                BlockingQueue<Response> queue = requestId == null ? null : pendingResponses.get(requestId);
                 if (queue != null) queue.offer(res);
             }
         } catch (Exception e) {

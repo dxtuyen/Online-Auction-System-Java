@@ -20,6 +20,7 @@ import java.util.UUID;
 public class Request {
 
     private String action;
+    private String requestId;
     private Map<String, Object> data;
     private String token;
 
@@ -34,10 +35,12 @@ public class Request {
     // ============== CORE ACCESSORS ==============
 
     public String getAction() { return action; }
+    public String getRequestId() { return requestId; }
     public Map<String, Object> getData() { return data; }
     public String getToken() { return token; }
 
     public void setAction(String action) { this.action = action; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
     public void setData(Map<String, Object> data) { this.data = data; }
     public void setToken(String token) { this.token = token; }
 
@@ -65,6 +68,14 @@ public class Request {
         if (data == null) return null;
         Object v = data.get(key);
         return v == null ? null : v.toString();
+    }
+
+    public String requireString(String key) {
+        String v = getDataString(key);
+        if (v == null || v.isBlank()) {
+            throw new IllegalArgumentException("Thiếu trường bắt buộc: " + key);
+        }
+        return v;
     }
 
     /** Trả 0 nếu thiếu — caller tự xử lý default cho phù hợp business. */

@@ -11,7 +11,13 @@
       "Bash(netstat -ano)",
       "Bash(powershell *)",
       "Bash(taskkill *)",
-      "PowerShell(Get-NetTCPConnection *)"
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(echo \"---EXIT: $?---\")",
+      "Read(//tmp/**)",
+      "Bash(java -cp target/classes:__TRACKED_VAR__ com.auction.server.ServerMain)",
+      "Bash(python smoke_test.py)",
+      "Bash(python3 smoke_test.py)",
+      "Bash(py smoke_test.py)"
     ]
   }
 }

@@ -81,8 +81,7 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("GET_AUCTION", Map.of("auctionId", auctionId));
-                Response res = model.waitForResponse("GET_AUCTION", 5000);
+                Response res = model.sendRequestAndWait("GET_AUCTION", Map.of("auctionId", auctionId), 5000);
 
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
@@ -99,8 +98,7 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("BID_HISTORY", Map.of("auctionId", auctionId));
-                Response res = model.waitForResponse("BID_HISTORY", 5000);
+                Response res = model.sendRequestAndWait("BID_HISTORY", Map.of("auctionId", auctionId), 5000);
 
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
@@ -222,9 +220,8 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("PLACE_BID", Map.of(
-                        "auctionId", auctionId, "amount", amount));
-                Response res = model.waitForResponse("PLACE_BID", 5000);
+                Response res = model.sendRequestAndWait("PLACE_BID", Map.of(
+                        "auctionId", auctionId, "amount", amount), 5000);
 
                 Platform.runLater(() -> {
                     btnPlaceBid.setDisable(false);
@@ -257,11 +254,10 @@ public class BiddingController {
 
         new Thread(() -> {
             ClientModel model = ClientModel.getInstance();
-            model.sendRequest("SET_AUTO_BID", Map.of(
+            Response res = model.sendRequestAndWait("SET_AUTO_BID", Map.of(
                     "auctionId", auctionId,
                     "maxBid", maxBid,
-                    "increment", incr));
-            Response res = model.waitForResponse("SET_AUTO_BID", 5000);
+                    "increment", incr), 5000);
 
             Platform.runLater(() -> {
                 if (res != null && res.isSuccess()) {
@@ -319,8 +315,7 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("GET_PROFILE", Map.of());
-                Response res = model.waitForResponse("GET_PROFILE", 5000);
+                Response res = model.sendRequestAndWait("GET_PROFILE", Map.of(), 5000);
 
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
