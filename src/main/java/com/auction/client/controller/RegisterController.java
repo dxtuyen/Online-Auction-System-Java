@@ -13,44 +13,43 @@ public class RegisterController {
 
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
-    @FXML private ComboBox<String> cboRole;
-    @FXML private TextField txtExtra;
+    @FXML private TextField txtEmail;
+    @FXML private TextField txtFullName;
+    @FXML private TextField txtBalance;
     @FXML private Label lblError;
     @FXML private Button btnRegister;
 
     @FXML
     private void initialize() {
         lblError.setText("");
-        cboRole.setValue("BIDDER");
-        txtExtra.setText("10000000");
     }
 
     @FXML
     private void handleRegister() {
         String username = txtUsername.getText().trim();
         String password = txtPassword.getText();
-        String role = cboRole.getValue();
-        double extra;
-        try { extra = Double.parseDouble(txtExtra.getText().trim().replace(",", "")); }
-        catch (NumberFormatException e) { extra = 0; }
+        String email = txtEmail.getText().trim();
+        String fullName = txtFullName.getText().trim();
+        String balance = txtBalance.getText().trim();
 
-        if (username.isEmpty() || password.isEmpty() || role == null) {
+        if (username.isEmpty() || password.isEmpty() || email.isEmpty() || fullName.isEmpty() || balance.isEmpty()) {
             lblError.setText("Nhập đầy đủ thông tin");
             return;
         }
 
         btnRegister.setDisable(true);
-        double finalExtra = extra;
 
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
                 if (!model.isConnected()) model.connect("localhost", 8888);
 
-                model.sendRequest("REGISTER", Map.of(
-                        "username", username, "password", password,
-                        "role", role, "extra", finalExtra));
-                Response res = model.waitForResponse("REGISTER", 5000);
+                Response res = model.sendRequestAndWait("REGISTER", Map.of(
+                        "username", username,
+                        "password", password,
+                        "email", email,
+                        "fullName", fullName,
+                        "balance",balance), 5000);
 
                 Platform.runLater(() -> {
                     btnRegister.setDisable(false);

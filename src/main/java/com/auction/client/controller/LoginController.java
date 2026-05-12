@@ -15,7 +15,6 @@ public class LoginController {
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
     @FXML private Label lblError;
-    @FXML private ProgressIndicator spinLoading;
     @FXML private Button btnLogin;
 
     @FXML
@@ -43,9 +42,8 @@ public class LoginController {
                 ClientModel model = ClientModel.getInstance();
                 if (!model.isConnected()) model.connect("localhost", 8888);
 
-                model.sendRequest("LOGIN", Map.of(
-                        "username", username, "password", password));
-                Response res = model.waitForResponse("LOGIN", 5000);
+                Response res = model.sendRequestAndWait("LOGIN", Map.of(
+                        "username", username, "password", password), 5000);
 
                 // Cập nhật UI phải chạy trên JavaFX thread — dùng Platform.runLater
                 Platform.runLater(() -> {
@@ -53,7 +51,7 @@ public class LoginController {
                     if (res != null && res.isSuccess()) {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> data = (Map<String, Object>) res.getData();
-                        model.setUserId(String.valueOf(((Number) data.get("userId")).intValue()));
+                        model.setUserId((String) data.get("userId"));
                         model.setUsername((String) data.get("username"));
                         model.setRole((String) data.get("role"));
                         ClientApp.switchScene("auction_list.fxml");
@@ -76,7 +74,6 @@ public class LoginController {
     }
 
     private void setLoading(boolean loading) {
-        spinLoading.setVisible(loading);
         btnLogin.setDisable(loading);
         txtUsername.setDisable(loading);
         txtPassword.setDisable(loading);

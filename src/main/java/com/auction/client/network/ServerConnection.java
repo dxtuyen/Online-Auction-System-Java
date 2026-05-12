@@ -63,7 +63,11 @@ public class ServerConnection {
 
     public void disconnect() {
         connected = false;
-        try { if (socket != null) socket.close(); }
-        catch (IOException ignored) {}
+        // Đóng reader/writer trước rồi mới đóng socket — tránh giữ stream lơ lửng
+        // và đảm bảo listener thread thoát readLine() ngay lập tức.
+        try { if (reader != null) reader.close(); } catch (IOException ignored) {}
+        if (writer != null) writer.close();
+        try { if (socket != null) socket.close(); } catch (IOException ignored) {}
+        if (listenerThread != null) listenerThread.interrupt();
     }
 }

@@ -46,8 +46,8 @@ public class BidController {
         UUID bidderId = handler.getCurrentUserId();
         if (bidderId == null) return Response.error("PLACE_BID", "Chưa đăng nhập");
 
-        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
-        BigDecimal amount = BigDecimal.valueOf(req.getDataDouble("amount"));
+        UUID auctionId = req.requireUUID("auctionId");
+        BigDecimal amount = req.requireBigDecimal("amount");
 
         BidTransaction bid = bidManager.placeBid(auctionId, bidderId, amount);
 
@@ -67,9 +67,9 @@ public class BidController {
         UUID bidderId = handler.getCurrentUserId();
         if (bidderId == null) return Response.error("SET_AUTO_BID", "Chưa đăng nhập");
 
-        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
-        BigDecimal maxBid = BigDecimal.valueOf(req.getDataDouble("maxBid"));
-        BigDecimal increment = BigDecimal.valueOf(req.getDataDouble("increment"));
+        UUID auctionId = req.requireUUID("auctionId");
+        BigDecimal maxBid = req.requireBigDecimal("maxBid");
+        BigDecimal increment = req.requireBigDecimal("increment");
 
         AutoBid ab = bidManager.registerAutoBid(auctionId, bidderId, maxBid, increment);
         return Response.success("SET_AUTO_BID",
@@ -85,7 +85,7 @@ public class BidController {
      * có thể render lịch sử ngay mà không phải gọi thêm request tra user.</p>
      */
     public Response bidHistory(Request req) {
-        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        UUID auctionId = req.requireUUID("auctionId");
         List<Map<String, Object>> result = new ArrayList<>();
         for (BidTransaction b : bidManager.getBidHistory(auctionId)) {
             User bidder = userManager.findById(b.getBidderId()).orElse(null);

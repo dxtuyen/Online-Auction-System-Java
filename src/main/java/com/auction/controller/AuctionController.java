@@ -71,7 +71,7 @@ public class AuctionController {
      * Lấy đầy đủ thông tin auction để client mở màn hình chi tiết/bidding.
      */
     public Response getAuction(Request req) {
-        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        UUID auctionId = req.requireUUID("auctionId");
         Auction a = auctionManager.findById(auctionId).orElse(null);
         if (a == null) return Response.error("GET_AUCTION", "Phiên không tồn tại");
 
@@ -114,11 +114,12 @@ public class AuctionController {
         UUID sellerId = handler.getCurrentUserId();
         if (sellerId == null) return Response.error("CREATE_ITEM", "Chưa đăng nhập");
 
-        ItemCategory category = ItemCategory.valueOf(req.getDataString("category"));
-        String name = req.getDataString("name");
+        ItemCategory category = req.requireEnum(ItemCategory.class, "category");
+        String name = req.requireString("name");
+        // description có thể trống (item không bắt buộc mô tả) → giữ getDataString
         String description = req.getDataString("description");
-        BigDecimal startingPrice = BigDecimal.valueOf(req.getDataDouble("startingPrice"));
-        ItemCondition condition = ItemCondition.valueOf(req.getDataString("condition"));
+        BigDecimal startingPrice = req.requireBigDecimal("startingPrice");
+        ItemCondition condition = req.requireEnum(ItemCondition.class, "condition");
 
         // specificAttributes đi qua JSON nên khi vào đây chỉ còn raw Map; controller chỉ
         // chuẩn hóa lại key thành String, value giữ nguyên Object cho factory tự cast.
@@ -156,12 +157,13 @@ public class AuctionController {
         UUID sellerId = handler.getCurrentUserId();
         if (sellerId == null) return Response.error("CREATE_AUCTION", "Chưa đăng nhập");
 
-        UUID itemId = UUID.fromString(req.getDataString("itemId"));
+        UUID itemId = req.requireUUID("itemId");
+        // duration có default; minimumIncrement parse bằng BigDecimal để không đi qua double.
         int duration = req.getDataInt("durationMinutes");
-        double increment = req.getDataDouble("minimumIncrement");
+        BigDecimal increment = req.getDataBigDecimal("minimumIncrement");
 
         if (duration <= 0) duration = 30;
-        if (increment <= 0) increment = 100_000;
+        if (increment.signum() <= 0) increment = new BigDecimal("100000");
 
         Item item = itemManager.findById(itemId)
                 .orElseThrow(() -> new IllegalArgumentException("Item không tồn tại: " + itemId));
@@ -170,7 +172,7 @@ public class AuctionController {
         LocalDateTime end = start.plusMinutes(duration);
 
         Auction a = auctionManager.createAuction(itemId, sellerId, start, end,
-                item.getStartingPrice(), BigDecimal.valueOf(increment));
+                item.getStartingPrice(), increment);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", a.getId().toString());
@@ -187,7 +189,7 @@ public class AuctionController {
         UUID actorUserId = handler.getCurrentUserId();
         if (actorUserId == null) return Response.error("CLOSE_AUCTION", "Chưa đăng nhập");
 
-        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        UUID auctionId = req.requireUUID("auctionId");
         auctionManager.closeAuction(auctionId, actorUserId);
         return Response.success("CLOSE_AUCTION", "Đã đóng phiên", null);
     }
@@ -218,7 +220,7 @@ public class AuctionController {
      * Đăng ký client hiện tại vào danh sách observer của auction để nhận push realtime.
      */
     public Response watchAuction(Request req) {
-        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        UUID auctionId = req.requireUUID("auctionId");
         eventManager.subscribe(auctionId, handler);
         return Response.success("WATCH_AUCTION", "Đang theo dõi phiên " + auctionId, null);
     }
@@ -227,7 +229,7 @@ public class AuctionController {
      * Hủy theo dõi realtime cho client hiện tại.
      */
     public Response unwatchAuction(Request req) {
-        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        UUID auctionId = req.requireUUID("auctionId");
         eventManager.unsubscribe(auctionId, handler);
         return Response.success("UNWATCH_AUCTION", "Ngừng theo dõi", null);
     }

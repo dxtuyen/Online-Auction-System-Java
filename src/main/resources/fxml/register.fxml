@@ -1,48 +1,89 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?import javafx.scene.layout.*?>
+
+<?import java.net.*?>
+<?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
-<?import javafx.geometry.Insets?>
-<?import javafx.collections.FXCollections?>
-<?import java.lang.String?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
 
-<BorderPane xmlns:fx="http://javafx.com/fxml"
-            fx:controller="com.auction.client.controller.RegisterController"
-            prefWidth="920" prefHeight="620"
-            style="-fx-background-color: #f8fafc;">
+<AnchorPane prefHeight="500.0" prefWidth="700.0" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.controller.RegisterController">
 
-    <center>
-        <VBox alignment="CENTER" spacing="12" maxWidth="380" styleClass="card">
-            <padding><Insets top="32" right="32" bottom="32" left="32"/></padding>
+    <stylesheets>
+        <URL value="@../css/style.css" />
+    </stylesheets>
 
-            <Label text="📝" style="-fx-font-size: 40;"/>
-            <Label text="Đăng ký tài khoản"
-                   style="-fx-font-size: 20; -fx-font-weight: bold;"/>
+    <children>
+        <!-- VBox này là lớp nền, phủ kín toàn bộ cửa sổ và làm nhiệm vụ căn giữa -->
+        <VBox alignment="CENTER" style="-fx-background-color: #f1f5f9;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+            <children>
+                <!-- card trắng -->
+                <VBox alignment="TOP_CENTER" maxWidth="400.0" prefWidth="400.0" spacing="15.0" styleClass="card">
+                    <padding>
+                        <Insets bottom="30.0" left="30.0" right="30.0" top="30.0" />
+                    </padding>
+                    <children>
+                        <Label text="Sign Up" textFill="#000000d1">
+                            <font>
+                                <Font name="System Bold" size="24.0" />
+                            </font>
+                        </Label>
+                  <VBox prefHeight="200.0" prefWidth="100.0">
+                     <children>
+                        <Label text="Họ và tên" textFill="#64748b" />
+                        <TextField fx:id="txtFullName" promptText="Nhập họ tên đầy đủ" styleClass="text-input" />
+                     </children>
+                  </VBox>
 
-            <TextField fx:id="txtUsername" promptText="Tên đăng nhập"
-                       prefHeight="38" styleClass="text-input"/>
-            <PasswordField fx:id="txtPassword" promptText="Mật khẩu"
-                           prefHeight="38" styleClass="text-input"/>
+                              <!-- Form nhập tên đăng nhập -->
+                        <VBox spacing="5.0">
+                            <children>
+                                <Label text="Tên đăng nhập" textFill="#64748b" />
+                                <TextField fx:id="txtUsername" prefHeight="40.0" promptText="Nhập tên đăng nhập" styleClass="text-input" />
+                            </children>
+                        </VBox>
+                  <VBox prefHeight="200.0" prefWidth="100.0">
+                     <children>
+                        <Label text="Email" textFill="#64748b" />
+                        <TextField fx:id="txtEmail" promptText="***@gmail.com" styleClass="text-input" />
+                     </children>
+                  </VBox>
 
-            <ComboBox fx:id="cboRole" promptText="Chọn vai trò"
-                      prefWidth="320" prefHeight="38">
-                <items>
-                    <FXCollections fx:factory="observableArrayList">
-                        <String fx:value="BIDDER"/>
-                        <String fx:value="SELLER"/>
-                    </FXCollections>
-                </items>
-            </ComboBox>
+                        <!-- Form nhập mật khẩu -->
+                        <VBox spacing="5.0">
+                            <children>
+                                <Label text="Mật khẩu" textFill="#64748b" />
+                                <PasswordField fx:id="txtPassword" prefHeight="40.0" promptText="Nhập mật khẩu (&gt;=6 ký tự)" styleClass="text-input" />
+                            </children>
+                        </VBox>
 
-            <TextField fx:id="txtExtra" promptText="Số dư ban đầu (VNĐ) — Bidder"
-                       prefHeight="38" styleClass="text-input"/>
+                        <!-- Form nhập liệu số tiền ban đầu -->
+                        <VBox spacing="5.0">
+                            <children>
+                                <Label text="Số dư ban đầu" textFill="#64748b" />
+                                <TextField fx:id="txtBalance" prefHeight="40.0" promptText="nhập số tiền" styleClass="text-input" />
+                            </children>
+                        </VBox>
+                  <Label fx:id="lblError" styleClass="label-error" wrapText="true" />
 
-            <Label fx:id="lblError" styleClass="error-label" wrapText="true"/>
+                        <!-- nút bấm đăng kí -->
+                        <Button fx:id="btnRegister" graphicTextGap="0.0" maxWidth="1.7976931348623157E308" mnemonicParsing="false" onAction="#handleRegister" styleClass="btn-primary" text="Đăng ký">
+                            <VBox.margin>
+                                <Insets top="10.0" />
+                            </VBox.margin></Button>
 
-            <Button fx:id="btnRegister" text="Đăng ký"
-                    onAction="#handleRegister"
-                    prefWidth="320" prefHeight="40" styleClass="btn-primary"/>
+                        <!-- link chuyển sang màn hình đăng nhập -->
+                        <HBox alignment="CENTER">
+                            <children>
+                                <Hyperlink onAction="#goToLogin" text="Quay lại đăng nhập" />
+                            </children>
+                        </HBox>
 
-            <Hyperlink text="← Quay lại đăng nhập" onAction="#goToLogin"/>
+                    </children>
+                </VBox>
+            </children>
+            <padding>
+                <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+            </padding>
         </VBox>
-    </center>
-</BorderPane>
+    </children>
+</AnchorPane>

@@ -26,8 +26,8 @@ public class UserController {
     public UserController(ClientHandler handler) { this.handler = handler; }
 
     public Response login(Request req) {
-        String username = req.getDataString("username");
-        String password = req.getDataString("password");
+        String username = req.requireString("username");
+        String password = req.requireString("password");
 
         User user = userManager.login(username, password);
         // Lưu userId vào handler để các request sau biết mình là ai
@@ -47,10 +47,10 @@ public class UserController {
     }
 
     public Response register(Request req) {
-        String username = req.getDataString("username");
-        String password = req.getDataString("password");
-        String email = req.getDataString("email");
-        String fullName = req.getDataString("fullName");
+        String username = req.requireString("username");
+        String password = req.requireString("password");
+        String email = req.requireString("email");
+        String fullName = req.requireString("fullName");
 
         User user = userManager.register(username, password, email, fullName, Role.NORMAL);
 

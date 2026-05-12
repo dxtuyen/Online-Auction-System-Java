@@ -23,30 +23,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/**
- * AuctionManager - REGISTRY trung tâm quản lý mọi phiên đấu giá.
- * <p>
- * ============== KIẾN TRÚC PERSISTENCE ==============
- * <p>
- * Write-through cache:
- * - In-memory map làm cache + chứa runtime state (lock, observers)
- * - createAuction insert DB → add cache → register observer
- * - Internal observer hook DAO.update() sau MỌI event (bid/extend/status-change)
- *   → mọi mutation đều flush xuống DB tự động
- * - loadAllFromDb add cache + register observer (KHÔNG insert)
- * <p>
- * ============== DESIGN PATTERNS ==============
- * 1. SINGLETON (Bill Pugh idiom)
- * 2. FACADE - che giấu lock, scheduler, DAO
- * 3. OBSERVER - manager tự đăng ký observer của mọi auction
- * 4. REPOSITORY-LIKE
- * <p>
- * ============== CONCURRENCY ==============
- * - ConcurrentHashMap thread-safe cho cache
- * - ScheduledExecutorService chuyển status mỗi giây
- * - Mọi mutation trên Auction được entity TỰ lock (xem Auction.java)
- * - Manager KHÔNG lock thêm → tránh deadlock
- */
 public final class AuctionManager {
 
     // ============== SINGLETON ==============
@@ -71,19 +47,13 @@ public final class AuctionManager {
 
     // ============== INTERNAL OBSERVER ==============
 
-    /**
-     * Observer NỘI BỘ - đăng ký vào MỖI auction. Khi auction phát event:
-     * 1. Anti-sniping (chỉ với onBidPlaced)
-     * 2. Persist state mới xuống DB qua DAO
-     * 3. Forward cho global observers
-     */
     private final AuctionObserver internalObserver = new AuctionObserver() {
         @Override
         public void onBidPlaced(Auction auction, BidTransaction bid) {
             if (auction.isInSnipingWindow(snipingThresholdSeconds)) {
                 try {
-                    auction.extend(snipingExtensionSeconds);   // sẽ fire onAuctionExtended
-                } catch (Exception ignored) { /* auction có thể đã FINISHED */ }
+                    auction.extend(snipingExtensionSeconds);
+                } catch (Exception ignored) { }
             }
             safeSave(auction);
             globalObservers.forEach(obs -> safeNotify(() -> obs.onBidPlaced(auction, bid)));
@@ -116,12 +86,7 @@ public final class AuctionManager {
 
     // ============== BOOTSTRAP ==============
 
-    /**
-     * Load toàn bộ auction từ DB vào cache + register observer cho mỗi cái.
-     * Phải gọi SAU User+Item (FK item_id, seller_id, highest_bidder_id).
-     */
     public void loadAllFromDb() {
-        // Cần dọn observer cũ nếu gọi lại để tránh duplicate
         auctions.values().forEach(a -> a.removeObserver(internalObserver));
         auctions.clear();
         for (Auction a : dao.findAll()) {
@@ -137,9 +102,6 @@ public final class AuctionManager {
 
     // ============== AUCTION LIFECYCLE ==============
 
-    /**
-     * Tạo phiên đấu giá MỚI cho item của seller, persist DB, register observer.
-     */
     public Auction createAuction(UUID itemId, UUID sellerId,
                                  LocalDateTime startTime, LocalDateTime endTime,
                                  BigDecimal startingPrice, BigDecimal minimumIncrement) {
@@ -161,23 +123,34 @@ public final class AuctionManager {
         Auction auction = new Auction(itemId, sellerId, startTime, endTime,
                 startingPrice, minimumIncrement);
 
-        // Persist DB TRƯỚC khi commit cache. Nếu DB fail → cache không thay đổi.
         dao.insert(auction);
         auctions.put(auction.getId(), auction);
         auction.addObserver(internalObserver);
         return auction;
     }
 
+    public Auction register(Auction auction) {
+        Objects.requireNonNull(auction, "auction must not be null");
+        Auction existed = auctions.putIfAbsent(auction.getId(), auction);
+        if (existed != null) {
+            throw new IllegalStateException("Auction đã tồn tại với id: " + auction.getId());
+        }
+        auction.addObserver(internalObserver);
+        return auction;
+    }
+
+    public boolean unregister(UUID auctionId) {
+        Objects.requireNonNull(auctionId);
+        Auction removed = auctions.remove(auctionId);
+        if (removed != null) {
+            removed.removeObserver(internalObserver);
+            return true;
+        }
+        return false;
+    }
+
     // ============== MANUAL CLOSE ==============
 
-    /**
-     * Đóng phiên theo yêu cầu seller (PENDING→CANCELED hoặc RUNNING→FINISHED).
-     * State change sẽ tự fire onStatusChanged → DAO update.
-     *
-     * @throws IllegalArgumentException nếu auction không tồn tại
-     * @throws SecurityException        nếu actor không phải seller của phiên
-     * @throws IllegalStateException    nếu phiên đã ở terminal state
-     */
     public Auction closeAuction(UUID auctionId, UUID actorUserId) {
         Objects.requireNonNull(auctionId, "auctionId");
         Objects.requireNonNull(actorUserId, "actorUserId");
@@ -193,7 +166,10 @@ public final class AuctionManager {
         AuctionStatus current = auction.getStatus();
         switch (current) {
             case PENDING -> auction.transitionTo(AuctionStatus.CANCELED);
-            case RUNNING -> auction.transitionTo(AuctionStatus.FINISHED);
+            case RUNNING -> {
+                auction.transitionTo(AuctionStatus.FINISHED);
+                trySettle(auction);
+            }
             default -> throw new IllegalStateException(
                     "Phiên đang ở trạng thái " + current + ", không thể đóng thủ công");
         }
@@ -271,11 +247,38 @@ public final class AuctionManager {
                 } else if (status == AuctionStatus.RUNNING
                         && !now.isBefore(auction.getEndTime())) {
                     auction.transitionTo(AuctionStatus.FINISHED);
+                    trySettle(auction);
                 }
             } catch (Exception e) {
                 System.err.println("[AuctionManager] Lỗi khi tick auction "
                         + auction.getId() + ": " + e.getMessage());
             }
+        }
+    }
+
+    // ============== SETTLEMENT ==============
+
+    private void trySettle(Auction auction) {
+        UUID winnerId = auction.getHighestBidderId();
+        if (winnerId == null) {
+            return;
+        }
+
+        BigDecimal price = auction.getCurrentPrice();
+        UserManager.getInstance().findById(auction.getSellerId()).ifPresent(seller -> {
+            seller.addRevenue(price);
+            try {
+                UserManager.getInstance().save(seller);
+            } catch (Exception e) {
+                System.err.println("[AuctionManager] Lỗi lưu revenue cho seller "
+                        + seller.getId() + ": " + e.getMessage());
+            }
+        });
+
+        try {
+            auction.transitionTo(AuctionStatus.PAID);
+        } catch (RuntimeException e) {
+            System.err.println("[AuctionManager] Settle bỏ qua: " + e.getMessage());
         }
     }
 
@@ -295,7 +298,6 @@ public final class AuctionManager {
 
     // ============== HELPERS ==============
 
-    /** Wrap DAO update để 1 lỗi DB không làm vỡ chain observer. */
     private void safeSave(Auction auction) {
         try {
             dao.update(auction);
@@ -308,7 +310,7 @@ public final class AuctionManager {
     private static void safeNotify(Runnable r) {
         try {
             r.run();
-        } catch (Exception ignored) { /* observer không được phép crash hệ thống */ }
+        } catch (Exception ignored) { }
     }
 
     // ============== TEST ONLY ==============

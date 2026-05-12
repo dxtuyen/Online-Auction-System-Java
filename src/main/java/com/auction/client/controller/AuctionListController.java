@@ -30,15 +30,16 @@ public class AuctionListController {
     @FXML
     private void initialize() {
         ClientModel model = ClientModel.getInstance();
-        lblUserInfo.setText(String.format("Xin chào, %s (%s)",
-                model.getUsername(), model.getRole()));
+        lblUserInfo.setText(String.format("Xin chào, %s",
+                model.getUsername() == null ? "" : model.getUsername()));
         loadProfileSummary();
 
-        // Seller thấy nút tạo phiên
-        if ("SELLER".equals(model.getRole())) btnCreateAuction.setVisible(true);
+        // User thường (NORMAL) đều có thể tạo phiên đấu giá — chỉ ADMIN bị ẩn nút
+        if (!"ADMIN".equals(model.getRole())) btnCreateAuction.setVisible(true);
 
-        // Bind từng cột với key trong Map — PropertyValueFactory không dùng được cho Map
-        colId.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "auctionId")));
+        // Bind từng cột với key trong Map — PropertyValueFactory không dùng được cho Map.
+        // ID là UUID dài 36 ký tự nên hiển thị 8 ký tự đầu cho gọn.
+        colId.setCellValueFactory(cd -> new SimpleStringProperty(shortId(str(cd.getValue(), "auctionId"))));
         colItem.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "itemName")));
         colCategory.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "itemCategory")));
         colPrice.setCellValueFactory(cd -> new SimpleStringProperty(
@@ -53,7 +54,7 @@ public class AuctionListController {
             if (event.getClickCount() == 2) {
                 Map<String, Object> sel = tblAuctions.getSelectionModel().getSelectedItem();
                 if (sel != null) {
-                    int id = (int) ((Number) sel.get("auctionId")).doubleValue();
+                    String id = String.valueOf(sel.get("auctionId"));
                     openBidding(id);
                 }
             }
@@ -70,8 +71,7 @@ public class AuctionListController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("LIST_AUCTIONS", Map.of());
-                Response res = model.waitForResponse("LIST_AUCTIONS", 5000);
+                Response res = model.sendRequestAndWait("LIST_AUCTIONS", Map.of(), 5000);
 
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
@@ -89,7 +89,7 @@ public class AuctionListController {
         }).start();
     }
 
-    private void openBidding(int auctionId) {
+    private void openBidding(String auctionId) {
         ClientApp.switchSceneWithData("bidding.fxml", ctrl -> {
             ((BiddingController) ctrl).setAuctionId(auctionId);
         });
@@ -135,8 +135,7 @@ public class AuctionListController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                model.sendRequest("GET_PROFILE", Map.of());
-                Response res = model.waitForResponse("GET_PROFILE", 5000);
+                Response res = model.sendRequestAndWait("GET_PROFILE", Map.of(), 5000);
                 if (res != null && res.isSuccess()) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) res.getData();
@@ -152,29 +151,21 @@ public class AuctionListController {
 
     private String formatProfileSummary(Map<String, Object> data) {
         String base = String.format("Xin chào, %s (%s)", str(data, "username"), str(data, "displayRole"));
-        String role = str(data, "role");
-        if ("BIDDER".equals(role)) {
-            return base + " | Khả dụng: " + formatMoney(data.get("availableBalance"));
-        }
-        if ("SELLER".equals(role)) {
-            return base + " | Doanh thu: " + formatMoney(data.get("totalRevenue"));
-        }
-        return base;
+        if ("ADMIN".equals(str(data, "role"))) return base;
+        return base + " | Số dư: " + formatMoney(data.get("balance"))
+                + " | Doanh thu: " + formatMoney(data.get("revenue"));
     }
 
     private String formatProfileDetails(Map<String, Object> data) {
         StringBuilder sb = new StringBuilder();
         sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
+        sb.append("Email: ").append(str(data, "email")).append('\n');
+        sb.append("Họ tên: ").append(str(data, "fullName")).append('\n');
         sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
         sb.append("Trạng thái: ").append(str(data, "displayStatus"));
-
-        String role = str(data, "role");
-        if ("BIDDER".equals(role)) {
-            sb.append('\n').append("Số dư ví: ").append(formatMoney(data.get("balance")));
-            sb.append('\n').append("Đang giữ chỗ: ").append(formatMoney(data.get("reservedBalance")));
-            sb.append('\n').append("Số dư khả dụng: ").append(formatMoney(data.get("availableBalance")));
-        } else if ("SELLER".equals(role)) {
-            sb.append('\n').append("Doanh thu hiện tại: ").append(formatMoney(data.get("totalRevenue")));
+        if (!"ADMIN".equals(str(data, "role"))) {
+            sb.append('\n').append("Số dư: ").append(formatMoney(data.get("balance")));
+            sb.append('\n').append("Doanh thu: ").append(formatMoney(data.get("revenue")));
         }
         return sb.toString();
     }
@@ -182,8 +173,15 @@ public class AuctionListController {
     private String str(Map<String, Object> m, String k) {
         Object v = m.get(k);
         if (v == null) return "";
-        if (v instanceof Number n) return String.valueOf(n.intValue());
+        // Gson parse số JSON thành Double — render integer cho gọn (totalBids = "3" thay vì "3.0").
+        if (v instanceof Number n) return String.valueOf(n.longValue());
         return v.toString();
+    }
+
+    /** Hiển thị 8 ký tự đầu của UUID cho gọn — UUID đầy đủ 36 ký tự khó đọc. */
+    private String shortId(String id) {
+        if (id == null || id.length() <= 8) return id == null ? "" : id;
+        return id.substring(0, 8);
     }
 
     private String formatMoney(Object v) {
