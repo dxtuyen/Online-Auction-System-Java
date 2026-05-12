@@ -1,6 +1,8 @@
 package com.auction.server;
 
 import com.auction.bootstrap.DataSeeder;
+import com.auction.persistence.Database;
+import com.auction.service.UserManager;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -20,7 +22,13 @@ public class ServerMain {
     public static final int PORT = 8888;
 
     public static void main(String[] args) {
-        // Seed data sẵn để có user/phiên để login ngay
+        // 1. Verify DB connection trước khi khởi động — fail fast nếu Docker chưa chạy
+        Database.getInstance().verifyConnection();
+
+        // 2. Load toàn bộ user từ DB vào cache
+        UserManager.getInstance().loadAllFromDb();
+
+        // 3. Seed dữ liệu mẫu (chỉ chạy nếu DB rỗng + SEED_ENABLED=true)
         DataSeeder.run();
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {

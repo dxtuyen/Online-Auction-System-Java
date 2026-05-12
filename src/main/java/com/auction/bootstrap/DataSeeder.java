@@ -32,8 +32,10 @@ public final class DataSeeder {
         if (!"true".equalsIgnoreCase(System.getenv("SEED_ENABLED"))) {
             return;
         }
-        if (UserManager.getInstance().count() > 0) {
-            System.out.println("[Seed] Bỏ qua — hệ thống đã có dữ liệu");
+        // Check DB thay vì cache: nếu DB đã có user (vd từ lần seed trước),
+        // skip để tránh insert trùng và vi phạm unique constraint username/email.
+        if (UserManager.getInstance().countInDb() > 0) {
+            System.out.println("[Seed] Bỏ qua — DB đã có dữ liệu");
             return;
         }
 
@@ -65,9 +67,11 @@ public final class DataSeeder {
         User carol = um.register("carol", "carol123", "carol@auction.local",
                 "Carol (Bidder)", Role.NORMAL);
 
-        // Nạp balance để bob/carol có thể bid trong demo
+        // Nạp balance để bob/carol có thể bid trong demo - phải save() để flush DB
         bob.setBalance(new BigDecimal("10000000"));
+        um.save(bob);
         carol.setBalance(new BigDecimal("20000000"));
+        um.save(carol);
 
         map.put("admin", admin);
         map.put("alice", alice);
