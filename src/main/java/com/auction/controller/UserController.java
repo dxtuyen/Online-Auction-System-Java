@@ -6,32 +6,45 @@ import com.auction.service.UserManager;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.ClientHandler;
+import com.auction.server.Session;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Controller xử lý action liên quan đến User: LOGIN, REGISTER, LOGOUT, GET_PROFILE.
+ * Controller xử lý các action liên quan đến User: LOGIN, REGISTER, LOGOUT, GET_PROFILE.
  *
- * <p>Ngoài xác thực, controller này còn chịu trách nhiệm trả về thông tin tài khoản
- * của session hiện tại để client có thể hiển thị username, role, số dư khả dụng
- * hoặc doanh thu mà không phải tự truy cập thẳng vào domain model.</p>
+ * <p>SAU REFACTOR: Controller giờ là <b>singleton stateless</b>. Nó không còn giữ
+ * tham chiếu tới {@code ClientHandler} (một state per-connection). Thay vào đó,
+ * mọi method nhận thêm {@link ClientHandler} làm tham số để đọc/ghi {@link Session}
+ * của connection gọi nó.</p>
+ *
+ * <p>Lợi ích:
+ * <ul>
+ *   <li>Đúng nguyên tắc MVC: controller là logic dùng chung, session là state per-request.</li>
+ *   <li>Tiết kiệm: 1000 connection chỉ có 1 controller, không phải 1000.</li>
+ *   <li>Unit test dễ: chỉ cần new Session() giả thay vì mock cả socket.</li>
+ * </ul>
  */
-public class UserController {
+public final class UserController {
+
+    // ============== SINGLETON (Bill Pugh) ==============
+    private UserController() {}
+    private static final class Holder { static final UserController I = new UserController(); }
+    public static UserController getInstance() { return Holder.I; }
 
     private final UserManager userManager = UserManager.getInstance();
-    private final ClientHandler handler;
 
-    public UserController(ClientHandler handler) { this.handler = handler; }
-
-    public Response login(Request req) {
+    /**
+     * Đăng nhập. Lưu userId vào Session để các request sau biết "tôi là ai".
+     */
+    public Response login(Request req, ClientHandler ctx) {
         String username = req.getDataString("username");
         String password = req.getDataString("password");
 
         User user = userManager.login(username, password);
-        // Lưu userId vào handler để các request sau biết mình là ai
-        handler.setCurrentUserId(user.getId());
+        ctx.getSession().setCurrentUserId(user.getId());
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("userId", user.getId().toString());
@@ -46,7 +59,7 @@ public class UserController {
         return Response.success("LOGIN", "Đăng nhập thành công", data);
     }
 
-    public Response register(Request req) {
+    public Response register(Request req, ClientHandler ctx) {
         String username = req.getDataString("username");
         String password = req.getDataString("password");
         String email = req.getDataString("email");
@@ -65,22 +78,18 @@ public class UserController {
         return Response.success("REGISTER", "Đăng ký thành công", data);
     }
 
-    public Response logout(Request req) {
-        handler.setCurrentUserId(null);
+    public Response logout(Request req, ClientHandler ctx) {
+        ctx.getSession().clear();
         return Response.success("LOGOUT", "Đã đăng xuất", null);
     }
 
     /**
      * Trả thông tin tài khoản của user đang đăng nhập.
      *
-     * <p>Mỗi user có balance (số dư khả dụng để đặt cọc/thanh toán) và revenue
-     * (tổng doanh thu nhận được từ bán đấu giá) đính kèm trong response.</p>
+     * <p>Auth đã được middleware ở router check trước → ở đây userId chắc chắn != null.</p>
      */
-    public Response getProfile(Request req) {
-        UUID userId = handler.getCurrentUserId();
-        if (userId == null) {
-            return Response.error("GET_PROFILE", "Chưa đăng nhập");
-        }
+    public Response getProfile(Request req, ClientHandler ctx) {
+        UUID userId = ctx.getSession().getCurrentUserId();
 
         User user = userManager.findById(userId).orElse(null);
         if (user == null) {

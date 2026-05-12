@@ -11,7 +11,12 @@ import javafx.scene.control.*;
 
 import java.util.*;
 
-/** Controller hiển thị danh sách phiên đấu giá. */
+/**
+ * Controller hiển thị danh sách phiên đấu giá.
+ *
+ * <p>Sửa sau refactor: mọi ID giờ là UUID String (server gửi dạng String, không phải int).
+ * Role enum chỉ có ADMIN/NORMAL nên seller-only UI bật cho mọi user không phải admin.</p>
+ */
 public class AuctionListController {
 
     @FXML private TableView<Map<String, Object>> tblAuctions;
@@ -34,8 +39,8 @@ public class AuctionListController {
                 model.getUsername(), model.getRole()));
         loadProfileSummary();
 
-        // Seller thấy nút tạo phiên
-        if ("SELLER".equals(model.getRole())) btnCreateAuction.setVisible(true);
+        // ADMIN không có quyền bán; mọi role khác (hiện tại chỉ NORMAL) đều thấy nút tạo phiên.
+        if (!"ADMIN".equals(model.getRole())) btnCreateAuction.setVisible(true);
 
         // Bind từng cột với key trong Map — PropertyValueFactory không dùng được cho Map
         colId.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "auctionId")));
@@ -48,12 +53,12 @@ public class AuctionListController {
 
         tblAuctions.setItems(allData);
 
-        // Double-click → mở bidding screen
+        // Double-click → mở bidding screen. auctionId là UUID String.
         tblAuctions.setOnMouseClicked(event -> {
             if (event.getClickCount() == 2) {
                 Map<String, Object> sel = tblAuctions.getSelectionModel().getSelectedItem();
                 if (sel != null) {
-                    int id = (int) ((Number) sel.get("auctionId")).doubleValue();
+                    String id = String.valueOf(sel.get("auctionId"));
                     openBidding(id);
                 }
             }
@@ -89,7 +94,7 @@ public class AuctionListController {
         }).start();
     }
 
-    private void openBidding(int auctionId) {
+    private void openBidding(String auctionId) {
         ClientApp.switchSceneWithData("bidding.fxml", ctrl -> {
             ((BiddingController) ctrl).setAuctionId(auctionId);
         });
@@ -150,16 +155,14 @@ public class AuctionListController {
         }).start();
     }
 
+    /**
+     * Profile dùng field {@code balance} (số dư có thể chi) và {@code revenue} (doanh thu bán).
+     * Hệ thống hiện chưa reserve balance lúc bid nên không có concept available/reserved riêng.
+     */
     private String formatProfileSummary(Map<String, Object> data) {
         String base = String.format("Xin chào, %s (%s)", str(data, "username"), str(data, "displayRole"));
-        String role = str(data, "role");
-        if ("BIDDER".equals(role)) {
-            return base + " | Khả dụng: " + formatMoney(data.get("availableBalance"));
-        }
-        if ("SELLER".equals(role)) {
-            return base + " | Doanh thu: " + formatMoney(data.get("totalRevenue"));
-        }
-        return base;
+        if ("ADMIN".equals(str(data, "role"))) return base;
+        return base + " | Số dư: " + formatMoney(data.get("balance"));
     }
 
     private String formatProfileDetails(Map<String, Object> data) {
@@ -167,14 +170,9 @@ public class AuctionListController {
         sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
         sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
         sb.append("Trạng thái: ").append(str(data, "displayStatus"));
-
-        String role = str(data, "role");
-        if ("BIDDER".equals(role)) {
-            sb.append('\n').append("Số dư ví: ").append(formatMoney(data.get("balance")));
-            sb.append('\n').append("Đang giữ chỗ: ").append(formatMoney(data.get("reservedBalance")));
-            sb.append('\n').append("Số dư khả dụng: ").append(formatMoney(data.get("availableBalance")));
-        } else if ("SELLER".equals(role)) {
-            sb.append('\n').append("Doanh thu hiện tại: ").append(formatMoney(data.get("totalRevenue")));
+        if (!"ADMIN".equals(str(data, "role"))) {
+            sb.append('\n').append("Số dư: ").append(formatMoney(data.get("balance")));
+            sb.append('\n').append("Doanh thu: ").append(formatMoney(data.get("revenue")));
         }
         return sb.toString();
     }

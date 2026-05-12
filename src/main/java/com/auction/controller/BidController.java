@@ -17,37 +17,42 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Controller phía server cho các thao tác bid.
+ * Controller cho các action bid: PLACE_BID, SET_AUTO_BID, BID_HISTORY.
  *
- * <p>Khác với {@link AuctionController} thiên về đọc/list dữ liệu,
- * controller này đi vào các action có thay đổi state: đặt giá tay, đăng ký auto-bid
- * và đọc lịch sử bid.</p>
- *
- * <p>Phần nghiệp vụ phức tạp như bước nhảy tối thiểu, role/balance check, anti-sniping,
- * settlement... đã nằm ở {@link BidManager}/Auction entity.
- * Controller chỉ làm orchestration: rút bidderId từ session, parse input, gọi manager,
- * và serialize kết quả.</p>
+ * <p>SAU REFACTOR:
+ * <ul>
+ *   <li><b>Singleton stateless</b> (xem {@link UserController} để giải thích).</li>
+ *   <li><b>Auth check chuyển sang router middleware</b> — không còn lặp
+ *       {@code if (userId == null) return error("Chưa đăng nhập")} ở mỗi method.</li>
+ *   <li><b>Đọc số tiền bằng {@code getDataDecimal()}</b> thay vì
+ *       {@code BigDecimal.valueOf(getDataDouble(...))}. Cách cũ ép qua {@code double}
+ *       → mất precision (ví dụ 0.1 + 0.2 = 0.30000000000000004). Với tiền điều này
+ *       là BUG nghiêm trọng — và đề BTL chấm cả "tránh lost update / rollback".</li>
+ * </ul>
  */
-public class BidController {
+public final class BidController {
+
+    private BidController() {}
+    private static final class Holder { static final BidController I = new BidController(); }
+    public static BidController getInstance() { return Holder.I; }
 
     private final BidManager bidManager = BidManager.getInstance();
     private final UserManager userManager = UserManager.getInstance();
-    private final ClientHandler handler;
-
-    public BidController(ClientHandler handler) { this.handler = handler; }
 
     /**
      * Nhận yêu cầu đặt giá từ client đã đăng nhập.
      *
-     * <p>bidderId được lấy từ session, KHÔNG tin trường userId do client tự gửi —
-     * tránh việc client giả mạo người khác khi gọi PLACE_BID.</p>
+     * <p>bidderId LẤY TỪ SESSION, không tin trường userId do client tự gửi —
+     * chống giả mạo người khác. Số tiền đọc thẳng dưới dạng BigDecimal để giữ precision.</p>
      */
-    public Response placeBid(Request req) {
-        UUID bidderId = handler.getCurrentUserId();
-        if (bidderId == null) return Response.error("PLACE_BID", "Chưa đăng nhập");
+    public Response placeBid(Request req, ClientHandler ctx) {
+        UUID bidderId = ctx.getSession().getCurrentUserId();
 
         UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
-        BigDecimal amount = BigDecimal.valueOf(req.getDataDouble("amount"));
+        BigDecimal amount = req.getDataDecimal("amount");
+        if (amount == null) {
+            return Response.error("PLACE_BID", "Số tiền không hợp lệ");
+        }
 
         BidTransaction bid = bidManager.placeBid(auctionId, bidderId, amount);
 
@@ -58,18 +63,18 @@ public class BidController {
     }
 
     /**
-     * Đăng ký auto-bid cho bidder hiện tại.
-     *
-     * <p>maxBid/increment được parse ở controller, validation nghiệp vụ
-     * (auction còn mở, bidder không phải seller, maxBid > 0) đã được {@link BidManager} chặn.</p>
+     * Đăng ký auto-bid. Validation chi tiết (auction còn mở, bidder ≠ seller,
+     * maxBid > 0) đã có ở {@link BidManager}; controller chỉ parse + forward.
      */
-    public Response setAutoBid(Request req) {
-        UUID bidderId = handler.getCurrentUserId();
-        if (bidderId == null) return Response.error("SET_AUTO_BID", "Chưa đăng nhập");
+    public Response setAutoBid(Request req, ClientHandler ctx) {
+        UUID bidderId = ctx.getSession().getCurrentUserId();
 
         UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
-        BigDecimal maxBid = BigDecimal.valueOf(req.getDataDouble("maxBid"));
-        BigDecimal increment = BigDecimal.valueOf(req.getDataDouble("increment"));
+        BigDecimal maxBid = req.getDataDecimal("maxBid");
+        BigDecimal increment = req.getDataDecimal("increment");
+        if (maxBid == null || increment == null) {
+            return Response.error("SET_AUTO_BID", "maxBid và increment phải là số hợp lệ");
+        }
 
         AutoBid ab = bidManager.registerAutoBid(auctionId, bidderId, maxBid, increment);
         return Response.success("SET_AUTO_BID",
@@ -79,12 +84,11 @@ public class BidController {
     }
 
     /**
-     * Trả lịch sử bid của một auction theo dạng đã enrich tên bidder.
+     * Lịch sử bid của 1 auction, đã enrich tên bidder.
      *
-     * <p>{@link BidManager} chỉ giữ transaction thô. Controller map thêm username để client
-     * có thể render lịch sử ngay mà không phải gọi thêm request tra user.</p>
+     * <p>PUBLIC: không yêu cầu đăng nhập — ai cũng xem được lịch sử như sàn đấu giá thật.</p>
      */
-    public Response bidHistory(Request req) {
+    public Response bidHistory(Request req, ClientHandler ctx) {
         UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
         List<Map<String, Object>> result = new ArrayList<>();
         for (BidTransaction b : bidManager.getBidHistory(auctionId)) {

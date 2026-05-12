@@ -19,15 +19,8 @@ import java.util.*;
 /**
  * Controller màn hình đấu giá realtime — trái tim của dự án.
  *
- * <p>Chức năng:
- * <ul>
- *   <li>Hiển thị thông tin phiên, giá hiện tại, lịch sử bid</li>
- *   <li>Countdown timer tới khi phiên kết thúc</li>
- *   <li>Nhận push từ server (BID_UPDATE, AUCTION_STATUS, AUCTION_EXTENDED)</li>
- *   <li>LineChart giá theo thời gian (cập nhật realtime)</li>
- *   <li>Hiệu ứng flash khi giá thay đổi</li>
- *   <li>Đặt giá thủ công + Auto-bid</li>
- * </ul>
+ * <p>Sửa sau refactor: auctionId là UUID String (server dùng UUID).
+ * Profile response trả {@code balance}/{@code revenue}, không có available/reserved.</p>
  */
 public class BiddingController {
 
@@ -55,16 +48,15 @@ public class BiddingController {
     @FXML private ListView<String> lstBidHistory;
     @FXML private LineChart<String, Number> chartPrice;
 
-    // State
-    private int auctionId;
+    // State — auctionId là UUID dạng String (đồng bộ với server protocol)
+    private String auctionId;
     private LocalDateTime endTime;
     private Timeline countdown;
     private XYChart.Series<String, Number> priceSeries;
-    private static final int MAX_CHART_POINTS = 50;
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     /** Gọi từ AuctionListController sau khi load FXML. */
-    public void setAuctionId(int auctionId) {
+    public void setAuctionId(String auctionId) {
         this.auctionId = auctionId;
         loadAuctionDetail();
         loadBidHistory();
@@ -77,11 +69,9 @@ public class BiddingController {
         lblError.setText("");
         txtBidAmount.setOnAction(e -> handlePlaceBid());
 
-        // Khởi tạo chart series
         priceSeries = new XYChart.Series<>();
         chartPrice.getData().add(priceSeries);
 
-        // Đăng ký lắng nghe push từ server
         setupPushHandlers();
     }
 
@@ -133,14 +123,12 @@ public class BiddingController {
         lblBidCount.setText(str(data, "totalBids"));
         lblLeader.setText(data.get("leaderName") != null ? str(data, "leaderName") : "Chưa có");
 
-        // Parse endTime cho countdown
         String endStr = str(data, "endTime");
         if (!endStr.isBlank()) {
             try { endTime = LocalDateTime.parse(endStr); }
             catch (Exception e) { endTime = LocalDateTime.now().plusMinutes(5); }
         }
 
-        // Gợi ý giá tiếp theo
         double curr = num(data.get("currentPrice"));
         double incr = num(data.get("minimumIncrement"));
         txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", curr + incr));
@@ -149,7 +137,6 @@ public class BiddingController {
     private void renderHistory(List<Map<String, Object>> bids) {
         if (bids == null) return;
 
-        // List hiển thị: mới nhất trước
         ObservableList<String> items = FXCollections.observableArrayList();
         for (int i = bids.size() - 1; i >= 0; i--) {
             Map<String, Object> b = bids.get(i);
@@ -160,7 +147,6 @@ public class BiddingController {
         }
         lstBidHistory.setItems(items);
 
-        // Chart: tăng dần theo thời gian (cũ → mới)
         priceSeries.getData().clear();
         for (Map<String, Object> b : bids) {
             priceSeries.getData().add(new XYChart.Data<>(
@@ -178,23 +164,29 @@ public class BiddingController {
         }).start();
     }
 
+    /**
+     * So sánh auctionId trong push payload bằng chuỗi để tránh nhầm "0 != 0" khi cast int trên UUID.
+     */
+    private boolean matchesAuction(Map<String, Object> data) {
+        return auctionId != null
+                && auctionId.equals(String.valueOf(data.get("auctionId")));
+    }
+
     private void setupPushHandlers() {
         ClientModel model = ClientModel.getInstance();
 
         model.addPushHandler("BID_UPDATE", data -> {
-            if (num(data.get("auctionId")) != auctionId) return;
-
+            if (!matchesAuction(data)) return;
             Platform.runLater(() -> {
                 lblCurrentPrice.setText(formatMoney(data.get("amount")));
                 lblBidCount.setText(str(data, "totalBids"));
-                // Tải lại tên người dẫn đầu qua history để có username
                 loadBidHistory();
                 flashLabel(lblCurrentPrice);
             });
         });
 
         model.addPushHandler("AUCTION_STATUS", data -> {
-            if (num(data.get("auctionId")) != auctionId) return;
+            if (!matchesAuction(data)) return;
             Platform.runLater(() -> {
                 String status = str(data, "status");
                 if ("FINISHED".equals(status) || "PAID".equals(status) || "CANCELED".equals(status)) {
@@ -207,7 +199,7 @@ public class BiddingController {
         });
 
         model.addPushHandler("AUCTION_EXTENDED", data -> {
-            if (num(data.get("auctionId")) != auctionId) return;
+            if (!matchesAuction(data)) return;
             Platform.runLater(() -> {
                 try { endTime = LocalDateTime.parse(str(data, "newEndTime")); }
                 catch (Exception ignored) {}
@@ -305,7 +297,6 @@ public class BiddingController {
         long secs = sec % 60;
         lblTimer.setText(String.format("⏰ %02d:%02d", mins, secs));
 
-        // Đổi màu đỏ khi còn < 60s
         if (sec < 60) lblTimer.getStyleClass().setAll("timer-urgent");
         else lblTimer.getStyleClass().setAll("timer-normal");
     }
@@ -347,10 +338,8 @@ public class BiddingController {
     @FXML
     private void goBack() {
         if (countdown != null) countdown.stop();
-        // Gỡ push handler để tránh leak khi mở phiên khác
         ClientModel.getInstance().clearBiddingPushHandlers();
 
-        // Unwatch ở server
         new Thread(() -> {
             ClientModel.getInstance().sendRequest("UNWATCH_AUCTION",
                     Map.of("auctionId", auctionId));
@@ -382,7 +371,6 @@ public class BiddingController {
         catch (Exception e) { return -1; }
     }
 
-    /** "2026-04-22T14:30:15.xxx" → "14:30:15" */
     private String shortTime(String timestamp) {
         try {
             return LocalDateTime.parse(timestamp).format(TIME_FMT);
@@ -391,19 +379,18 @@ public class BiddingController {
         }
     }
 
+    /**
+     * Server trả {@code balance} (số dư) và {@code revenue} (doanh thu). Hệ thống chưa reserve balance
+     * lúc bid nên không có concept available/reserved tách biệt.
+     */
     private String formatProfileDetails(Map<String, Object> data) {
         StringBuilder sb = new StringBuilder();
         sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
         sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
         sb.append("Trạng thái: ").append(str(data, "displayStatus"));
-
-        String role = str(data, "role");
-        if ("BIDDER".equals(role)) {
-            sb.append('\n').append("Số dư ví: ").append(formatMoney(data.get("balance")));
-            sb.append('\n').append("Đang giữ chỗ: ").append(formatMoney(data.get("reservedBalance")));
-            sb.append('\n').append("Số dư khả dụng: ").append(formatMoney(data.get("availableBalance")));
-        } else if ("SELLER".equals(role)) {
-            sb.append('\n').append("Doanh thu hiện tại: ").append(formatMoney(data.get("totalRevenue")));
+        if (!"ADMIN".equals(str(data, "role"))) {
+            sb.append('\n').append("Số dư: ").append(formatMoney(data.get("balance")));
+            sb.append('\n').append("Doanh thu: ").append(formatMoney(data.get("revenue")));
         }
         return sb.toString();
     }

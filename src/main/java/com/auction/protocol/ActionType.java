@@ -33,11 +33,10 @@ public enum ActionType {
     // ============== SERVER → CLIENT (PUSH) ==============
     BID_UPDATE,         // có bid mới ở phiên đang xem
     AUCTION_STATUS,     // phiên đổi status (RUNNING → FINISHED, ...)
-    AUCTION_EXTENDED,   // phiên được gia hạn do anti-sniping
+    AUCTION_EXTENDED;   // phiên được gia hạn do anti-sniping
 
+    // Note: client tự build chart từ BID_HISTORY, không cần action BID_DIAGRAM riêng.
 
-    // ============== BID_DIAGRAM ===============
-    BID_DIAGRAM;    // biểu đồ đấu giá
     /**
      * Parse tên action từ JSON. Trả null nếu không hợp lệ
      * — caller (RequestRouter) /sẽ trả Response.error("Action không hỗ trợ") thay vì để crash.
