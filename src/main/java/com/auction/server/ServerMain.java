@@ -3,6 +3,7 @@ package com.auction.server;
 import com.auction.bootstrap.DataSeeder;
 import com.auction.persistence.Database;
 import com.auction.service.AuctionManager;
+import com.auction.service.BidManager;
 import com.auction.service.ItemManager;
 import com.auction.service.UserManager;
 
@@ -27,11 +28,13 @@ public class ServerMain {
         // 1. Verify DB connection trước khi khởi động — fail fast nếu Docker chưa chạy
         Database.getInstance().verifyConnection();
 
-        // 2. Load cache theo thứ tự dependency: User → Item → Auction
-        //    (Auction có FK item_id, seller_id, highest_bidder_id)
+        // 2. Load cache theo thứ tự dependency:
+        //    User → Item → Auction → Bid/AutoBid
+        //    (Bid có FK auction_id, bidder_id)
         UserManager.getInstance().loadAllFromDb();
         ItemManager.getInstance().loadAllFromDb();
         AuctionManager.getInstance().loadAllFromDb();
+        BidManager.getInstance().loadAllFromDb();
 
         // 3. Seed dữ liệu mẫu (chỉ chạy nếu DB rỗng + SEED_ENABLED=true)
         DataSeeder.run();

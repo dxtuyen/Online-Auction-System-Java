@@ -8,6 +8,10 @@ import com.auction.model.enums.AuctionStatus;
 import com.auction.model.exception.InsufficientBalanceException;
 import com.auction.model.exception.InvalidBidException;
 import com.auction.model.observer.AuctionObserver;
+import com.auction.persistence.dao.AutoBidDao;
+import com.auction.persistence.dao.BidTransactionDao;
+import com.auction.persistence.dao.MysqlAutoBidDao;
+import com.auction.persistence.dao.MysqlBidTransactionDao;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -20,41 +24,29 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * BidManager - REGISTRY trung tâm cho bid history và auto-bid.
  * <p>
- * ============== DESIGN PATTERNS ÁP DỤNG ==============
+ * ============== KIẾN TRÚC PERSISTENCE ==============
  * <p>
+ * Write-through cache:
+ * - bidHistory + autoBidsByAuction giữ in-memory để truy cập nhanh
+ * - placeBid (sau khi thành công) → INSERT BidTransaction xuống DB rồi mới cache
+ * - registerAutoBid → DELETE old + INSERT new (atomic ở app-level)
+ * - {@link #deactivateAutoBid} wrapper sync DB khi deactivate
+ * - loadAllFromDb fill cache lúc startup
+ * <p>
+ * ============== DESIGN PATTERNS ==============
  * 1. SINGLETON (Bill Pugh idiom)
- * <p>
- * 2. FACADE
- * - placeBid() che giấu việc validate user, tạo BidTransaction, gọi auction.placeBid(),
- *   ghi history và trigger auto-bid. Client chỉ cần biết 1 entry point.
- * <p>
- * 3. OBSERVER
- * - BidManager đăng ký làm global observer của AuctionManager để biết khi phiên đổi
- *   trạng thái mà tắt auto-bid tương ứng. KHÔNG dùng observer cho recording bid:
- *   placeBid() đã xử lý record trực tiếp sau khi auction.placeBid() trả về.
- * <p>
- * 3. REPOSITORY-LIKE
- * - getBidHistory, getAutoBids... giống Repository pattern.
- * <p>
- * ============== TẠI SAO TÁCH KHỎI AuctionManager? ==============
- * <p>
- * AuctionManager đã quản lý lifecycle phiên + thread-safety cho placeBid.
- * Bid history và auto-bid là các CONCERN riêng (audit log + behavior tự động).
- * Tách ra giúp:
- * - AuctionManager không phình to, vẫn focus vào phiên.
- * - Có thể swap implementation (vd lưu history xuống DB) mà không đụng AuctionManager.
+ * 2. FACADE - placeBid che giấu validate user, tạo BidTransaction, gọi auction.placeBid,
+ *    record history, trigger auto-bid
+ * 3. OBSERVER - subscribe AuctionManager để biết khi phiên đóng → deactivate auto-bid
  * <p>
  * ============== CONCURRENCY ==============
- * <p>
- * - ConcurrentHashMap + CopyOnWriteArrayList cho dữ liệu shared.
- * - {@link #inAutoBid} ThreadLocal flag để chặn đệ quy:
- * auto-bid trigger 1 bid mới → bid mới đó cũng đi qua observer này.
- * Nếu không guard sẽ bùng nổ stack/storm bid liên tục.
- * - active của AutoBid là volatile, có thể tắt từ trigger thread khác.
+ * - ConcurrentHashMap + CopyOnWriteArrayList cho dữ liệu shared
+ * - {@link #inAutoBid} ThreadLocal flag chặn re-entry khi auto-bid trigger auto-bid
+ * - active của AutoBid là volatile, có thể tắt từ thread khác
  */
 public final class BidManager {
 
-    // ============== SINGLETON (Bill Pugh idiom) ==============
+    // ============== SINGLETON ==============
 
     private static final class Holder {
         private static final BidManager INSTANCE = new BidManager();
@@ -66,20 +58,25 @@ public final class BidManager {
 
     // ============== FIELDS ==============
 
-    /** Map: auctionId → list bid theo thứ tự thời gian (CopyOnWrite vì đọc nhiều ghi ít). */
+    private final BidTransactionDao bidDao;
+    private final AutoBidDao autoBidDao;
+
+    /** Map: auctionId → list bid theo thứ tự thời gian. */
     private final ConcurrentHashMap<UUID, List<BidTransaction>> bidHistory = new ConcurrentHashMap<>();
 
     /** Map: auctionId → list AutoBid của mọi bidder đăng ký cho phiên đó. */
     private final ConcurrentHashMap<UUID, List<AutoBid>> autoBidsByAuction = new ConcurrentHashMap<>();
 
-    /** Chặn đệ quy khi auto-bid tự kích hoạt auto-bid khác cùng thread. */
+    /** Chặn re-entry khi auto-bid kích hoạt auto-bid trong cùng thread. */
     private final ThreadLocal<Boolean> inAutoBid = ThreadLocal.withInitial(() -> false);
 
     // ============== CONSTRUCTOR ==============
 
     private BidManager() {
-        // Chỉ subscribe status-change để tắt auto-bid khi phiên đóng. Việc record bid và
-        // trigger auto-bid được placeBid() xử lý trực tiếp, không cần đi qua observer.
+        this.bidDao = new MysqlBidTransactionDao();
+        this.autoBidDao = new MysqlAutoBidDao();
+
+        // Khi phiên đóng → deactivate mọi auto-bid của phiên đó (cả cache + DB)
         AuctionManager.getInstance().addGlobalObserver(new AuctionObserver() {
             @Override
             public void onBidPlaced(Auction auction, BidTransaction bid) { /* no-op */ }
@@ -89,35 +86,57 @@ public final class BidManager {
 
             @Override
             public void onStatusChanged(Auction auction, AuctionStatus oldStatus, AuctionStatus newStatus) {
-                // Phiên rời khỏi RUNNING/PENDING → tắt auto-bid để tránh trigger sai khi
-                // có bid muộn (rất hiếm) và để con người đọc state thấy auto-bid đã đóng.
                 if (newStatus != AuctionStatus.RUNNING && newStatus != AuctionStatus.PENDING) {
                     List<AutoBid> list = autoBidsByAuction.get(auction.getId());
-                    if (list != null) list.forEach(AutoBid::deactivate);
+                    if (list != null) {
+                        for (AutoBid ab : list) {
+                            if (ab.isActive()) deactivateAutoBid(ab);
+                        }
+                    }
                 }
             }
         });
     }
 
+    // ============== BOOTSTRAP ==============
+
+    /**
+     * Load bid history + auto-bids từ DB. Phải gọi SAU AuctionManager.loadAllFromDb()
+     * (FK auction_id, bidder_id).
+     */
+    public void loadAllFromDb() {
+        bidHistory.clear();
+        autoBidsByAuction.clear();
+
+        // Bid history: load tất cả rồi group theo auctionId
+        for (BidTransaction bid : bidDao.findAll()) {
+            bidHistory.computeIfAbsent(bid.getAuctionId(), k -> new CopyOnWriteArrayList<>())
+                    .add(bid);
+        }
+        int totalBids = bidHistory.values().stream().mapToInt(List::size).sum();
+
+        // Auto-bids: tương tự
+        for (AutoBid ab : autoBidDao.findAll()) {
+            autoBidsByAuction.computeIfAbsent(ab.getAuctionId(), k -> new CopyOnWriteArrayList<>())
+                    .add(ab);
+        }
+        int totalAutoBids = autoBidsByAuction.values().stream().mapToInt(List::size).sum();
+
+        System.out.println("[BidManager] Đã load " + totalBids + " bid + "
+                + totalAutoBids + " auto-bid từ DB");
+    }
+
     // ============== BID OPERATIONS (FACADE) ==============
 
     /**
-     * Đặt bid vào auction.
-     * <p>
-     * FACADE method - che giấu việc:
-     * - Tìm auction qua AuctionManager
-     * - Validate bidder (tồn tại, có quyền bid, đủ balance)
-     * - Tạo BidTransaction
-     * - Gọi {@link Auction#placeBid(BidTransaction)} (đã thread-safe ở tầng entity)
-     * - Lưu history
+     * Đặt bid vào auction. Sau khi auction.placeBid() trả về thành công:
+     * - INSERT bid xuống DB
+     * - Add vào cache bidHistory
      * - Trigger 1 vòng auto-bid
-     * <p>
-     * Anti-sniping vẫn được kích hoạt qua internalObserver của AuctionManager,
-     * không bị ảnh hưởng bởi việc placeBid chuyển từ AuctionManager sang đây.
      *
-     * @return BidTransaction đã được xử lý (status = VALID nếu thành công)
+     * @return BidTransaction đã được xử lý (status = VALID)
      * @throws IllegalArgumentException nếu auction không tồn tại
-     * @throws InvalidBidException nếu bid không hợp lệ về business rule
+     * @throws InvalidBidException nếu bid không hợp lệ
      * @throws InsufficientBalanceException nếu bidder không đủ tiền
      * @throws com.auction.model.exception.AuctionClosedException nếu phiên đã đóng
      */
@@ -129,7 +148,6 @@ public final class BidManager {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Không tìm thấy auction: " + auctionId));
 
-        // Validate bidder TRƯỚC khi gọi entity → fail fast
         User user = UserManager.getInstance().findById(userId)
                 .orElseThrow(() -> new InvalidBidException("User không tồn tại: " + userId));
         if (!user.canBid()) {
@@ -141,23 +159,21 @@ public final class BidManager {
         }
 
         BidTransaction bid = new BidTransaction(auctionId, userId, amount);
-        auction.placeBid(bid);   // entity-level thread-safe, throws nếu không hợp lệ
+        auction.placeBid(bid);   // throws nếu invalid; bid status đã VALID nếu return
 
-        // Sau khi auction.placeBid() return → bid chắc chắn đã VALID. Record + thử auto-bid.
-        recordBid(auction, bid);
+        recordBid(auction, bid);            // INSERT DB + cache
         tryTriggerAutoBids(auction, bid);
         return bid;
     }
 
     // ============== HISTORY ==============
 
+    /** Persist bid TRƯỚC khi add cache. Nếu DB fail → bid không bị "mất" trong cache. */
     private void recordBid(Auction auction, BidTransaction bid) {
+        bidDao.insert(bid);
         bidHistory.computeIfAbsent(auction.getId(), k -> new CopyOnWriteArrayList<>()).add(bid);
     }
 
-    /**
-     * Lấy lịch sử bid của 1 phiên - immutable view, sắp theo thời gian xuất hiện.
-     */
     public List<BidTransaction> getBidHistory(UUID auctionId) {
         Objects.requireNonNull(auctionId);
         List<BidTransaction> list = bidHistory.get(auctionId);
@@ -167,16 +183,7 @@ public final class BidManager {
     // ============== AUTO-BID REGISTRATION ==============
 
     /**
-     * Đăng ký auto-bid cho 1 user trên 1 phiên. Nếu user đã có auto-bid trước đó
-     * cho phiên này → registration mới ghi đè.
-     *
-     * <p>Validate:
-     * <ul>
-     *   <li>Auction phải tồn tại và chưa kết thúc.</li>
-     *   <li>Bidder không được là seller của phiên (chống tự đẩy giá).</li>
-     *   <li>maxBid và increment > 0 (do AutoBid constructor validate).</li>
-     * </ul>
-     * </p>
+     * Đăng ký auto-bid cho 1 user trên 1 phiên. Nếu đã có registration cũ → ghi đè.
      *
      * @throws IllegalArgumentException nếu auction không tồn tại hoặc bidder là seller
      * @throws IllegalStateException    nếu phiên đã đóng
@@ -201,9 +208,14 @@ public final class BidManager {
         }
 
         AutoBid newAb = new AutoBid(bidderId, auctionId, maxBid, increment);
+
+        // DELETE old + INSERT new ở DB. Composite PK (bidder_id, auction_id) đảm bảo
+        // không có 2 row trùng. Nếu DELETE/INSERT fail → throw, cache không thay đổi.
+        autoBidDao.deleteByBidderAndAuction(bidderId, auctionId);
+        autoBidDao.insert(newAb);
+
         List<AutoBid> list = autoBidsByAuction.computeIfAbsent(
                 auctionId, k -> new CopyOnWriteArrayList<>());
-        // Replace registration cũ của cùng bidder để 1 user chỉ có 1 auto-bid mỗi phiên
         list.removeIf(ab -> ab.getBidderId().equals(bidderId));
         list.add(newAb);
         return newAb;
@@ -215,18 +227,21 @@ public final class BidManager {
         return list == null ? Collections.emptyList() : Collections.unmodifiableList(list);
     }
 
+    /** Wrapper: deactivate cache + sync DB. Mọi nơi muốn deactivate auto-bid PHẢI gọi method này. */
+    private void deactivateAutoBid(AutoBid ab) {
+        ab.deactivate();
+        try {
+            autoBidDao.updateActive(ab.getBidderId(), ab.getAuctionId(), false);
+        } catch (Exception e) {
+            System.err.println("[BidManager] Lỗi sync deactivate auto-bid ("
+                    + ab.getBidderId() + "/" + ab.getAuctionId() + "): " + e.getMessage());
+        }
+    }
+
     // ============== AUTO-BID TRIGGER ==============
 
     /**
      * Sau mỗi bid hợp lệ → đẩy 1 vòng auto-bid (nếu có).
-     * <p>
-     * Chỉ chọn 1 candidate có {@code maxBid} cao nhất, không cùng bidder vừa đặt,
-     * còn active. Nếu nextRequired vượt maxBid → deactivate luôn registration
-     * (đối thủ đã vượt trần của user, auto-bid không còn nghĩa).
-     * <p>
-     * Vòng tiếp theo (nếu có) sẽ tự kích hoạt khi auto-bid này tạo bid mới
-     * và quay lại chính observer này — nhưng {@link #inAutoBid} chặn re-entry
-     * trong cùng thread, nên ta giới hạn 1 auto-bid trên mỗi chuỗi để tránh storm.
      */
     private void tryTriggerAutoBids(Auction auction, BidTransaction triggerBid) {
         if (Boolean.TRUE.equals(inAutoBid.get())) return;
@@ -246,17 +261,16 @@ public final class BidManager {
 
         BigDecimal nextRequired = auction.minNextBid();
         if (nextRequired.compareTo(candidate.getMaxBid()) > 0) {
-            candidate.deactivate();
+            deactivateAutoBid(candidate);
             return;
         }
 
         inAutoBid.set(true);
         try {
-            // Self-call: đi qua đầy đủ validate (status, balance, role) + record vào history
             placeBid(auction.getId(), candidate.getBidderId(), nextRequired);
         } catch (Exception e) {
-            // Bidder bị banned / hết balance / phiên vừa đóng → deactivate, không crash hệ thống.
-            candidate.deactivate();
+            // Bidder bị banned / hết balance / phiên vừa đóng → deactivate
+            deactivateAutoBid(candidate);
         } finally {
             inAutoBid.set(false);
         }
