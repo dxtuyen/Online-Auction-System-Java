@@ -66,7 +66,7 @@ public class ClientModel {
         username = null;
         role = null;
         // Tránh để queue/handler của session cũ rò sang session mới khi user logout rồi login lại.
-        responseQueues.clear();
+        pendingResponses.clear();
         pushHandlers.clear();
     }
 

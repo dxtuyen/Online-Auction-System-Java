@@ -15,6 +15,7 @@ public class RegisterController {
     @FXML private PasswordField txtPassword;
     @FXML private TextField txtEmail;
     @FXML private TextField txtFullName;
+    @FXML private TextField txtBalance;
     @FXML private Label lblError;
     @FXML private Button btnRegister;
 
@@ -29,8 +30,9 @@ public class RegisterController {
         String password = txtPassword.getText();
         String email = txtEmail.getText().trim();
         String fullName = txtFullName.getText().trim();
+        String balance = txtBalance.getText().trim();
 
-        if (username.isEmpty() || password.isEmpty() || email.isEmpty() || fullName.isEmpty()) {
+        if (username.isEmpty() || password.isEmpty() || email.isEmpty() || fullName.isEmpty() || balance.isEmpty()) {
             lblError.setText("Nhập đầy đủ thông tin");
             return;
         }
@@ -46,7 +48,8 @@ public class RegisterController {
                         "username", username,
                         "password", password,
                         "email", email,
-                        "fullName", fullName), 5000);
+                        "fullName", fullName,
+                        "balance",balance), 5000);
 
                 Platform.runLater(() -> {
                     btnRegister.setDisable(false);
