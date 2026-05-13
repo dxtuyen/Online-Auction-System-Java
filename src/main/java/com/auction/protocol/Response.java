@@ -99,3 +99,6 @@ public class Response {
     public boolean isError()   { return status == ResponseStatus.ERROR; }
     public boolean isPush()    { return status == ResponseStatus.PUSH; }
 }
+/*
+thiếu validate
+ */

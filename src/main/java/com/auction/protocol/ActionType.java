@@ -35,15 +35,17 @@ public enum ActionType {
     AUCTION_STATUS,     // phiên đổi status (RUNNING → FINISHED, ...)
     AUCTION_EXTENDED;   // phiên được gia hạn do anti-sniping
 
-    // Note: client tự build chart từ BID_HISTORY, không cần action BID_DIAGRAM riêng.
-
     /**
      * Parse tên action từ JSON. Trả null nếu không hợp lệ
      * — caller (RequestRouter) /sẽ trả Response.error("Action không hỗ trợ") thay vì để crash.
      */
     public static ActionType from(String name) {
         if (name == null) return null;
-        try { return ActionType.valueOf(name); }
-        catch (IllegalArgumentException e) { return null; }
+        try {
+            return ActionType.valueOf(name);
+        }
+        catch (IllegalArgumentException e) {
+            return null;
+        y}
     }
 }

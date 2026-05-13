@@ -62,18 +62,24 @@ public class Request {
     // ============== Helpers đọc data null-safe ==============
 
     public String getDataString(String key) {
-        if (data == null) return null;
-        Object v = data.get(key);
-        return v == null ? null : v.toString();
+        if (data == null || key == null) return null;
+        Object val = data.get(key);
+        if (val == null) return null;
+        return val.toString();
     }
 
     public Integer getDataInteger(String key) {
-        if (data == null) return null;
-        Object v = data.get(key);
-        if (v == null) return null;
-        if (v instanceof Number) return ((Number) v).intValue();
-        try { return Integer.parseInt(v.toString()); }
-        catch (NumberFormatException e) { return null; }
+        if (data == null || key == null) return null;
+        Object val = data.get(key);
+        if (val == null) return null;
+        if (val instanceof Number) {
+            return ((Number) val).intValue();
+        }
+        try {
+            return Integer.parseInt(val.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** Tiện cho controller — trả 0 khi thiếu/parse fail (caller tự validate sau đó). */
@@ -83,27 +89,41 @@ public class Request {
     }
 
     public Double getDataDouble(String key) {
-        if (data == null) return null;
-        Object v = data.get(key);
-        if (v == null) return null;
-        if (v instanceof Number) return ((Number) v).doubleValue();
-        try { return Double.parseDouble(v.toString()); }
-        catch (NumberFormatException e) { return null; }
+        if (data == null || key == null) return null;
+        Object val = data.get(key);
+        if (val == null) return null;
+        if (val instanceof Number) {
+            return ((Number) val).doubleValue();
+        }
+        try {
+            return Double.parseDouble(val.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public boolean getDataBoolean(String key) {
-        if (data == null) return false;
+        if (data == null || key == null) return false;
         Object v = data.get(key);
         if (v == null) return false;
-        if (v instanceof Boolean) return (Boolean) v;
-        return Boolean.parseBoolean(v.toString());
+        if (v instanceof Boolean) {
+            return (Boolean) v;
+        }
+        try {
+            return Boolean.parseBoolean(v.toString());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     public UUID getDataUUID(String key) {
-        String s = getDataString(key);
-        if (s == null || s.isBlank()) return null;
-        try { return UUID.fromString(s); }
-        catch (IllegalArgumentException e) { return null; }
+        String val = getDataString(key);
+        if (val == null || val.isBlank()) return null;
+        try {
+            return UUID.fromString(val);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
@@ -111,12 +131,12 @@ public class Request {
      * Gson đã được config dùng BIG_DECIMAL policy nên Number ở đây thường đã là BigDecimal.
      */
     public BigDecimal getDataDecimal(String key) {
-        if (data == null) return null;
-        Object v = data.get(key);
-        if (v == null) return null;
-        if (v instanceof BigDecimal) return (BigDecimal) v;
-        if (v instanceof Number) return new BigDecimal(v.toString());
-        try { return new BigDecimal(v.toString()); }
-        catch (NumberFormatException e) { return null; }
+        String val = getDataString(key);
+        if (val == null || val.isBlank()) return null;
+        try {
+            return new BigDecimal(val);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }
