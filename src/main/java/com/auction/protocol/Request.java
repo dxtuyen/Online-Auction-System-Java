@@ -1,95 +1,122 @@
 package com.auction.protocol;
 
-import com.auction.protocol.ActionType;
-
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Request gửi từ Client lên Server.
+ *
+ * <p>Schema JSON:
+ * <pre>
+ * {
+ *   "action": "PLACE_BID",
+ *   "data":   { "auctionId": "...", "amount": 1000 },
+ *   "token":  "userId-hoặc-session-token",   // optional
+ *   "requestId": "uuid-do-client-sinh"        // optional, dùng để client ghép response
+ * }
+ * </pre>
+ *
+ * <p>Lưu ý:
+ * <ul>
+ *   <li>{@code action} lưu thành String để Gson không phải xử lý enum khi parse —
+ *       server tự convert sang {@link ActionType} qua {@link ActionType#from(String)}
+ *       trong {@code RequestRouter}.</li>
+ *   <li>{@code token} lưu String thay vì UUID để client gửi linh hoạt (sau này có thể
+ *       đổi sang JWT mà không phải đổi schema). Server CHỈ tin {@code Session},
+ *       KHÔNG tin token client tự gửi.</li>
+ *   <li>Các helper {@code getDataXxx} luôn null-safe — return null/giá trị mặc định
+ *       khi key thiếu để controller không phải lặp NPE check.</li>
+ * </ul>
+ */
 public class Request {
-    private ActionType actionType;
+
+    private String action;
     private Map<String, Object> data;
-    private UUID token;
+    private String token;
+    private String requestId;
 
-    public Request(ActionType actionType, Map<String, Object> data, UUID token) {
-        this.actionType = actionType;
+    /** Gson cần constructor rỗng để deserialize. */
+    public Request() {}
+
+    public Request(String action, Map<String, Object> data, String token) {
+        this.action = action;
         this.data = data;
         this.token = token;
     }
 
-    public ActionType getActionType() {
-        return actionType;
-    }
+    // ============== Getters / Setters ==============
 
-    public Map<String, Object> getData() {
-        return data;
-    }
+    public String getAction() { return action; }
+    public void setAction(String action) { this.action = action; }
 
-    public UUID getToken() {
-        return token;
-    }
+    public Map<String, Object> getData() { return data; }
+    public void setData(Map<String, Object> data) { this.data = data; }
 
-    public void setActionType(ActionType actionType) {
-        this.actionType = actionType;
-    }
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
 
-    public void setData(Map<String, Object> data) {
-        this.data = data;
-    }
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
 
-    public void setToken(UUID token) {
-        this.token = token;
-    }
+    // ============== Helpers đọc data null-safe ==============
 
-    public String getStringData(String key) {
+    public String getDataString(String key) {
         if (data == null) return null;
-        Object value = data.get(key);
-        if (value == null) return null;
-        return value.toString();
+        Object v = data.get(key);
+        return v == null ? null : v.toString();
     }
 
-    public Double getDoubleData(String key) {
+    public Integer getDataInteger(String key) {
         if (data == null) return null;
-        Object value = data.get(key);
-        if (value == null) return null;
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
-        }
-        try {
-            return Double.parseDouble(value.toString());
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        Object v = data.get(key);
+        if (v == null) return null;
+        if (v instanceof Number) return ((Number) v).intValue();
+        try { return Integer.parseInt(v.toString()); }
+        catch (NumberFormatException e) { return null; }
     }
 
-    public boolean getBooleanData(String key) {
+    /** Tiện cho controller — trả 0 khi thiếu/parse fail (caller tự validate sau đó). */
+    public int getDataInt(String key) {
+        Integer v = getDataInteger(key);
+        return v == null ? 0 : v;
+    }
+
+    public Double getDataDouble(String key) {
+        if (data == null) return null;
+        Object v = data.get(key);
+        if (v == null) return null;
+        if (v instanceof Number) return ((Number) v).doubleValue();
+        try { return Double.parseDouble(v.toString()); }
+        catch (NumberFormatException e) { return null; }
+    }
+
+    public boolean getDataBoolean(String key) {
         if (data == null) return false;
-        Object value = data.get(key);
-        if (value == null) return false;
-        if (value instanceof Boolean) return (boolean) value;
-        return Boolean.parseBoolean(value.toString());
+        Object v = data.get(key);
+        if (v == null) return false;
+        if (v instanceof Boolean) return (Boolean) v;
+        return Boolean.parseBoolean(v.toString());
     }
 
-    public UUID getUUIDData(String key) {
-        String value = getStringData(key);
-        if(value == null || value.isBlank()) return  null;
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+    public UUID getDataUUID(String key) {
+        String s = getDataString(key);
+        if (s == null || s.isBlank()) return null;
+        try { return UUID.fromString(s); }
+        catch (IllegalArgumentException e) { return null; }
     }
 
-    public BigDecimal getDecimalData(String key) {
+    /**
+     * BigDecimal cho số tiền — bắt buộc dùng để giữ precision.
+     * Gson đã được config dùng BIG_DECIMAL policy nên Number ở đây thường đã là BigDecimal.
+     */
+    public BigDecimal getDataDecimal(String key) {
         if (data == null) return null;
-        Object value = data.get(key);
-        if (value == null) return null;
-        if (value instanceof BigDecimal) return (BigDecimal) value;
-        if (value instanceof Number) return new BigDecimal(value.toString());
-        try {
-            return new BigDecimal(value.toString());
-        } catch (IllegalArgumentException e) {
-            return  null;
-        }
+        Object v = data.get(key);
+        if (v == null) return null;
+        if (v instanceof BigDecimal) return (BigDecimal) v;
+        if (v instanceof Number) return new BigDecimal(v.toString());
+        try { return new BigDecimal(v.toString()); }
+        catch (NumberFormatException e) { return null; }
     }
 }
