@@ -15,7 +15,6 @@ public class LoginController {
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
     @FXML private Label lblError;
-    @FXML private ProgressIndicator spinLoading;
     @FXML private Button btnLogin;
 
     @FXML
@@ -77,7 +76,6 @@ public class LoginController {
     }
 
     private void setLoading(boolean loading) {
-        spinLoading.setVisible(loading);
         btnLogin.setDisable(loading);
         txtUsername.setDisable(loading);
         txtPassword.setDisable(loading);

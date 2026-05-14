@@ -4,6 +4,7 @@ import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,6 +25,19 @@ public class Art extends Item {
                String artist, Integer yearCreated, String medium) {
         super(name, description, sellerId, startingPrice, images,
                 ItemCategory.ART, condition);
+        this.artist = artist;
+        this.yearCreated = yearCreated;
+        this.medium = medium;
+    }
+
+    /** Restore từ DB - giữ nguyên id và timestamps. */
+    public Art(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
+               String name, String description, UUID sellerId,
+               BigDecimal startingPrice, List<String> images,
+               ItemCondition condition,
+               String artist, Integer yearCreated, String medium) {
+        super(id, createdAt, updatedAt, name, description, sellerId,
+                startingPrice, images, ItemCategory.ART, condition);
         this.artist = artist;
         this.yearCreated = yearCreated;
         this.medium = medium;

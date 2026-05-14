@@ -4,6 +4,7 @@ import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,6 +25,22 @@ public class Electronics extends Item {
                        String brand, String model, int warrantyMonths) {
         super(name, description, sellerId, startingPrice, images,
                 ItemCategory.ELECTRONICS, condition);   // category cố định
+        this.brand = brand;
+        this.model = model;
+        if (warrantyMonths < 0) {
+            throw new IllegalArgumentException("warrantyMonths phải >= 0");
+        }
+        this.warrantyMonths = warrantyMonths;
+    }
+
+    /** Restore từ DB - giữ nguyên id và timestamps. */
+    public Electronics(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
+                       String name, String description, UUID sellerId,
+                       BigDecimal startingPrice, List<String> images,
+                       ItemCondition condition,
+                       String brand, String model, int warrantyMonths) {
+        super(id, createdAt, updatedAt, name, description, sellerId,
+                startingPrice, images, ItemCategory.ELECTRONICS, condition);
         this.brand = brand;
         this.model = model;
         if (warrantyMonths < 0) {

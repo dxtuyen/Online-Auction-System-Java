@@ -33,33 +33,24 @@ public class AutoBid {
         this.active = true;
     }
 
-    public UUID getBidderId() {
-        return bidderId;
+    /** Restore từ DB - giữ nguyên createdAt và active. */
+    public AutoBid(UUID bidderId, UUID auctionId, BigDecimal maxBid, BigDecimal increment,
+                   LocalDateTime createdAt, boolean active) {
+        this.bidderId = Objects.requireNonNull(bidderId, "bidderId must not be null");
+        this.auctionId = Objects.requireNonNull(auctionId, "auctionId must not be null");
+        this.maxBid = validatePositive(maxBid, "maxBid");
+        this.increment = validatePositive(increment, "increment");
+        this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
+        this.active = active;
     }
 
-    public UUID getAuctionId() {
-        return auctionId;
-    }
-
-    public BigDecimal getMaxBid() {
-        return maxBid;
-    }
-
-    public BigDecimal getIncrement() {
-        return increment;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    public void deactivate() {
-        this.active = false;
-    }
+    public UUID getBidderId()           { return bidderId; }
+    public UUID getAuctionId()          { return auctionId; }
+    public BigDecimal getMaxBid()       { return maxBid; }
+    public BigDecimal getIncrement()    { return increment; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public boolean isActive()           { return active; }
+    public void deactivate()            { this.active = false; }
 
     private static BigDecimal validatePositive(BigDecimal value, String field) {
         Objects.requireNonNull(value, field + " must not be null");

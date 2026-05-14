@@ -25,7 +25,8 @@ public class ClientApp extends Application {
         primaryStage = stage;
 
         Parent root = FXMLLoader.load(getClass().getResource("/fxml/login.fxml"));
-        Scene scene = new Scene(root, 920, 620);
+        Scene scene = new Scene(root,920,600);
+
 
         // Load CSS nếu có
         var css = getClass().getResource("/css/style.css");
