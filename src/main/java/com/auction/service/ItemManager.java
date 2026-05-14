@@ -7,6 +7,7 @@ import com.auction.model.enums.ItemCondition;
 import com.auction.model.factory.ItemFactory;
 import com.auction.persistence.dao.ItemDao;
 import com.auction.persistence.dao.MysqlItemDao;
+import com.auction.util.AppLogger;
 
 import java.math.BigDecimal;
 import java.util.Collection;
@@ -17,6 +18,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -39,6 +41,8 @@ import java.util.stream.Collectors;
  * - createItem KIỂM TRA seller phải có quyền sell (canSell())
  */
 public final class ItemManager {
+
+    private static final Logger log = AppLogger.get(ItemManager.class);
 
     // ============== SINGLETON ==============
 
@@ -70,7 +74,7 @@ public final class ItemManager {
         for (Item item : dao.findAll()) {
             items.put(item.getId(), item);
         }
-        System.out.println("[ItemManager] Đã load " + items.size() + " item từ DB");
+        log.info(() -> "Đã load " + items.size() + " item từ DB");
     }
 
     public long countInDb() {

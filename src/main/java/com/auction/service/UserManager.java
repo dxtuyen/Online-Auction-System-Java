@@ -6,6 +6,7 @@ import com.auction.model.exception.AuthException;
 import com.auction.persistence.dao.MysqlUserDao;
 import com.auction.persistence.dao.UserDao;
 import com.auction.security.PasswordEncoder;
+import com.auction.util.AppLogger;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -13,6 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
  * Quản lý user - registry trung tâm + authentication.
@@ -38,6 +40,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class UserManager {
 
+    private static final Logger log = AppLogger.get(UserManager.class);
+
     // ============== SINGLETON ==============
 
     private static final class Holder {
@@ -58,6 +62,9 @@ public final class UserManager {
     /** Index theo username để check trùng O(1) và login nhanh */
     private final ConcurrentHashMap<String, UUID> usernameIndex = new ConcurrentHashMap<>();
 
+    /** Index theo email để check trùng O(1) — email được DB UNIQUE constrain. */
+    private final ConcurrentHashMap<String, UUID> emailIndex = new ConcurrentHashMap<>();
+
     private UserManager() {
         this.dao = new MysqlUserDao();
     }
@@ -71,11 +78,13 @@ public final class UserManager {
     public void loadAllFromDb() {
         users.clear();
         usernameIndex.clear();
+        emailIndex.clear();
         for (User u : dao.findAll()) {
             users.put(u.getId(), u);
             usernameIndex.put(u.getUsername(), u.getId());
+            emailIndex.put(u.getEmail().toLowerCase(), u.getId());
         }
-        System.out.println("[UserManager] Đã load " + users.size() + " user từ DB");
+        log.info(() -> "Đã load " + users.size() + " user từ DB");
     }
 
     /** Số user trong DB - dùng cho DataSeeder check xem đã seed chưa. */
@@ -104,22 +113,36 @@ public final class UserManager {
                     "Username '" + trimmedUsername + "' đã được sử dụng");
         }
 
+        String emailKey = email == null ? null : email.trim().toLowerCase();
+        if (emailKey != null && emailIndex.containsKey(emailKey)) {
+            throw new IllegalStateException(
+                    "Email '" + email.trim() + "' đã được đăng ký");
+        }
+
         String salt = PasswordEncoder.generateSalt();
         String hash = PasswordEncoder.hash(plainPassword, salt);
         User user = new User(trimmedUsername, hash, salt, email, fullName, role);
 
-        // Reserve username atomic - nếu thua race, không gọi DB
+        // Reserve username + email atomic — chống race giữa 2 register cùng lúc.
         UUID prev = usernameIndex.putIfAbsent(user.getUsername(), user.getId());
         if (prev != null) {
             throw new IllegalStateException(
                     "Username '" + user.getUsername() + "' vừa được dùng bởi user khác");
         }
+        String finalEmailKey = user.getEmail().toLowerCase();
+        UUID prevEmail = emailIndex.putIfAbsent(finalEmailKey, user.getId());
+        if (prevEmail != null) {
+            usernameIndex.remove(user.getUsername(), user.getId());
+            throw new IllegalStateException(
+                    "Email '" + user.getEmail() + "' vừa được dùng bởi user khác");
+        }
 
-        // Persist DB TRƯỚC khi commit cache. Nếu DB fail → rollback usernameIndex.
+        // Persist DB TRƯỚC khi commit cache. Nếu DB fail → rollback index.
         try {
             dao.insert(user);
         } catch (RuntimeException e) {
             usernameIndex.remove(user.getUsername(), user.getId());
+            emailIndex.remove(finalEmailKey, user.getId());
             throw e;
         }
         users.put(user.getId(), user);

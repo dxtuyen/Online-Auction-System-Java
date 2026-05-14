@@ -12,10 +12,7 @@ import java.util.Objects;
  * Đọc config từ .env (dev) hoặc system env (production / Docker).
  *
  * <p>Ưu tiên: System.getenv() ⟶ .env file ở root project.
- * Lý do: production thường set env qua container/CI, .env chỉ tiện cho dev local.</p>
- *
- * <p>File .env KHÔNG được commit (đã thêm vào .gitignore).
- * Team dùng .env.example làm template.</p>
+ * File .env KHÔNG được commit; team dùng .env.example làm template.</p>
  */
 public final class AppConfig {
 
@@ -41,6 +38,23 @@ public final class AppConfig {
         return ENV_FILE.get(key);
     }
 
+    /** Trả về giá trị hoặc {@code defaultValue} nếu thiếu/rỗng. */
+    public static String get(String key, String defaultValue) {
+        String v = get(key);
+        return (v == null || v.isBlank()) ? defaultValue : v;
+    }
+
+    /** Đọc int từ config; fallback về {@code defaultValue} nếu thiếu hoặc parse fail. */
+    public static int getInt(String key, int defaultValue) {
+        String v = get(key);
+        if (v == null || v.isBlank()) return defaultValue;
+        try {
+            return Integer.parseInt(v.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
     private static Map<String, String> loadEnvFile() {
         Map<String, String> map = new HashMap<>();
         Path envPath = Path.of(".env");
@@ -58,6 +72,7 @@ public final class AppConfig {
                 map.put(key, value);
             }
         } catch (IOException e) {
+            // Không log secret — chỉ thông báo file đọc fail.
             System.err.println("[AppConfig] Không đọc được .env: " + e.getMessage());
         }
         return map;

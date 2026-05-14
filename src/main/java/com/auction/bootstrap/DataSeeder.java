@@ -8,12 +8,14 @@ import com.auction.model.enums.Role;
 import com.auction.service.AuctionManager;
 import com.auction.service.ItemManager;
 import com.auction.service.UserManager;
+import com.auction.util.AppLogger;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * Seed dữ liệu mẫu cho môi trường dev/demo.
@@ -27,23 +29,29 @@ import java.util.Map;
  */
 public final class DataSeeder {
 
+    private static final Logger log = AppLogger.get(DataSeeder.class);
+
     private DataSeeder() { /* static-only */ }
 
     public static void run() {
         // Idempotent: đã có user nghĩa là DB đã được seed/persist từ trước → bỏ qua.
         if (UserManager.getInstance().count() > 0) {
-            System.out.println("[Seed] Bỏ qua — hệ thống đã có dữ liệu");
+            log.info("Bỏ qua seed — hệ thống đã có dữ liệu");
             return;
         }
 
-        System.out.println("[Seed] Bắt đầu seed dữ liệu mẫu...");
-        Map<String, User> users = seedUsers();
-        Map<String, Item> items = seedItems(users);
-        seedAuctions(users, items);
-        System.out.println("[Seed] Xong: "
-                + UserManager.getInstance().count() + " user, "
-                + ItemManager.getInstance().count() + " item, "
-                + AuctionManager.getInstance().count() + " auction.");
+        log.info("Bắt đầu seed dữ liệu mẫu...");
+        try {
+            Map<String, User> users = seedUsers();
+            Map<String, Item> items = seedItems(users);
+            seedAuctions(users, items);
+            log.info(() -> String.format("Seed xong: %d user, %d item, %d auction",
+                    UserManager.getInstance().count(),
+                    ItemManager.getInstance().count(),
+                    AuctionManager.getInstance().count()));
+        } catch (RuntimeException e) {
+            log.severe("Seed thất bại: " + e.getMessage());
+        }
     }
 
     // ============== USERS ==============
@@ -61,9 +69,11 @@ public final class DataSeeder {
         User carol = um.register("carol", "carol123", "carol@auction.local",
                 "Carol (Bidder)", Role.NORMAL);
 
-        // Nạp balance để bob/carol có thể bid trong demo
+        // Nạp balance + persist xuống DB — nếu thiếu save(), restart sẽ load lại balance=0.
         bob.setBalance(new BigDecimal("50000000"));
         carol.setBalance(new BigDecimal("80000000"));
+        um.save(bob);
+        um.save(carol);
 
         map.put("admin", admin);
         map.put("alice", alice);

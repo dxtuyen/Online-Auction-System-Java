@@ -5,6 +5,7 @@ import com.auction.model.entity.BidTransaction;
 import com.auction.model.enums.AuctionStatus;
 import com.auction.model.observer.AuctionObserver;
 import com.auction.service.AuctionManager;
+import com.auction.util.AppLogger;
 
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 /**
  * Per-auction subscription registry — quản lý observer theo từng phiên cho realtime push.
@@ -35,7 +37,8 @@ import java.util.function.Consumer;
  */
 public final class AuctionEventManager implements AuctionObserver {
 
-    // Bill Pugh holder idiom — đồng bộ phong cách với AuctionManager/BidManager.
+    private static final Logger log = AppLogger.get(AuctionEventManager.class);
+
     private static final class Holder {
         private static final AuctionEventManager INSTANCE = new AuctionEventManager();
     }
@@ -94,7 +97,7 @@ public final class AuctionEventManager implements AuctionObserver {
                 action.accept(o);
             } catch (Exception e) {
                 // Một observer lỗi không ảnh hưởng các observer khác.
-                System.err.println("[AuctionEventManager] observer lỗi: " + e.getMessage());
+                log.warning(() -> "Observer lỗi: " + e.getMessage());
             }
         }
     }

@@ -12,6 +12,7 @@ import com.auction.persistence.dao.AutoBidDao;
 import com.auction.persistence.dao.BidTransactionDao;
 import com.auction.persistence.dao.MysqlAutoBidDao;
 import com.auction.persistence.dao.MysqlBidTransactionDao;
+import com.auction.util.AppLogger;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -20,8 +21,11 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.logging.Logger;
 
 public final class BidManager {
+
+    private static final Logger log = AppLogger.get(BidManager.class);
 
     // ============== SINGLETON ==============
 
@@ -87,8 +91,7 @@ public final class BidManager {
         }
         int totalAutoBids = autoBidsByAuction.values().stream().mapToInt(List::size).sum();
 
-        System.out.println("[BidManager] Đã load " + totalBids + " bid + "
-                + totalAutoBids + " auto-bid từ DB");
+        log.info("Đã load " + totalBids + " bid + " + totalAutoBids + " auto-bid từ DB");
     }
 
     // ============== BID OPERATIONS ==============
@@ -188,7 +191,7 @@ public final class BidManager {
         try {
             autoBidDao.updateActive(ab.getBidderId(), ab.getAuctionId(), false);
         } catch (Exception e) {
-            System.err.println("[BidManager] Lỗi sync deactivate auto-bid ("
+            log.warning(() -> "Lỗi sync deactivate auto-bid ("
                     + ab.getBidderId() + "/" + ab.getAuctionId() + "): " + e.getMessage());
         }
     }

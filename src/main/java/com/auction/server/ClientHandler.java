@@ -7,6 +7,7 @@ import com.auction.model.observer.AuctionObserver;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.observer.AuctionEventManager;
+import com.auction.util.AppLogger;
 import com.auction.util.JsonHelper;
 
 import java.io.*;
@@ -14,27 +15,20 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
- * Phục vụ 1 client kết nối.
- *
- * <p>SAU REFACTOR:
- * <ul>
- *   <li>Không còn giữ {@code currentUserId} trực tiếp — chuyển vào {@link Session}
- *       (đúng nguyên tắc tách "logic" khỏi "state per-connection").</li>
- *   <li>Router là singleton dùng chung — handler chỉ gọi {@code RequestRouter.getInstance().dispatch(...)}.</li>
- *   <li>Log stacktrace khi parse lỗi để dễ debug khi nhiều người dùng cùng vào.</li>
- * </ul>
- *
- * <p>Class này đồng thời nắm 3 vai trò:
+ * Phục vụ 1 client kết nối. Đồng thời:
  * <ol>
- *   <li>Bộ đọc/ghi mạng cho 1 connection (reader/writer).</li>
- *   <li>Chứa {@link Session} — state per-connection mà controller cần đọc.</li>
- *   <li>Implement {@link AuctionObserver} — để được {@link AuctionEventManager} push event
- *       realtime khi client {@code WATCH_AUCTION}.</li>
+ *   <li>Đọc/ghi mạng cho 1 connection.</li>
+ *   <li>Giữ {@link Session} — state per-connection (userId đang đăng nhập).</li>
+ *   <li>Là {@link AuctionObserver} — nhận event realtime khi client {@code WATCH_AUCTION}.</li>
  * </ol>
  */
 public class ClientHandler implements Runnable, AuctionObserver {
+
+    private static final Logger log = AppLogger.get(ClientHandler.class);
 
     private final Socket socket;
     private BufferedReader reader;
@@ -91,9 +85,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
             Response res = router.dispatch(req, this);
             if (res != null) send(res);
         } catch (Exception e) {
-            // Log stacktrace để debug khi có nhiều user → dễ trace lỗi nào, từ ai.
-            System.err.println("[ClientHandler] Lỗi xử lý request: " + e.getMessage());
-            e.printStackTrace();
+            log.log(Level.WARNING, "Lỗi xử lý request: " + e.getMessage(), e);
             send(Response.error("UNKNOWN", "Lỗi parse: " + e.getMessage()));
         }
     }
@@ -121,11 +113,10 @@ public class ClientHandler implements Runnable, AuctionObserver {
      */
     private void cleanup() {
         eventManager.unsubscribeAll(this);
+        var addr = socket != null ? socket.getRemoteSocketAddress() : null;
         try { if (socket != null) socket.close(); }
-        catch (IOException ignored) {}
-
-        System.out.println("[Server] Client disconnect: "
-                + socket.getRemoteSocketAddress());
+        catch (IOException ignored) { }
+        log.info(() -> "Client disconnect: " + addr);
     }
 
     // ============= AuctionObserver implementation =============

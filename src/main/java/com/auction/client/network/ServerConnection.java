@@ -1,8 +1,11 @@
 package com.auction.client.network;
 
+import com.auction.util.AppLogger;
+
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.logging.Logger;
 
 /**
  * Quản lý socket tới Server.
@@ -11,6 +14,8 @@ import java.nio.charset.StandardCharsets;
  * Mỗi dòng JSON nhận được sẽ đẩy cho {@link MessageListener}.</p>
  */
 public class ServerConnection {
+
+    private static final Logger log = AppLogger.get(ServerConnection.class);
 
     public interface MessageListener {
         void onMessage(String json);
@@ -41,7 +46,7 @@ public class ServerConnection {
                     if (listener != null) listener.onMessage(line);
                 }
             } catch (IOException e) {
-                if (connected) System.err.println("[Conn] Mất kết nối: " + e.getMessage());
+                if (connected) log.warning(() -> "Mất kết nối: " + e.getMessage());
             } finally {
                 connected = false;
             }

@@ -15,17 +15,8 @@ import java.util.UUID;
 /**
  * Controller xử lý các action liên quan đến User: LOGIN, REGISTER, LOGOUT, GET_PROFILE.
  *
- * <p>SAU REFACTOR: Controller giờ là <b>singleton stateless</b>. Nó không còn giữ
- * tham chiếu tới {@code ClientHandler} (một state per-connection). Thay vào đó,
- * mọi method nhận thêm {@link ClientHandler} làm tham số để đọc/ghi {@link Session}
- * của connection gọi nó.</p>
- *
- * <p>Lợi ích:
- * <ul>
- *   <li>Đúng nguyên tắc MVC: controller là logic dùng chung, session là state per-request.</li>
- *   <li>Tiết kiệm: 1000 connection chỉ có 1 controller, không phải 1000.</li>
- *   <li>Unit test dễ: chỉ cần new Session() giả thay vì mock cả socket.</li>
- * </ul>
+ * <p>Singleton stateless: 1 instance dùng chung cho mọi connection. State per-connection
+ * (userId đang đăng nhập) nằm ở {@link Session} truyền qua {@link ClientHandler}.</p>
  */
 public final class UserController {
 

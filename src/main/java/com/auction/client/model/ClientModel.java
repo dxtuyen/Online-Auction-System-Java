@@ -3,12 +3,14 @@ package com.auction.client.model;
 import com.auction.client.network.ServerConnection;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
+import com.auction.util.AppLogger;
 import com.auction.util.JsonHelper;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 /**
  * ClientModel — Singleton, trung tâm trạng thái phía client.
@@ -30,6 +32,8 @@ import java.util.function.Consumer;
  * nhiều màn hình/thread có thể gửi-nhận song song không conflict.</p>
  */
 public class ClientModel {
+
+    private static final Logger log = AppLogger.get(ClientModel.class);
 
     private static ClientModel instance;
 
@@ -130,7 +134,7 @@ public class ClientModel {
                 // timeout từ trước). Không log để tránh spam.
             }
         } catch (Exception e) {
-            System.err.println("[ClientModel] Lỗi parse: " + e.getMessage());
+            log.warning(() -> "Lỗi parse: " + e.getMessage());
         }
     }
 
@@ -143,7 +147,7 @@ public class ClientModel {
                 : Map.of();
         for (Consumer<Map<String, Object>> h : handlers) {
             try { h.accept(data); }
-            catch (Exception e) { System.err.println("[PushHandler] " + e.getMessage()); }
+            catch (Exception e) { log.warning(() -> "PushHandler: " + e.getMessage()); }
         }
     }
 

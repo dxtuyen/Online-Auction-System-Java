@@ -11,7 +11,8 @@
       "Bash(netstat -ano)",
       "Bash(powershell *)",
       "Bash(taskkill *)",
-      "PowerShell(Get-NetTCPConnection *)"
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(del src\\\\main\\\\java\\\\com\\\\auction\\\\model\\\\entity\\\\readme *)"
     ]
   }
 }

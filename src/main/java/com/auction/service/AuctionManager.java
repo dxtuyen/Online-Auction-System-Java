@@ -1,5 +1,6 @@
 package com.auction.service;
 
+import com.auction.config.AppConfig;
 import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
 import com.auction.model.entity.Item;
@@ -8,6 +9,7 @@ import com.auction.model.enums.AuctionStatus;
 import com.auction.model.observer.AuctionObserver;
 import com.auction.persistence.dao.AuctionDao;
 import com.auction.persistence.dao.MysqlAuctionDao;
+import com.auction.util.AppLogger;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,12 +20,16 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public final class AuctionManager {
+
+    private static final Logger log = AppLogger.get(AuctionManager.class);
 
     // ============== SINGLETON ==============
 
@@ -39,11 +45,12 @@ public final class AuctionManager {
 
     private final AuctionDao dao;
     private final ConcurrentHashMap<UUID, Auction> auctions = new ConcurrentHashMap<>();
-    private final List<AuctionObserver> globalObservers = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<AuctionObserver> globalObservers = new CopyOnWriteArrayList<>();
     private final ScheduledExecutorService scheduler;
 
-    private volatile int snipingThresholdSeconds = 10;
-    private volatile int snipingExtensionSeconds = 30;
+    // Anti-sniping: cấu hình qua .env (SNIPING_THRESHOLD_SECONDS, SNIPING_EXTENSION_SECONDS).
+    private volatile int snipingThresholdSeconds;
+    private volatile int snipingExtensionSeconds;
 
     // ============== INTERNAL OBSERVER ==============
 
@@ -76,6 +83,8 @@ public final class AuctionManager {
 
     private AuctionManager() {
         this.dao = new MysqlAuctionDao();
+        this.snipingThresholdSeconds = AppConfig.getInt("SNIPING_THRESHOLD_SECONDS", 10);
+        this.snipingExtensionSeconds = AppConfig.getInt("SNIPING_EXTENSION_SECONDS", 30);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "AuctionManager-Scheduler");
             t.setDaemon(true);
@@ -93,7 +102,7 @@ public final class AuctionManager {
             auctions.put(a.getId(), a);
             a.addObserver(internalObserver);
         }
-        System.out.println("[AuctionManager] Đã load " + auctions.size() + " auction từ DB");
+        log.info(() -> "Đã load " + auctions.size() + " auction từ DB");
     }
 
     public long countInDb() {
@@ -250,8 +259,7 @@ public final class AuctionManager {
                     trySettle(auction);
                 }
             } catch (Exception e) {
-                System.err.println("[AuctionManager] Lỗi khi tick auction "
-                        + auction.getId() + ": " + e.getMessage());
+                log.warning(() -> "Lỗi khi tick auction " + auction.getId() + ": " + e.getMessage());
             }
         }
     }
@@ -270,15 +278,14 @@ public final class AuctionManager {
             try {
                 UserManager.getInstance().save(seller);
             } catch (Exception e) {
-                System.err.println("[AuctionManager] Lỗi lưu revenue cho seller "
-                        + seller.getId() + ": " + e.getMessage());
+                log.warning(() -> "Lỗi lưu revenue cho seller " + seller.getId() + ": " + e.getMessage());
             }
         });
 
         try {
             auction.transitionTo(AuctionStatus.PAID);
         } catch (RuntimeException e) {
-            System.err.println("[AuctionManager] Settle bỏ qua: " + e.getMessage());
+            log.warning(() -> "Settle bỏ qua: " + e.getMessage());
         }
     }
 
@@ -302,8 +309,7 @@ public final class AuctionManager {
         try {
             dao.update(auction);
         } catch (Exception e) {
-            System.err.println("[AuctionManager] Lỗi sync DB cho auction "
-                    + auction.getId() + ": " + e.getMessage());
+            log.warning(() -> "Lỗi sync DB cho auction " + auction.getId() + ": " + e.getMessage());
         }
     }
 
