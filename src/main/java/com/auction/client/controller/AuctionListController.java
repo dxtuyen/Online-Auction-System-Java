@@ -118,8 +118,14 @@ public class AuctionListController {
 
     @FXML
     private void handleLogout() {
-        ClientModel.getInstance().disconnect();
-        ClientApp.switchScene("login.fxml");
+        // disconnect() gọi socket/reader/writer.close() — I/O đồng bộ.
+        // Nếu chạy trên FX thread, UI sẽ treo (đặc biệt Windows + writer.close flush).
+        // Đẩy sang background; switchScene chỉ chạy SAU KHI disconnect xong để login
+        // tiếp theo không bị race với socket đang đóng.
+        new Thread(() -> {
+            ClientModel.getInstance().disconnect();
+            Platform.runLater(() -> ClientApp.switchScene("login.fxml"));
+        }, "logout-cleanup").start();
     }
 
     @FXML

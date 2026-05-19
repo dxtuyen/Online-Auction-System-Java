@@ -68,11 +68,12 @@ public class ServerConnection {
 
     public void disconnect() {
         connected = false;
-        // Đóng reader/writer trước rồi mới đóng socket — tránh giữ stream lơ lửng
-        // và đảm bảo listener thread thoát readLine() ngay lập tức.
-        try { if (reader != null) reader.close(); } catch (IOException ignored) {}
-        if (writer != null) writer.close();
+        // Đóng socket TRƯỚC TIÊN: làm reader.readLine() trong listener thread throw
+        // ngay lập tức (thread thoát luôn). Nếu đóng writer trước, writer.close()
+        // sẽ flush ra socket — trên Windows có thể block vài giây làm UI treo.
         try { if (socket != null) socket.close(); } catch (IOException ignored) {}
+        try { if (reader != null) reader.close(); } catch (IOException ignored) {}
+        try { if (writer != null) writer.close(); } catch (RuntimeException ignored) {}
         if (listenerThread != null) listenerThread.interrupt();
     }
 }
