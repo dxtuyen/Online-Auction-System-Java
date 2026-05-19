@@ -6,6 +6,7 @@ import com.auction.model.entity.BidTransaction;
 import com.auction.model.entity.Item;
 import com.auction.model.entity.User;
 import com.auction.model.enums.AuctionStatus;
+import com.auction.model.exception.IllegalAuctionStateException;
 import com.auction.model.observer.AuctionObserver;
 import com.auction.persistence.dao.AuctionDao;
 import com.auction.persistence.dao.MysqlAuctionDao;
@@ -42,6 +43,18 @@ public final class AuctionManager {
     }
 
     // ============== FIELDS ==============
+
+    /**
+     * Phiên ở FINISHED quá ngần này phút mà winner chưa quyết định → tự PAY giúp.
+     * Đổi 1 chỗ ở đây là xong (không cần đụng nhiều file).
+     */
+    private static final int AUTO_PAY_AFTER_MINUTES = 5;
+
+    /**
+     * Tỷ lệ phạt khi winner từ chối thanh toán. Tính trên startingPrice của item.
+     * Đổi 1 chỗ ở đây là xong.
+     */
+    private static final BigDecimal FORFEIT_PENALTY_RATE = new BigDecimal("0.4");
 
     private final AuctionDao dao;
     private final ConcurrentHashMap<UUID, Auction> auctions = new ConcurrentHashMap<>();
@@ -176,12 +189,96 @@ public final class AuctionManager {
         switch (current) {
             case PENDING -> auction.transitionTo(AuctionStatus.CANCELED);
             case RUNNING -> {
-                auction.transitionTo(AuctionStatus.FINISHED);
-                trySettle(auction);
+                // Đóng tay: nếu chưa có bid → CANCELED ngay; có bid → FINISHED chờ winner quyết định.
+                if (auction.getHighestBidderId() == null) {
+                    auction.transitionTo(AuctionStatus.CANCELED);
+                } else {
+                    auction.transitionTo(AuctionStatus.FINISHED);
+                }
             }
             default -> throw new IllegalStateException(
                     "Phiên đang ở trạng thái " + current + ", không thể đóng thủ công");
         }
+        return auction;
+    }
+
+    // ============== SETTLEMENT (USER-FACING) ==============
+
+    /**
+     * Winner xác nhận thanh toán: tiền đã reserve khi bid chuyển vào revenue seller,
+     * status → PAID.
+     *
+     * @throws SecurityException nếu actor không phải winner
+     * @throws IllegalStateException nếu phiên không ở trạng thái FINISHED
+     */
+    public Auction confirmPayment(UUID auctionId, UUID userId) {
+        Objects.requireNonNull(auctionId, "auctionId");
+        Objects.requireNonNull(userId, "userId");
+
+        Auction auction = auctions.get(auctionId);
+        if (auction == null) {
+            throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
+        }
+        if (auction.getStatus() != AuctionStatus.FINISHED) {
+            throw new IllegalAuctionStateException(
+                    "Phiên đang ở trạng thái " + auction.getStatus() + ", không thể thanh toán");
+        }
+        if (!userId.equals(auction.getHighestBidderId())) {
+            throw new SecurityException("Bạn không phải người thắng phiên đấu giá này");
+        }
+
+        settleAsPaid(auction);
+        return auction;
+    }
+
+    /**
+     * Winner từ chối thanh toán: mất {@link #FORFEIT_PENALTY_RATE} × startingPrice
+     * cho seller, phần còn lại của tiền đã reserve được hoàn về balance của winner.
+     * Status → CANCELED.
+     */
+    public Auction forfeitAuction(UUID auctionId, UUID userId) {
+        Objects.requireNonNull(auctionId, "auctionId");
+        Objects.requireNonNull(userId, "userId");
+
+        Auction auction = auctions.get(auctionId);
+        if (auction == null) {
+            throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
+        }
+        if (auction.getStatus() != AuctionStatus.FINISHED) {
+            throw new IllegalAuctionStateException(
+                    "Phiên đang ở trạng thái " + auction.getStatus() + ", không thể hủy");
+        }
+        if (!userId.equals(auction.getHighestBidderId())) {
+            throw new SecurityException("Bạn không phải người thắng phiên đấu giá này");
+        }
+
+        BigDecimal reserved = auction.getCurrentPrice();
+        BigDecimal penalty = auction.getStartingPrice().multiply(FORFEIT_PENALTY_RATE);
+        // Defensive: nếu startingPrice * 0.4 > reserved (về lý thuyết không thể vì
+        // currentPrice >= startingPrice), kẹp lại để không trừ âm.
+        if (penalty.compareTo(reserved) > 0) penalty = reserved;
+        BigDecimal refund = reserved.subtract(penalty);
+
+        // Pre-lookup users TRƯỚC khi transition để fail-fast nếu thiếu dữ liệu.
+        User winner = UserManager.getInstance().findById(userId)
+                .orElseThrow(() -> new IllegalStateException("Winner không tồn tại"));
+        User seller = UserManager.getInstance().findById(auction.getSellerId())
+                .orElseThrow(() -> new IllegalStateException("Seller không tồn tại"));
+
+        // transitionTo là gate atomic: nếu thread khác (vd auto-PAY hoặc confirmPayment)
+        // đã đổi status, call này sẽ throw IllegalAuctionStateException trước khi money
+        // bị mutate → không có double-charge.
+        auction.transitionTo(AuctionStatus.CANCELED);
+
+        if (refund.signum() > 0) {
+            winner.release(refund);
+            safeSaveUser(winner);
+        }
+        if (penalty.signum() > 0) {
+            seller.addRevenue(penalty);
+            safeSaveUser(seller);
+        }
+
         return auction;
     }
 
@@ -255,8 +352,23 @@ public final class AuctionManager {
                     auction.transitionTo(AuctionStatus.RUNNING);
                 } else if (status == AuctionStatus.RUNNING
                         && !now.isBefore(auction.getEndTime())) {
-                    auction.transitionTo(AuctionStatus.FINISHED);
-                    trySettle(auction);
+                    // Hết giờ: chưa có bid → CANCELED luôn; có bid → FINISHED chờ winner quyết định.
+                    if (auction.getHighestBidderId() == null) {
+                        auction.transitionTo(AuctionStatus.CANCELED);
+                    } else {
+                        auction.transitionTo(AuctionStatus.FINISHED);
+                    }
+                } else if (status == AuctionStatus.FINISHED
+                        && auction.getHighestBidderId() != null
+                        && auction.getUpdatedAt().plusMinutes(AUTO_PAY_AFTER_MINUTES).isBefore(now)) {
+                    // Winner không thao tác sau AUTO_PAY_AFTER_MINUTES phút → tự PAY giúp.
+                    // updatedAt sau khi RUNNING→FINISHED chính là thời điểm phiên kết thúc.
+                    try {
+                        settleAsPaid(auction);
+                    } catch (Exception e) {
+                        log.warning(() -> "Auto-PAY thất bại cho auction "
+                                + auction.getId() + ": " + e.getMessage());
+                    }
                 }
             } catch (Exception e) {
                 log.warning(() -> "Lỗi khi tick auction " + auction.getId() + ": " + e.getMessage());
@@ -264,28 +376,34 @@ public final class AuctionManager {
         }
     }
 
-    // ============== SETTLEMENT ==============
+    // ============== SETTLEMENT (INTERNAL) ==============
 
-    private void trySettle(Auction auction) {
-        UUID winnerId = auction.getHighestBidderId();
-        if (winnerId == null) {
-            return;
-        }
-
+    /**
+     * Chuyển tiền winner reserved → revenue seller, status → PAID.
+     * Dùng chung cho {@link #confirmPayment(UUID, UUID)} (user gọi) và
+     * tickLifecycle (scheduler tự PAY sau timeout).
+     * <p>Caller đã đảm bảo {@code auction.getHighestBidderId() != null}
+     * và auction ở trạng thái FINISHED.</p>
+     */
+    private void settleAsPaid(Auction auction) {
         BigDecimal price = auction.getCurrentPrice();
-        UserManager.getInstance().findById(auction.getSellerId()).ifPresent(seller -> {
-            seller.addRevenue(price);
-            try {
-                UserManager.getInstance().save(seller);
-            } catch (Exception e) {
-                log.warning(() -> "Lỗi lưu revenue cho seller " + seller.getId() + ": " + e.getMessage());
-            }
-        });
+        // Pre-lookup TRƯỚC khi transition để fail-fast (không transition rồi mới thấy thiếu seller).
+        User seller = UserManager.getInstance().findById(auction.getSellerId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Seller không tồn tại: " + auction.getSellerId()));
 
+        // transitionTo là gate atomic: chống race giữa confirmPayment vs forfeit vs auto-PAY.
+        auction.transitionTo(AuctionStatus.PAID);
+
+        seller.addRevenue(price);
+        safeSaveUser(seller);
+    }
+
+    private void safeSaveUser(User user) {
         try {
-            auction.transitionTo(AuctionStatus.PAID);
-        } catch (RuntimeException e) {
-            log.warning(() -> "Settle bỏ qua: " + e.getMessage());
+            UserManager.getInstance().save(user);
+        } catch (Exception e) {
+            log.warning(() -> "Lỗi sync user " + user.getId() + ": " + e.getMessage());
         }
     }
 

@@ -24,6 +24,8 @@ public enum ActionType {
     CLOSE_AUCTION,
     WATCH_AUCTION,
     UNWATCH_AUCTION,
+    CONFIRM_PAYMENT,    // winner xác nhận thanh toán → PAID
+    FORFEIT_AUCTION,    // winner từ chối → mất phí phạt, CANCELED
 
     // ============== BID ==============
     PLACE_BID,

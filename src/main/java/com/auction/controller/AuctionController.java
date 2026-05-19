@@ -187,6 +187,38 @@ public final class AuctionController {
         return Response.success("CLOSE_AUCTION", "Đã đóng phiên", null);
     }
 
+    /**
+     * USER — winner xác nhận thanh toán phiên đã FINISHED.
+     * AuctionManager kiểm tra actor có phải winner.
+     */
+    public Response confirmPayment(Request req, ClientHandler ctx) {
+        UUID userId = ctx.getSession().getCurrentUserId();
+        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        Auction a = auctionManager.confirmPayment(auctionId, userId);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("auctionId", a.getId().toString());
+        data.put("status", a.getStatus().name());
+        data.put("paidAmount", a.getCurrentPrice());
+        return Response.success("CONFIRM_PAYMENT", "Thanh toán thành công", data);
+    }
+
+    /**
+     * USER — winner từ chối thanh toán, chấp nhận mất phí phạt.
+     * AuctionManager kiểm tra actor có phải winner.
+     */
+    public Response forfeitAuction(Request req, ClientHandler ctx) {
+        UUID userId = ctx.getSession().getCurrentUserId();
+        UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
+        Auction a = auctionManager.forfeitAuction(auctionId, userId);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("auctionId", a.getId().toString());
+        data.put("status", a.getStatus().name());
+        return Response.success("FORFEIT_AUCTION",
+                "Đã hủy phiên — bạn mất khoản phí phạt cho người bán", data);
+    }
+
     /** USER — danh sách item của user hiện tại (dashboard Seller). */
     public Response listMyItems(Request req, ClientHandler ctx) {
         UUID sellerId = ctx.getSession().getCurrentUserId();

@@ -72,6 +72,8 @@ public final class RequestRouter {
         register(ActionType.CLOSE_AUCTION,  AuthLevel.USER,   auction::closeAuction);
         register(ActionType.WATCH_AUCTION,  AuthLevel.PUBLIC, auction::watchAuction);
         register(ActionType.UNWATCH_AUCTION, AuthLevel.PUBLIC, auction::unwatchAuction);
+        register(ActionType.CONFIRM_PAYMENT, AuthLevel.USER,  auction::confirmPayment);
+        register(ActionType.FORFEIT_AUCTION, AuthLevel.USER,  auction::forfeitAuction);
 
         // ===== BID =====
         register(ActionType.PLACE_BID,    AuthLevel.USER,   bid::placeBid);

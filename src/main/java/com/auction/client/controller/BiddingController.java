@@ -44,6 +44,14 @@ public class BiddingController {
     @FXML private TextField txtIncrementAuto;
     @FXML private Label lblAutoBidStatus;
 
+    // Settlement (sau khi phiên FINISHED, winner chọn trả tiền hoặc bỏ)
+    @FXML private javafx.scene.layout.VBox paneSettlement;
+    @FXML private Label lblSettleInfo;
+    @FXML private Label lblSettleCountdown;
+    @FXML private Button btnConfirmPay;
+    @FXML private Button btnForfeit;
+    @FXML private Label lblSettleStatus;
+
     // History + chart
     @FXML private ListView<String> lstBidHistory;
     @FXML private LineChart<String, Number> chartPrice;
@@ -52,8 +60,19 @@ public class BiddingController {
     private String auctionId;
     private LocalDateTime endTime;
     private Timeline countdown;
+    private Timeline settleCountdown;
     private XYChart.Series<String, Number> priceSeries;
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
+
+    // Cần để dựng panel settlement: giữ startingPrice & currentPrice từ GET_AUCTION
+    // để khi push AUCTION_STATUS đến vẫn còn dữ liệu hiển thị mức phạt.
+    private double startingPrice;
+    private double currentPrice;
+
+    // Phải đồng bộ với AuctionManager.AUTO_PAY_AFTER_MINUTES / FORFEIT_PENALTY_RATE server-side.
+    // Chỉ dùng cho hiển thị; tính toán thật server làm.
+    private static final int AUTO_PAY_AFTER_MINUTES = 5;
+    private static final double FORFEIT_PENALTY_RATE = 0.4;
 
     /** Gọi từ AuctionListController sau khi load FXML. */
     public void setAuctionId(String auctionId) {
@@ -123,15 +142,24 @@ public class BiddingController {
         lblBidCount.setText(str(data, "totalBids"));
         lblLeader.setText(data.get("leaderName") != null ? str(data, "leaderName") : "Chưa có");
 
+        startingPrice = num(data.get("startingPrice"));
+        currentPrice = num(data.get("currentPrice"));
+
         String endStr = str(data, "endTime");
         if (!endStr.isBlank()) {
             try { endTime = LocalDateTime.parse(endStr); }
             catch (Exception e) { endTime = LocalDateTime.now().plusMinutes(5); }
         }
 
-        double curr = num(data.get("currentPrice"));
         double incr = num(data.get("minimumIncrement"));
-        txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", curr + incr));
+        txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", currentPrice + incr));
+
+        // Reload trong khi phiên đã FINISHED và mình là winner → dựng panel ngay.
+        String status = str(data, "status");
+        String leaderId = data.get("highestBidderId") == null ? null : str(data, "highestBidderId");
+        if ("FINISHED".equals(status) && isMyId(leaderId)) {
+            showSettlementPanel();
+        }
     }
 
     private void renderHistory(List<Map<String, Object>> bids) {
@@ -180,6 +208,7 @@ public class BiddingController {
             Platform.runLater(() -> {
                 lblCurrentPrice.setText(formatMoney(data.get("amount")));
                 lblBidCount.setText(str(data, "totalBids"));
+                currentPrice = num(data.get("amount"));
                 loadBidHistory();
                 flashLabel(lblCurrentPrice);
             });
@@ -187,15 +216,7 @@ public class BiddingController {
 
         model.addPushHandler("AUCTION_STATUS", data -> {
             if (!matchesAuction(data)) return;
-            Platform.runLater(() -> {
-                String status = str(data, "status");
-                if ("FINISHED".equals(status) || "PAID".equals(status) || "CANCELED".equals(status)) {
-                    lblTimer.setText("Phiên đã kết thúc");
-                    btnPlaceBid.setDisable(true);
-                    txtBidAmount.setDisable(true);
-                    ClientApp.showInfo("Phiên đấu giá đã kết thúc!");
-                }
-            });
+            Platform.runLater(() -> handleStatusChanged(data));
         });
 
         model.addPushHandler("AUCTION_EXTENDED", data -> {
@@ -241,6 +262,175 @@ public class BiddingController {
                 Platform.runLater(() -> {
                     btnPlaceBid.setDisable(false);
                     lblError.setText("Lỗi: " + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    // =========== SETTLEMENT ===========
+
+    /**
+     * Xử lý push AUCTION_STATUS.
+     * - FINISHED + mình là winner → hiện panel trả tiền / bỏ.
+     * - FINISHED + không phải winner → chỉ disable bid.
+     * - PAID / CANCELED → ẩn panel, hiển thị kết quả.
+     */
+    private void handleStatusChanged(Map<String, Object> data) {
+        String status = str(data, "status");
+        String leaderId = data.get("highestBidderId") == null ? null : str(data, "highestBidderId");
+
+        if ("FINISHED".equals(status)) {
+            lblTimer.setText("Phiên đã kết thúc");
+            btnPlaceBid.setDisable(true);
+            txtBidAmount.setDisable(true);
+            if (isMyId(leaderId)) {
+                showSettlementPanel();
+            } else {
+                ClientApp.showInfo("Phiên đấu giá đã kết thúc!");
+            }
+        } else if ("PAID".equals(status)) {
+            hideSettlementPanel();
+            btnPlaceBid.setDisable(true);
+            txtBidAmount.setDisable(true);
+            ClientApp.showInfo("Phiên đã được thanh toán!");
+        } else if ("CANCELED".equals(status)) {
+            hideSettlementPanel();
+            btnPlaceBid.setDisable(true);
+            txtBidAmount.setDisable(true);
+            ClientApp.showInfo("Phiên đã bị hủy.");
+        }
+    }
+
+    private boolean isMyId(String id) {
+        String myId = ClientModel.getInstance().getUserId();
+        return id != null && id.equals(myId);
+    }
+
+    private void showSettlementPanel() {
+        if (paneSettlement == null) return;
+        double penalty = startingPrice * FORFEIT_PENALTY_RATE;
+        lblSettleInfo.setText(String.format(
+                "Số tiền phải trả: %,.0f VNĐ\nNếu bỏ, bạn sẽ mất %,.0f VNĐ phí phạt (%.0f%% giá khởi điểm) cho người bán.",
+                currentPrice, penalty, FORFEIT_PENALTY_RATE * 100));
+        lblSettleStatus.setText("");
+        btnConfirmPay.setDisable(false);
+        btnForfeit.setDisable(false);
+        paneSettlement.setVisible(true);
+        paneSettlement.setManaged(true);
+        startSettleCountdown();
+    }
+
+    private void hideSettlementPanel() {
+        if (paneSettlement == null) return;
+        paneSettlement.setVisible(false);
+        paneSettlement.setManaged(false);
+        if (settleCountdown != null) settleCountdown.stop();
+    }
+
+    /**
+     * Đếm ngược tới thời điểm server tự PAY. Tính từ endTime (khi push FINISHED đến,
+     * server vừa transition xong nên endTime ~ thời điểm hiện tại).
+     */
+    private void startSettleCountdown() {
+        if (settleCountdown != null) settleCountdown.stop();
+        settleCountdown = new Timeline(new javafx.animation.KeyFrame(
+                Duration.seconds(1), e -> updateSettleCountdown()));
+        settleCountdown.setCycleCount(Timeline.INDEFINITE);
+        settleCountdown.play();
+        updateSettleCountdown();
+    }
+
+    private void updateSettleCountdown() {
+        if (endTime == null) {
+            lblSettleCountdown.setText("");
+            return;
+        }
+        LocalDateTime autoPayAt = endTime.plusMinutes(AUTO_PAY_AFTER_MINUTES);
+        long sec = ChronoUnit.SECONDS.between(LocalDateTime.now(), autoPayAt);
+        if (sec <= 0) {
+            lblSettleCountdown.setText("Đang tự động thanh toán...");
+            if (settleCountdown != null) settleCountdown.stop();
+            return;
+        }
+        long mins = sec / 60;
+        long secs = sec % 60;
+        lblSettleCountdown.setText(String.format(
+                "⏰ Tự động thanh toán sau %02d:%02d", mins, secs));
+    }
+
+    @FXML
+    private void handleConfirmPayment() {
+        btnConfirmPay.setDisable(true);
+        btnForfeit.setDisable(true);
+        lblSettleStatus.setStyle("-fx-text-fill: #6b7280;");
+        lblSettleStatus.setText("Đang gửi yêu cầu thanh toán...");
+
+        new Thread(() -> {
+            try {
+                ClientModel model = ClientModel.getInstance();
+                model.sendRequest("CONFIRM_PAYMENT", Map.of("auctionId", auctionId));
+                Response res = model.waitForResponse("CONFIRM_PAYMENT", 5000);
+
+                Platform.runLater(() -> {
+                    if (res != null && res.isSuccess()) {
+                        lblSettleStatus.setStyle("-fx-text-fill: #059669;");
+                        lblSettleStatus.setText("✓ " + res.getMessage());
+                    } else {
+                        btnConfirmPay.setDisable(false);
+                        btnForfeit.setDisable(false);
+                        lblSettleStatus.setStyle("-fx-text-fill: #dc2626;");
+                        lblSettleStatus.setText(res != null ? res.getMessage() : "Timeout");
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    btnConfirmPay.setDisable(false);
+                    btnForfeit.setDisable(false);
+                    lblSettleStatus.setStyle("-fx-text-fill: #dc2626;");
+                    lblSettleStatus.setText("Lỗi: " + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    @FXML
+    private void handleForfeit() {
+        // Xác nhận trước khi bỏ — chống bấm nhầm.
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                String.format("Bạn chắc chắn bỏ phiên?\nSẽ mất %,.0f VNĐ phí phạt cho người bán.",
+                        startingPrice * FORFEIT_PENALTY_RATE),
+                ButtonType.YES, ButtonType.NO);
+        confirm.setHeaderText(null);
+        if (confirm.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+
+        btnConfirmPay.setDisable(true);
+        btnForfeit.setDisable(true);
+        lblSettleStatus.setStyle("-fx-text-fill: #6b7280;");
+        lblSettleStatus.setText("Đang gửi yêu cầu hủy...");
+
+        new Thread(() -> {
+            try {
+                ClientModel model = ClientModel.getInstance();
+                model.sendRequest("FORFEIT_AUCTION", Map.of("auctionId", auctionId));
+                Response res = model.waitForResponse("FORFEIT_AUCTION", 5000);
+
+                Platform.runLater(() -> {
+                    if (res != null && res.isSuccess()) {
+                        lblSettleStatus.setStyle("-fx-text-fill: #f59e0b;");
+                        lblSettleStatus.setText("✓ " + res.getMessage());
+                    } else {
+                        btnConfirmPay.setDisable(false);
+                        btnForfeit.setDisable(false);
+                        lblSettleStatus.setStyle("-fx-text-fill: #dc2626;");
+                        lblSettleStatus.setText(res != null ? res.getMessage() : "Timeout");
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    btnConfirmPay.setDisable(false);
+                    btnForfeit.setDisable(false);
+                    lblSettleStatus.setStyle("-fx-text-fill: #dc2626;");
+                    lblSettleStatus.setText("Lỗi: " + e.getMessage());
                 });
             }
         }).start();
@@ -338,6 +528,7 @@ public class BiddingController {
     @FXML
     private void goBack() {
         if (countdown != null) countdown.stop();
+        if (settleCountdown != null) settleCountdown.stop();
         ClientModel.getInstance().clearBiddingPushHandlers();
 
         new Thread(() -> {

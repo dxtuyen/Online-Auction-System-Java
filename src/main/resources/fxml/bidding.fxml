@@ -106,6 +106,28 @@
                      </children>
                   </VBox>
 
+                  <VBox fx:id="paneSettlement" managed="false" spacing="6.0" style="-fx-background-color: #fef3c7; -fx-border-color: #f59e0b; -fx-border-radius: 8; -fx-background-radius: 8;" styleClass="card" visible="false">
+                     <children>
+                        <Label styleClass="column-header" text="🎉 Bạn đã thắng phiên đấu giá!">
+                           <font>
+                              <Font size="15.0" />
+                           </font>
+                        </Label>
+                        <Label fx:id="lblSettleInfo" styleClass="label-muted" wrapText="true" />
+                        <Label fx:id="lblSettleCountdown" styleClass="timer-urgent" />
+                        <HBox alignment="CENTER_LEFT" spacing="8.0">
+                           <children>
+                              <Button fx:id="btnConfirmPay" mnemonicParsing="false" onAction="#handleConfirmPayment" styleClass="btn-primary" text="Trả tiền" />
+                              <Button fx:id="btnForfeit" mnemonicParsing="false" onAction="#handleForfeit" styleClass="btn-secondary" text="Bỏ (mất phí phạt)" />
+                           </children>
+                           <padding>
+                              <Insets top="4.0" />
+                           </padding>
+                        </HBox>
+                        <Label fx:id="lblSettleStatus" styleClass="label-muted" />
+                     </children>
+                  </VBox>
+
                   <VBox style="-fx-background-color: #f0f9ff; box-border-color: #bae6fd;" styleClass="card">
                      <children>
                         <Label styleClass="column-header" text="🤖 Auto-Bid — Đặt giá tự động">
