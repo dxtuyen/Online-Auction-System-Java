@@ -8,6 +8,7 @@ import com.auction.persistence.dao.UserDao;
 import com.auction.security.PasswordEncoder;
 import com.auction.util.AppLogger;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
@@ -102,9 +103,23 @@ public final class UserManager {
      */
     public User register(String username, String plainPassword, String email,
                          String fullName, Role role) {
+        return register(username, plainPassword, email, fullName, role, null);
+    }
+
+    /**
+     * Đăng ký user mới + nạp số dư ban đầu.
+     *
+     * @param initialBalance nếu non-null và > 0 sẽ set vào balance trước khi persist.
+     *                       null hoặc 0 → balance mặc định = 0.
+     */
+    public User register(String username, String plainPassword, String email,
+                         String fullName, Role role, BigDecimal initialBalance) {
         Objects.requireNonNull(plainPassword, "password must not be null");
         if (plainPassword.length() < 6) {
             throw new IllegalArgumentException("Password phải >= 6 ký tự");
+        }
+        if (initialBalance != null && initialBalance.signum() < 0) {
+            throw new IllegalArgumentException("Số dư ban đầu không được âm");
         }
 
         String trimmedUsername = username == null ? null : username.trim();
@@ -122,6 +137,9 @@ public final class UserManager {
         String salt = PasswordEncoder.generateSalt();
         String hash = PasswordEncoder.hash(plainPassword, salt);
         User user = new User(trimmedUsername, hash, salt, email, fullName, role);
+        if (initialBalance != null && initialBalance.signum() > 0) {
+            user.setBalance(initialBalance);
+        }
 
         // Reserve username + email atomic — chống race giữa 2 register cùng lúc.
         UUID prev = usernameIndex.putIfAbsent(user.getUsername(), user.getId());

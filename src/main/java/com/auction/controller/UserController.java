@@ -8,6 +8,7 @@ import com.auction.protocol.Response;
 import com.auction.server.ClientHandler;
 import com.auction.server.Session;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -55,8 +56,11 @@ public final class UserController {
         String password = req.getDataString("password");
         String email = req.getDataString("email");
         String fullName = req.getDataString("fullName");
+        // Optional — client có thể bỏ trống, mặc định 0.
+        BigDecimal initialBalance = req.getDataDecimal("initialBalance");
 
-        User user = userManager.register(username, password, email, fullName, Role.NORMAL);
+        User user = userManager.register(username, password, email, fullName,
+                Role.NORMAL, initialBalance);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("userId", user.getId().toString());
@@ -65,6 +69,7 @@ public final class UserController {
         data.put("fullName", user.getFullName());
         data.put("role", user.getRole().name());
         data.put("displayRole", user.getRole().getDisplayRole());
+        data.put("balance", user.getBalance());
 
         return Response.success("REGISTER", "Đăng ký thành công", data);
     }

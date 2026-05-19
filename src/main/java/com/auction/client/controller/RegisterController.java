@@ -14,8 +14,8 @@ import java.util.Map;
 /**
  * Controller cho màn Đăng ký.
  *
- * <p>Field {@code txtBalance} là UI optional — server hiện không nhận balance lúc register
- * (mặc định = 0, admin/seeder nạp sau). Client chỉ validate format để không cho phép nhập rác.</p>
+ * <p>{@code txtBalance} optional: bỏ trống → server set balance = 0; có giá trị thì gửi
+ * dạng String để giữ precision (BigDecimal).</p>
  */
 public class RegisterController {
 
@@ -76,6 +76,10 @@ public class RegisterController {
                 payload.put("password", password);
                 payload.put("email", email);
                 payload.put("fullName", fullName);
+                if (!balanceText.isEmpty()) {
+                    // Gửi String để server parse BigDecimal — giữ precision.
+                    payload.put("initialBalance", balanceText);
+                }
                 model.sendRequest("REGISTER", payload);
                 Response res = model.waitForResponse("REGISTER", 5000);
 
