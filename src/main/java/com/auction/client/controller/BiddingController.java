@@ -11,6 +11,7 @@ import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.util.Duration;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -234,8 +235,11 @@ public class BiddingController {
 
     @FXML
     private void handlePlaceBid() {
-        double amount = parseMoney(txtBidAmount.getText());
-        if (amount <= 0) { lblError.setText("Giá không hợp lệ"); return; }
+        BigDecimal amount = parseMoney(txtBidAmount.getText());
+        if (amount == null || amount.signum() <= 0) {
+            lblError.setText("Giá không hợp lệ");
+            return;
+        }
 
         lblError.setText("");
         btnPlaceBid.setDisable(true);
@@ -243,8 +247,11 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
+                // Gửi dạng String để server parse BigDecimal — giữ precision.
+                // Nếu gửi qua double, JSON serialize có thể rơi vào "1.0E7" hoặc
+                // mất số lẻ.
                 model.sendRequest("PLACE_BID", Map.of(
-                        "auctionId", auctionId, "amount", amount));
+                        "auctionId", auctionId, "amount", amount.toPlainString()));
                 Response res = model.waitForResponse("PLACE_BID", 5000);
 
                 Platform.runLater(() -> {
@@ -438,19 +445,21 @@ public class BiddingController {
 
     @FXML
     private void handleSetAutoBid() {
-        double maxBid = parseMoney(txtMaxBid.getText());
-        double incr = parseMoney(txtIncrementAuto.getText());
-        if (maxBid <= 0 || incr <= 0) {
+        BigDecimal maxBid = parseMoney(txtMaxBid.getText());
+        BigDecimal incr = parseMoney(txtIncrementAuto.getText());
+        if (maxBid == null || maxBid.signum() <= 0
+                || incr == null || incr.signum() <= 0) {
             lblAutoBidStatus.setText("Nhập giá tối đa và bước nhảy");
             return;
         }
 
         new Thread(() -> {
             ClientModel model = ClientModel.getInstance();
+            // Gửi String → server parse BigDecimal — xem comment ở handlePlaceBid.
             model.sendRequest("SET_AUTO_BID", Map.of(
                     "auctionId", auctionId,
-                    "maxBid", maxBid,
-                    "increment", incr));
+                    "maxBid", maxBid.toPlainString(),
+                    "increment", incr.toPlainString()));
             Response res = model.waitForResponse("SET_AUTO_BID", 5000);
 
             Platform.runLater(() -> {
@@ -557,9 +566,21 @@ public class BiddingController {
         return "0 VNĐ";
     }
 
-    private double parseMoney(String s) {
-        try { return Double.parseDouble(s.trim().replace(",", "").replace(".", "")); }
-        catch (Exception e) { return -1; }
+    /**
+     * Parse số tiền VND user nhập. Dấu chấm và dấu phẩy đều coi là thousand
+     * separator → "1.000.000", "1,000,000", "1000000" đều ra 1_000_000.
+     * <p>VND không có thập phân nên không hỗ trợ phần lẻ. Trả {@code null} nếu
+     * input rỗng hoặc không parse được — caller validate signum > 0 trước khi gửi.
+     */
+    private BigDecimal parseMoney(String s) {
+        if (s == null) return null;
+        String cleaned = s.trim().replace(".", "").replace(",", "").replace(" ", "");
+        if (cleaned.isEmpty()) return null;
+        try {
+            return new BigDecimal(cleaned);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private String shortTime(String timestamp) {
