@@ -89,6 +89,8 @@ public final class ServerMain {
             Thread.currentThread().interrupt();
         }
         AuctionManager.getInstance().shutdown();
+        // Đóng pool sau cùng — để các tick lifecycle / observer kịp flush DB trước.
+        Database.getInstance().close();
         log.info("Server đã dừng.");
     }
 
