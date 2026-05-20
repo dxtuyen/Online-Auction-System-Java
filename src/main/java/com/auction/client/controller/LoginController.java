@@ -2,10 +2,12 @@ package com.auction.client.controller;
 
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
+import com.auction.client.util.PasswordToggle;
 import com.auction.protocol.Response;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.shape.SVGPath;
 
 import java.util.Map;
 
@@ -14,14 +16,19 @@ public class LoginController {
 
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
+    @FXML private TextField txtPasswordVisible;
+    @FXML private ToggleButton btnTogglePassword;
+    @FXML private SVGPath eyeIcon;
     @FXML private Label lblError;
     @FXML private Button btnLogin;
 
     @FXML
     private void initialize() {
         lblError.setText("");
+        PasswordToggle.bind(txtPassword, txtPasswordVisible, btnTogglePassword, eyeIcon);
         // Enter trên ô password = nhấn nút login
         txtPassword.setOnAction(e -> handleLogin());
+        txtPasswordVisible.setOnAction(e -> handleLogin());
     }
 
     @FXML

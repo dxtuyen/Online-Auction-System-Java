@@ -4,6 +4,7 @@
 <?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.SVGPath?>
 <?import javafx.scene.text.*?>
 
 <AnchorPane prefHeight="500.0" prefWidth="700.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.controller.RegisterController">
@@ -52,7 +53,17 @@
                         <VBox spacing="5.0">
                             <children>
                                 <Label text="Mật khẩu" textFill="#64748b" />
-                                <PasswordField fx:id="txtPassword" prefHeight="40.0" promptText="Nhập mật khẩu (&gt;=6 ký tự)" styleClass="text-input" />
+                                <StackPane>
+                                    <children>
+                                        <PasswordField fx:id="txtPassword" prefHeight="40.0" promptText="Nhập mật khẩu (&gt;=6 ký tự)" styleClass="text-input, password-with-eye" />
+                                        <TextField fx:id="txtPasswordVisible" managed="false" prefHeight="40.0" promptText="Nhập mật khẩu (&gt;=6 ký tự)" styleClass="text-input, password-with-eye" visible="false" />
+                                        <ToggleButton fx:id="btnTogglePassword" focusTraversable="false" styleClass="eye-toggle" StackPane.alignment="CENTER_RIGHT">
+                                            <graphic>
+                                                <SVGPath fx:id="eyeIcon" content="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill="#64748b" />
+                                            </graphic>
+                                        </ToggleButton>
+                                    </children>
+                                </StackPane>
                             </children>
                         </VBox>
 

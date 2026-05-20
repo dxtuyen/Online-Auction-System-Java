@@ -52,6 +52,25 @@
     -fx-prompt-text-fill: #9ca3af;
 }
 
+/* Chừa chỗ bên phải cho nút con mắt */
+.password-with-eye {
+    -fx-padding: 8 38 8 12;
+}
+
+/* Nút toggle hiển thị mật khẩu */
+.eye-toggle {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 0 10 0 0;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+.eye-toggle:hover, .eye-toggle:selected, .eye-toggle:focused {
+    -fx-background-color: transparent;
+}
+
 
 
 /* =============== LABELS =============== */

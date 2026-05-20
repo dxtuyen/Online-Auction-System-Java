@@ -2,10 +2,12 @@ package com.auction.client.controller;
 
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
+import com.auction.client.util.PasswordToggle;
 import com.auction.protocol.Response;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.shape.SVGPath;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -23,6 +25,9 @@ public class RegisterController {
     @FXML private TextField txtUsername;
     @FXML private TextField txtEmail;
     @FXML private PasswordField txtPassword;
+    @FXML private TextField txtPasswordVisible;
+    @FXML private ToggleButton btnTogglePassword;
+    @FXML private SVGPath eyeIcon;
     @FXML private TextField txtBalance;
     @FXML private Label lblError;
     @FXML private Button btnRegister;
@@ -30,7 +35,9 @@ public class RegisterController {
     @FXML
     private void initialize() {
         lblError.setText("");
+        PasswordToggle.bind(txtPassword, txtPasswordVisible, btnTogglePassword, eyeIcon);
         txtPassword.setOnAction(e -> handleRegister());
+        txtPasswordVisible.setOnAction(e -> handleRegister());
     }
 
     @FXML
