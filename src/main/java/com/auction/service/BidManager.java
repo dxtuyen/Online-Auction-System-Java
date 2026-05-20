@@ -225,32 +225,53 @@ public final class BidManager {
     // ============== AUTO-BID TRIGGER ==============
 
     private void tryTriggerAutoBids(Auction auction, BidTransaction triggerBid) {
+        // Guard chống re-entry: mỗi placeBid bên trong vòng lặp sẽ lại gọi
+        // tryTriggerAutoBids; nếu không chặn sẽ đệ quy vô tận. Vòng lặp ngoài
+        // mới là nơi chuỗi các auto-bid xen kẽ nhau (proxy-bid resolution).
         if (Boolean.TRUE.equals(inAutoBid.get())) return;
-
-        List<AutoBid> list = autoBidsByAuction.get(auction.getId());
-        if (list == null || list.isEmpty()) return;
-
-        AutoBid candidate = null;
-        for (AutoBid ab : list) {
-            if (!ab.isActive()) continue;
-            if (ab.getBidderId().equals(triggerBid.getBidderId())) continue;
-            if (candidate == null || ab.getMaxBid().compareTo(candidate.getMaxBid()) > 0) {
-                candidate = ab;
-            }
-        }
-        if (candidate == null) return;
-
-        BigDecimal nextRequired = auction.minNextBid();
-        if (nextRequired.compareTo(candidate.getMaxBid()) > 0) {
-            deactivateAutoBid(candidate);
-            return;
-        }
 
         inAutoBid.set(true);
         try {
-            placeBid(auction.getId(), candidate.getBidderId(), nextRequired);
-        } catch (Exception e) {
-            deactivateAutoBid(candidate);
+            // Proxy-bid loop (eBay-style): lặp cho đến khi auto-bidder có maxBid
+            // cao nhất (không phải người vừa bid) hết budget. Mỗi vòng pick 1
+            // candidate và đặt minNextBid — mô phỏng 2 bot đấu nhau, kết thúc khi
+            // chỉ còn 1 người đủ budget hoặc không ai outbid được nữa.
+            UUID lastBidder = triggerBid.getBidderId();
+            while (true) {
+                List<AutoBid> list = autoBidsByAuction.get(auction.getId());
+                if (list == null || list.isEmpty()) return;
+
+                AutoBid candidate = null;
+                for (AutoBid ab : list) {
+                    if (!ab.isActive()) continue;
+                    // Không cho người vừa đặt bid (manual hoặc auto) outbid chính
+                    // mình ngay sau đó — phải đợi đối thủ khác đẩy giá lên trước.
+                    if (ab.getBidderId().equals(lastBidder)) continue;
+                    if (candidate == null
+                            || ab.getMaxBid().compareTo(candidate.getMaxBid()) > 0) {
+                        candidate = ab;
+                    }
+                }
+                if (candidate == null) return;
+
+                BigDecimal nextRequired = auction.minNextBid();
+                if (nextRequired.compareTo(candidate.getMaxBid()) > 0) {
+                    // Candidate (max-bid cao nhất trong số còn lại) đã hết budget
+                    // → các auto-bid khác cũng vậy. Dừng chuỗi.
+                    deactivateAutoBid(candidate);
+                    return;
+                }
+
+                try {
+                    placeBid(auction.getId(), candidate.getBidderId(), nextRequired);
+                    lastBidder = candidate.getBidderId();
+                } catch (Exception e) {
+                    // Lỗi bid (auction đóng, DB fail, ...) → deactivate candidate
+                    // và dừng chuỗi để không loop vô tận.
+                    deactivateAutoBid(candidate);
+                    return;
+                }
+            }
         } finally {
             inAutoBid.set(false);
         }
