@@ -2,11 +2,13 @@ package com.auction.server;
 
 import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
+import com.auction.model.entity.User;
 import com.auction.model.enums.AuctionStatus;
 import com.auction.model.observer.AuctionObserver;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.observer.AuctionEventManager;
+import com.auction.service.UserManager;
 import com.auction.util.AppLogger;
 import com.auction.util.JsonHelper;
 
@@ -132,6 +134,11 @@ public class ClientHandler implements Runnable, AuctionObserver {
         data.put("auctionId", auction.getId().toString());
         data.put("bidId", bid.getId().toString());
         data.put("bidderId", bid.getBidderId().toString());
+        // Resolve username để client cập nhật lblLeader trực tiếp từ push,
+        // không phải đợi loadBidHistory chạy xong (bị async + flicker).
+        String bidderName = UserManager.getInstance().findById(bid.getBidderId())
+                .map(User::getUsername).orElse("?");
+        data.put("bidderName", bidderName);
         data.put("amount", bid.getBidAmount());
         data.put("currentPrice", auction.getCurrentPrice());
         data.put("totalBids", auction.getTotalBids());

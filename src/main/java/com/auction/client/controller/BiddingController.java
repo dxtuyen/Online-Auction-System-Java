@@ -69,6 +69,9 @@ public class BiddingController {
     // để khi push AUCTION_STATUS đến vẫn còn dữ liệu hiển thị mức phạt.
     private double startingPrice;
     private double currentPrice;
+    // Cache để cập nhật prompt text "Tối thiểu X" mỗi khi có BID_UPDATE
+    // (push không gửi increment lại vì là invariant của auction).
+    private double minimumIncrement;
 
     // Phải đồng bộ với AuctionManager.AUTO_PAY_AFTER_MINUTES / FORFEIT_PENALTY_RATE server-side.
     // Chỉ dùng cho hiển thị; tính toán thật server làm.
@@ -145,6 +148,7 @@ public class BiddingController {
 
         startingPrice = num(data.get("startingPrice"));
         currentPrice = num(data.get("currentPrice"));
+        minimumIncrement = num(data.get("minimumIncrement"));
 
         String endStr = str(data, "endTime");
         if (!endStr.isBlank()) {
@@ -152,8 +156,7 @@ public class BiddingController {
             catch (Exception e) { endTime = LocalDateTime.now().plusMinutes(5); }
         }
 
-        double incr = num(data.get("minimumIncrement"));
-        txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", currentPrice + incr));
+        txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", currentPrice + minimumIncrement));
 
         // Reload trong khi phiên đã FINISHED và mình là winner → dựng panel ngay.
         String status = str(data, "status");
@@ -210,6 +213,13 @@ public class BiddingController {
                 lblCurrentPrice.setText(formatMoney(data.get("amount")));
                 lblBidCount.setText(str(data, "totalBids"));
                 currentPrice = num(data.get("amount"));
+                // Server giờ kèm bidderName trong push → cập nhật leader ngay
+                // mà không cần round-trip BID_HISTORY.
+                String bidderName = str(data, "bidderName");
+                lblLeader.setText(bidderName.isBlank() ? "Chưa có" : bidderName);
+                // Refresh prompt text với min next bid mới.
+                txtBidAmount.setPromptText(
+                        String.format("Tối thiểu %,.0f", currentPrice + minimumIncrement));
                 loadBidHistory();
                 flashLabel(lblCurrentPrice);
             });
