@@ -114,6 +114,14 @@ public final class BidManager {
             throw new InsufficientBalanceException(
                     "Số dư không đủ. Hiện có: " + user.getBalance() + ", muốn bid: " + amount);
         }
+        // Persist reservation NGAY để khi server restart không bị mất khoản đã giữ.
+        // Nếu DB fail thì release RAM rồi rethrow — không có ghost reservation.
+        try {
+            UserManager.getInstance().save(user);
+        } catch (RuntimeException e) {
+            user.release(amount);
+            throw e;
+        }
 
         BidTransaction bid = new BidTransaction(auctionId, userId, amount);
         Auction.BidOutcome outcome;
@@ -121,17 +129,35 @@ public final class BidManager {
             outcome = auction.placeBid(bid);
         } catch (RuntimeException e) {
             user.release(amount);
+            persistUserBestEffort(user, "rollback reserve");
             throw e;
         }
 
         if (outcome.previousBidderId() != null) {
             UserManager.getInstance().findById(outcome.previousBidderId())
-                    .ifPresent(prev -> prev.release(outcome.previousAmount()));
+                    .ifPresent(prev -> {
+                        prev.release(outcome.previousAmount());
+                        persistUserBestEffort(prev, "refund previous bidder");
+                    });
         }
 
         recordBid(auction, bid);
         tryTriggerAutoBids(auction, bid);
         return bid;
+    }
+
+    /**
+     * Persist user state, log SEVERE nếu fail. Dùng cho code path đã mutate RAM
+     * và muốn cố đồng bộ DB — nếu fail, ít nhất devs biết để fix manual thay vì
+     * âm thầm để RAM lệch DB.
+     */
+    private void persistUserBestEffort(User user, String context) {
+        try {
+            UserManager.getInstance().save(user);
+        } catch (RuntimeException e) {
+            log.severe(() -> "CRITICAL: Không persist được user " + user.getId()
+                    + " (" + context + "). RAM-DB lệch: " + e.getMessage());
+        }
     }
 
     // ============== HISTORY ==============

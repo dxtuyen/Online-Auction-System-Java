@@ -399,11 +399,20 @@ public final class AuctionManager {
         safeSaveUser(seller);
     }
 
+    /**
+     * Persist user state với log SEVERE nếu fail.
+     *
+     * <p>Lưu ý: caller (forfeitAuction / settleAsPaid) đã mutate balance/revenue
+     * trong RAM TRƯỚC khi gọi method này. Nếu DB fail, RAM-DB lệch — devs phải
+     * sync manual hoặc restart sẽ rollback partial. Đây là TOCTOU đã biết; fix
+     * triệt để cần transactional outbox bao cả auction + user trong 1 tx.</p>
+     */
     private void safeSaveUser(User user) {
         try {
             UserManager.getInstance().save(user);
         } catch (Exception e) {
-            log.warning(() -> "Lỗi sync user " + user.getId() + ": " + e.getMessage());
+            log.severe(() -> "CRITICAL: Không sync user " + user.getId()
+                    + " xuống DB. RAM-DB lệch (balance/revenue): " + e.getMessage());
         }
     }
 
@@ -423,11 +432,21 @@ public final class AuctionManager {
 
     // ============== HELPERS ==============
 
+    /**
+     * Persist auction state với log SEVERE nếu fail.
+     *
+     * <p>Method này được gọi từ {@link #internalObserver} sau khi state đã mutate
+     * trong RAM (placeBid / extend / transitionTo). Nếu DB fail, RAM mới còn DB cũ.
+     * notifyXxx() ở entity swallow exception nên ta KHÔNG throw — chỉ log loud để
+     * devs nhìn thấy ngay. Fix triệt để cần move persistence ra khỏi observer + DI
+     * vào explicit caller (BidManager / lifecycle scheduler).</p>
+     */
     private void safeSave(Auction auction) {
         try {
             dao.update(auction);
         } catch (Exception e) {
-            log.warning(() -> "Lỗi sync DB cho auction " + auction.getId() + ": " + e.getMessage());
+            log.severe(() -> "CRITICAL: Không sync auction " + auction.getId()
+                    + " xuống DB. RAM-DB lệch (status/price/totalBids/endTime): " + e.getMessage());
         }
     }
 
