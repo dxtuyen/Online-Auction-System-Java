@@ -12,7 +12,7 @@ package com.auction.model.enums;
  */
 public enum AuctionStatus {
     PENDING("Đang chờ phiên đấu giá bắt đầu"),
-    RUNNING("Phiên đấu giá đang diễn ra"),    // Fix typo: "PHiên" -> "Phiên"
+    RUNNING("Phiên đấu giá đang diễn ra"),
     FINISHED("Phiên đấu giá đã kết thúc"),
     PAID("Đã thanh toán"),
     CANCELED("Đã hủy");

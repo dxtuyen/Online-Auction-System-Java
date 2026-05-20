@@ -3,24 +3,37 @@ package com.auction.client.model;
 import com.auction.client.network.ServerConnection;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
+import com.auction.util.AppLogger;
 import com.auction.util.JsonHelper;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 /**
  * ClientModel — Singleton, trung tâm trạng thái phía client.
  *
  * <ul>
- *   <li>Giữ connection tới server</li>
- *   <li>Lưu thông tin user đang login</li>
- *   <li>Route message từ server: response vào BlockingQueue, push sang handler</li>
- *   <li>Cho Controller gọi {@code sendRequest} + {@code waitForResponse} dễ dàng</li>
+ *   <li>Giữ connection tới server.</li>
+ *   <li>Lưu thông tin user đang login.</li>
+ *   <li>Route message từ server: response (SUCCESS/ERROR) đẩy vào hàng đợi theo
+ *       {@code action} để controller poll; push notification gọi handler đã đăng ký.</li>
  * </ul>
+ *
+ * <p><b>Routing theo action thay vì requestId:</b> tầng controller hiện gửi-rồi-chờ
+ * tuần tự cho mỗi action (xem các Controller {@code waitForResponse(action, ms)}).
+ * Vì 1 màn hình hiếm khi gửi 2 request cùng action đồng thời, model dùng 1 queue cho
+ * mỗi action. Mỗi {@code sendRequest} đảm bảo queue tồn tại; mỗi response đến sẽ
+ * được offer vào queue đúng action; controller poll bằng {@code waitForResponse}.</p>
+ *
+ * <p>Thread-safety: dùng {@link ConcurrentHashMap} + {@link LinkedBlockingQueue} nên
+ * nhiều màn hình/thread có thể gửi-nhận song song không conflict.</p>
  */
 public class ClientModel {
+
+    private static final Logger log = AppLogger.get(ClientModel.class);
 
     private static ClientModel instance;
 
@@ -36,12 +49,10 @@ public class ClientModel {
     private String username;
     private String role;
 
-    // Response queue — Controller gửi request rồi chờ response ở đây
-    // Key = action name, Value = queue chứa response matching
-    private final Map<String, BlockingQueue<Response>> responseQueues = new ConcurrentHashMap<>();
+    /** Queue chờ response cho mỗi action. */
+    private final Map<String, BlockingQueue<Response>> pendingByAction = new ConcurrentHashMap<>();
 
-    // Push handlers — Controller đăng ký lắng nghe push notification
-    // Key = push action, Value = list handler nhận data
+    /** Push handler — Controller đăng ký lắng nghe push (BID_UPDATE, AUCTION_STATUS, ...). */
     private final Map<String, List<Consumer<Map<String, Object>>>> pushHandlers = new ConcurrentHashMap<>();
 
     private ClientModel() {}
@@ -61,6 +72,8 @@ public class ClientModel {
 
     public void disconnect() {
         if (connection != null) connection.disconnect();
+        pendingByAction.clear();
+        pushHandlers.clear();
         userId = null;
         username = null;
         role = null;
@@ -68,59 +81,73 @@ public class ClientModel {
 
     // ============= GỬI REQUEST =============
 
+    /**
+     * Gửi request không block. Sau đó controller gọi {@link #waitForResponse(String, long)}
+     * để lấy response tương ứng.
+     */
     public void sendRequest(String action, Map<String, Object> data) {
+        // Tạo queue trước khi gửi, tránh race: response có thể về sớm hơn lần
+        // poll đầu tiên của controller.
+        pendingByAction.computeIfAbsent(action, k -> new LinkedBlockingQueue<>());
+
         Request req = new Request(action, data, userId);
         connection.send(JsonHelper.toJson(req));
     }
 
     /**
-     * Blocking — gọi trên thread riêng, KHÔNG gọi trên JavaFX thread.
-     * Trả về Response hoặc null nếu timeout.
+     * Đợi response cho 1 action (SUCCESS hoặc ERROR). Block thread hiện tại
+     * tối đa {@code timeoutMs} ms.
+     *
+     * <p><b>KHÔNG gọi trên JavaFX Application Thread</b> — sẽ làm đứng UI.
+     * Controller đang chuyển sang thread riêng (Platform.runLater để update UI sau).</p>
+     *
+     * @return Response, hoặc null nếu timeout.
      */
     public Response waitForResponse(String action, long timeoutMs) {
-        BlockingQueue<Response> queue = new LinkedBlockingQueue<>();
-        responseQueues.put(action, queue);
+        BlockingQueue<Response> q = pendingByAction.computeIfAbsent(
+                action, k -> new LinkedBlockingQueue<>());
         try {
-            return queue.poll(timeoutMs, TimeUnit.MILLISECONDS);
+            return q.poll(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
-        } finally {
-            responseQueues.remove(action);
         }
     }
 
     // ============= NHẬN MESSAGE =============
 
-    /** Callback từ ServerConnection — mỗi dòng JSON từ server sẽ gọi hàm này. */
+    /** Callback từ ServerConnection — mỗi dòng JSON từ server gọi hàm này. */
     private void handleServerMessage(String json) {
         try {
             Response res = JsonHelper.parseResponse(json);
-            String action = res.getAction();
+            if (res == null || res.getAction() == null) return;
 
             if (res.isPush()) {
-                dispatchPush(action, res);
+                dispatchPush(res.getAction(), res);
             } else {
-                // SUCCESS hoặc ERROR → đưa vào queue để waitForResponse() unblock
-                BlockingQueue<Response> queue = responseQueues.get(action);
-                if (queue != null) queue.offer(res);
+                // SUCCESS hoặc ERROR — đẩy vào queue của action tương ứng.
+                BlockingQueue<Response> q = pendingByAction.get(res.getAction());
+                if (q != null) {
+                    q.offer(res);
+                }
+                // Nếu không có queue thì response đến lạc — bỏ (controller đã unmount hoặc
+                // timeout từ trước). Không log để tránh spam.
             }
         } catch (Exception e) {
-            System.err.println("[ClientModel] Lỗi parse: " + e.getMessage());
+            log.warning(() -> "Lỗi parse: " + e.getMessage());
         }
     }
 
     @SuppressWarnings("unchecked")
     private void dispatchPush(String action, Response res) {
         List<Consumer<Map<String, Object>>> handlers = pushHandlers.get(action);
-        if (handlers != null) {
-            Map<String, Object> data = res.getData() instanceof Map
-                    ? (Map<String, Object>) res.getData()
-                    : Map.of();
-            for (Consumer<Map<String, Object>> h : handlers) {
-                try { h.accept(data); }
-                catch (Exception e) { System.err.println("[PushHandler] " + e.getMessage()); }
-            }
+        if (handlers == null || handlers.isEmpty()) return;
+        Map<String, Object> data = res.getData() instanceof Map
+                ? (Map<String, Object>) res.getData()
+                : Map.of();
+        for (Consumer<Map<String, Object>> h : handlers) {
+            try { h.accept(data); }
+            catch (Exception e) { log.warning(() -> "PushHandler: " + e.getMessage()); }
         }
     }
 
@@ -130,7 +157,7 @@ public class ClientModel {
         pushHandlers.computeIfAbsent(action, k -> new CopyOnWriteArrayList<>()).add(handler);
     }
 
-    /** Xóa tất cả handler của các push action bidding (gọi khi rời màn Bidding). */
+    /** Xóa tất cả handler các push action bidding (gọi khi rời màn Bidding). */
     public void clearBiddingPushHandlers() {
         pushHandlers.remove("BID_UPDATE");
         pushHandlers.remove("AUCTION_STATUS");

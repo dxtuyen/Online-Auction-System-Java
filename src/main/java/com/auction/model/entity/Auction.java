@@ -228,10 +228,10 @@ public class Auction extends Entity {
                         "Phiên đấu giá không mở (status=" + status + ")");
             }
 
-            // 2. Bidder không được là seller
-            if (bid.getBidderId().equals(sellerId)) {
+            // 2. Seller không được bid trên phiên của chính mình (chống tự đẩy giá ảo).
+            if (sellerId.equals(bid.getBidderId())) {
                 bid.reject();
-                throw new InvalidBidException("Người bán không thể tự đấu giá sản phẩm của mình");
+                throw new InvalidBidException("Bạn không thể đấu giá phiên của chính mình");
             }
 
             // 3. Số tiền phải >= minNextBid

@@ -33,6 +33,17 @@ public class AutoBid {
         this.active = true;
     }
 
+    /** Restore từ DB - giữ nguyên createdAt và active. */
+    public AutoBid(UUID bidderId, UUID auctionId, BigDecimal maxBid, BigDecimal increment,
+                   LocalDateTime createdAt, boolean active) {
+        this.bidderId = Objects.requireNonNull(bidderId, "bidderId must not be null");
+        this.auctionId = Objects.requireNonNull(auctionId, "auctionId must not be null");
+        this.maxBid = validatePositive(maxBid, "maxBid");
+        this.increment = validatePositive(increment, "increment");
+        this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
+        this.active = active;
+    }
+
     public UUID getBidderId()           { return bidderId; }
     public UUID getAuctionId()          { return auctionId; }
     public BigDecimal getMaxBid()       { return maxBid; }

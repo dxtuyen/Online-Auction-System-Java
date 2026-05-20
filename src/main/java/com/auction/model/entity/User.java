@@ -38,6 +38,8 @@ public class User extends Entity {
 
     /**
      * VALIDATE
+     *
+     * kiểm tra thông số được nhập có hợp lệ không
      */
 
     private static String validateUsername(String username) {
@@ -110,7 +112,7 @@ public class User extends Entity {
 
     /**
      * TẠO USER MỚI
-     * (Caller phải hash password trước - thường gọi qua UserManager.register)
+     * (Caller phải hash password trước - thường qua UserManager.register)
      */
     public User(String username, String hashedPassword, String passwordSalt,
                 String email, String fullName, Role role) {

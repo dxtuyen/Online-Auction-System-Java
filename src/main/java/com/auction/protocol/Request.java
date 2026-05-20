@@ -1,125 +1,142 @@
 package com.auction.protocol;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Request từ Client gửi lên Server.
+ * Request gửi từ Client lên Server.
  *
- * <p>Cấu trúc JSON chuẩn:
+ * <p>Schema JSON:
  * <pre>
  * {
- *   "action": "LOGIN",                    // tên hành động
- *   "data":   { "username":"alice", ... },// tham số tùy action
- *   "token":  "1"                         // id user đã đăng nhập, null nếu chưa
+ *   "action": "PLACE_BID",
+ *   "data":   { "auctionId": "...", "amount": 1000 },
+ *   "token":  "userId-hoặc-session-token",   // optional
+ *   "requestId": "uuid-do-client-sinh"        // optional, dùng để client ghép response
  * }
  * </pre>
+ *
+ * <p>Lưu ý:
+ * <ul>
+ *   <li>{@code action} lưu thành String để Gson không phải xử lý enum khi parse —
+ *       server tự convert sang {@link ActionType} qua {@link ActionType#from(String)}
+ *       trong {@code RequestRouter}.</li>
+ *   <li>{@code token} lưu String thay vì UUID để client gửi linh hoạt (sau này có thể
+ *       đổi sang JWT mà không phải đổi schema). Server CHỈ tin {@code Session},
+ *       KHÔNG tin token client tự gửi.</li>
+ *   <li>Các helper {@code getDataXxx} luôn null-safe — return null/giá trị mặc định
+ *       khi key thiếu để controller không phải lặp NPE check.</li>
+ * </ul>
  */
 public class Request {
 
-    /** Tên hành động: LOGIN, REGISTER, PLACE_BID, LIST_AUCTIONS,... */
     private String action;
-
-    /** Các tham số đi kèm action, có thể rỗng. */
     private Map<String, Object> data;
-
-    /** Id user đang đăng nhập, dạng String để tiện serialize JSON. */
     private String token;
+    private String requestId;
 
-    /** Constructor rỗng — Gson cần để parse JSON. */
+    /** Gson cần constructor rỗng để deserialize. */
     public Request() {}
 
-    /** Constructor đầy đủ — dùng khi code Java muốn tạo Request rồi gửi đi. */
     public Request(String action, Map<String, Object> data, String token) {
         this.action = action;
         this.data = data;
         this.token = token;
     }
 
-    public String getAction() { return action; }
-    public Map<String, Object> getData() { return data; }
-    public String getToken() { return token; }
+    // ============== Getters / Setters ==============
 
+    public String getAction() { return action; }
     public void setAction(String action) { this.action = action; }
+
+    public Map<String, Object> getData() { return data; }
     public void setData(Map<String, Object> data) { this.data = data; }
+
+    public String getToken() { return token; }
     public void setToken(String token) { this.token = token; }
 
-    // ---------- Helpers lấy value từ data an toàn ----------
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
 
-    /** Lấy giá trị String từ data (trả null nếu không có). */
+    // ============== Helpers đọc data null-safe ==============
+
     public String getDataString(String key) {
-        Object val = data != null ? data.get(key) : null;
-        return val != null ? val.toString() : null;
+        if (data == null || key == null) return null;
+        Object val = data.get(key);
+        if (val == null) return null;
+        return val.toString();
     }
 
-    /** Lấy double — Gson parse số JSON mặc định thành Double. */
-    public double getDataDouble(String key) {
-        Object val = data != null ? data.get(key) : null;
-        if (val instanceof Number n) return n.doubleValue();
-        return 0;
-    }
-
-    /** Lấy int — convert từ Number về int. */
-    public int getDataInt(String key) {
-        Object val = data != null ? data.get(key) : null;
-        if (val instanceof Number n) return n.intValue();
-        return 0;
-    }
-
-    // ---------- Helpers BẮT BUỘC: ném IllegalArgumentException nếu thiếu/sai ----------
-    // RequestRouter đã catch RuntimeException và bọc thành Response.error(action, message),
-    // nên client sẽ nhận về message thân thiện thay vì stack trace của NPE.
-
-    /** Bắt buộc có giá trị String non-blank, ném lỗi friendly nếu thiếu. */
-    public String requireString(String key) {
-        String val = getDataString(key);
-        if (val == null || val.isBlank()) {
-            throw new IllegalArgumentException("Thiếu trường '" + key + "'");
+    public Integer getDataInteger(String key) {
+        if (data == null || key == null) return null;
+        Object val = data.get(key);
+        if (val == null) return null;
+        if (val instanceof Number) {
+            return ((Number) val).intValue();
         }
-        return val;
+        try {
+            return Integer.parseInt(val.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
-    /** Parse UUID bắt buộc — chuẩn hóa lỗi "thiếu" và "sai format" thành cùng format message. */
-    public UUID requireUUID(String key) {
-        String val = requireString(key);
+    /** Tiện cho controller — trả 0 khi thiếu/parse fail (caller tự validate sau đó). */
+    public int getDataInt(String key) {
+        Integer v = getDataInteger(key);
+        return v == null ? 0 : v;
+    }
+
+    public Double getDataDouble(String key) {
+        if (data == null || key == null) return null;
+        Object val = data.get(key);
+        if (val == null) return null;
+        if (val instanceof Number) {
+            return ((Number) val).doubleValue();
+        }
+        try {
+            return Double.parseDouble(val.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    public boolean getDataBoolean(String key) {
+        if (data == null || key == null) return false;
+        Object v = data.get(key);
+        if (v == null) return false;
+        if (v instanceof Boolean) {
+            return (Boolean) v;
+        }
+        try {
+            return Boolean.parseBoolean(v.toString());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    public UUID getDataUUID(String key) {
+        String val = getDataString(key);
+        if (val == null || val.isBlank()) return null;
         try {
             return UUID.fromString(val);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "Trường '" + key + "' không phải UUID hợp lệ: " + val);
+            return null;
         }
     }
 
-    /** Parse enum bắt buộc — báo lỗi friendly nếu giá trị không thuộc enum. */
-    public <E extends Enum<E>> E requireEnum(Class<E> enumClass, String key) {
-        String val = requireString(key);
+    /**
+     * BigDecimal cho số tiền — bắt buộc dùng để giữ precision.
+     * Gson đã được config dùng BIG_DECIMAL policy nên Number ở đây thường đã là BigDecimal.
+     */
+    public BigDecimal getDataDecimal(String key) {
+        String val = getDataString(key);
+        if (val == null || val.isBlank()) return null;
         try {
-            return Enum.valueOf(enumClass, val);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "Trường '" + key + "' không hợp lệ: " + val);
+            return new BigDecimal(val);
+        } catch (NumberFormatException e) {
+            return null;
         }
-    }
-
-    /** Lấy double bắt buộc — phân biệt "thiếu" với "không phải số". */
-    public double requireDouble(String key) {
-        Object val = data != null ? data.get(key) : null;
-        if (val == null) {
-            throw new IllegalArgumentException("Thiếu trường '" + key + "'");
-        }
-        if (val instanceof Number n) return n.doubleValue();
-        throw new IllegalArgumentException(
-                "Trường '" + key + "' phải là số: " + val);
-    }
-
-    /** Lấy int bắt buộc — phân biệt "thiếu" với "không phải số". */
-    public int requireInt(String key) {
-        Object val = data != null ? data.get(key) : null;
-        if (val == null) {
-            throw new IllegalArgumentException("Thiếu trường '" + key + "'");
-        }
-        if (val instanceof Number n) return n.intValue();
-        throw new IllegalArgumentException(
-                "Trường '" + key + "' phải là số: " + val);
     }
 }

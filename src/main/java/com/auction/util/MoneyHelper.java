@@ -1,0 +1,73 @@
+package com.auction.util;
+
+import java.math.BigDecimal;
+import java.util.regex.Pattern;
+
+/**
+ * Helper cho các thao tác tiền tệ cần độ chính xác tuyệt đối.
+ *
+ * <p>Tách riêng 2 bài toán:
+ * <ul>
+ *   <li>Parse input người dùng nhập ở UI: cho phép dấu phân tách hàng nghìn.</li>
+ *   <li>Parse payload request: nhận String/Number và giữ nguyên độ chính xác bằng BigDecimal.</li>
+ * </ul>
+ * </p>
+ */
+public final class MoneyHelper {
+
+    private static final Pattern WHOLE_AMOUNT_INPUT =
+            Pattern.compile("^\\d+$|^\\d{1,3}(?:[.,\\s_]\\d{3})+$");
+
+    private MoneyHelper() { /* utility */ }
+
+    /**
+     * Parse số tiền nguyên từ UI.
+     *
+     * <p>Chấp nhận:
+     * <code>1000000</code>, <code>1.000.000</code>, <code>1,000,000</code>, <code>1 000 000</code>.</p>
+     */
+    public static BigDecimal parseWholeAmountInput(String raw, String fieldLabel) {
+        if (raw == null || raw.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldLabel + " không được để trống");
+        }
+
+        String trimmed = raw.trim();
+        if (!WHOLE_AMOUNT_INPUT.matcher(trimmed).matches()) {
+            throw new IllegalArgumentException(fieldLabel + " không hợp lệ");
+        }
+
+        String normalized = trimmed.replaceAll("[.,\\s_]", "");
+        return new BigDecimal(normalized);
+    }
+
+    /**
+     * Parse số tiền trong payload request mà không đi qua double.
+     */
+    public static BigDecimal parseRequestAmount(Object rawValue, String fieldName) {
+        if (rawValue == null) {
+            throw new IllegalArgumentException("Thiếu trường '" + fieldName + "'");
+        }
+
+        if (rawValue instanceof BigDecimal bd) {
+            return bd;
+        }
+        if (rawValue instanceof Number n) {
+            return new BigDecimal(n.toString());
+        }
+        if (rawValue instanceof String s) {
+            String trimmed = s.trim();
+            if (trimmed.isEmpty()) {
+                throw new IllegalArgumentException("Thiếu trường '" + fieldName + "'");
+            }
+            try {
+                return new BigDecimal(trimmed);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(
+                        "Trường '" + fieldName + "' phải là số tiền hợp lệ: " + rawValue);
+            }
+        }
+
+        throw new IllegalArgumentException(
+                "Trường '" + fieldName + "' phải là số tiền hợp lệ: " + rawValue);
+    }
+}

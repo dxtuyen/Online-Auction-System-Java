@@ -7,32 +7,61 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * Controller cho màn Đăng ký.
+ *
+ * <p>{@code txtBalance} optional: bỏ trống → server set balance = 0; có giá trị thì gửi
+ * dạng String để giữ precision (BigDecimal).</p>
+ */
 public class RegisterController {
 
-    @FXML private TextField txtUsername;
-    @FXML private PasswordField txtPassword;
-    @FXML private TextField txtEmail;
     @FXML private TextField txtFullName;
+    @FXML private TextField txtUsername;
+    @FXML private TextField txtEmail;
+    @FXML private PasswordField txtPassword;
+    @FXML private TextField txtBalance;
     @FXML private Label lblError;
     @FXML private Button btnRegister;
 
     @FXML
     private void initialize() {
         lblError.setText("");
+        txtPassword.setOnAction(e -> handleRegister());
     }
 
     @FXML
     private void handleRegister() {
-        String username = txtUsername.getText().trim();
+        String fullName = safeText(txtFullName);
+        String username = safeText(txtUsername);
+        String email = safeText(txtEmail);
         String password = txtPassword.getText();
-        String email = txtEmail.getText().trim();
-        String fullName = txtFullName.getText().trim();
+        String balanceText = safeText(txtBalance);
 
-        if (username.isEmpty() || password.isEmpty() || email.isEmpty() || fullName.isEmpty()) {
-            lblError.setText("Nhập đầy đủ thông tin");
+        if (fullName.isEmpty() || username.isEmpty()
+                || email.isEmpty() || password.isEmpty()) {
+            lblError.setText("Vui lòng nhập đầy đủ thông tin bắt buộc");
             return;
+        }
+        if (password.length() < 6) {
+            lblError.setText("Mật khẩu phải ít nhất 6 ký tự");
+            return;
+        }
+        // Validate balance format nếu có nhập — server chưa nhận field này
+        // (default = 0) nhưng vẫn check để feedback sớm cho user.
+        if (!balanceText.isEmpty()) {
+            try {
+                if (new BigDecimal(balanceText).signum() < 0) {
+                    lblError.setText("Số dư không được âm");
+                    return;
+                }
+            } catch (NumberFormatException e) {
+                lblError.setText("Số dư phải là số");
+                return;
+            }
         }
 
         btnRegister.setDisable(true);
@@ -42,11 +71,16 @@ public class RegisterController {
                 ClientModel model = ClientModel.getInstance();
                 if (!model.isConnected()) model.connect("localhost", 8888);
 
-                model.sendRequest("REGISTER", Map.of(
-                        "username", username,
-                        "password", password,
-                        "email", email,
-                        "fullName", fullName));
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("username", username);
+                payload.put("password", password);
+                payload.put("email", email);
+                payload.put("fullName", fullName);
+                if (!balanceText.isEmpty()) {
+                    // Gửi String để server parse BigDecimal — giữ precision.
+                    payload.put("initialBalance", balanceText);
+                }
+                model.sendRequest("REGISTER", payload);
                 Response res = model.waitForResponse("REGISTER", 5000);
 
                 Platform.runLater(() -> {
@@ -55,18 +89,24 @@ public class RegisterController {
                         ClientApp.showInfo("Đăng ký thành công! Hãy đăng nhập.");
                         ClientApp.switchScene("login.fxml");
                     } else {
-                        lblError.setText(res != null ? res.getMessage() : "Lỗi đăng ký");
+                        lblError.setText(res != null ? res.getMessage() : "Không phản hồi từ server");
                     }
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     btnRegister.setDisable(false);
-                    lblError.setText("Lỗi: " + e.getMessage());
+                    lblError.setText("Lỗi kết nối: " + e.getMessage());
                 });
             }
-        }).start();
+        }, "register-worker").start();
     }
 
     @FXML
-    private void goToLogin() { ClientApp.switchScene("login.fxml"); }
+    private void goToLogin() {
+        ClientApp.switchScene("login.fxml");
+    }
+
+    private static String safeText(TextField f) {
+        return f.getText() == null ? "" : f.getText().trim();
+    }
 }

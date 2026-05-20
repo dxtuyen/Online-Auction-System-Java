@@ -11,7 +11,12 @@ import javafx.scene.control.*;
 
 import java.util.*;
 
-/** Controller hiển thị danh sách phiên đấu giá. */
+/**
+ * Controller hiển thị danh sách phiên đấu giá.
+ *
+ * <p>Sửa sau refactor: mọi ID giờ là UUID String (server gửi dạng String, không phải int).
+ * Role enum chỉ có ADMIN/NORMAL nên seller-only UI bật cho mọi user không phải admin.</p>
+ */
 public class AuctionListController {
 
     @FXML private TableView<Map<String, Object>> tblAuctions;
@@ -30,16 +35,15 @@ public class AuctionListController {
     @FXML
     private void initialize() {
         ClientModel model = ClientModel.getInstance();
-        lblUserInfo.setText(String.format("Xin chào, %s",
-                model.getUsername() == null ? "" : model.getUsername()));
+        lblUserInfo.setText(String.format("Xin chào, %s (%s)",
+                model.getUsername(), model.getRole()));
         loadProfileSummary();
 
-        // User thường (NORMAL) đều có thể tạo phiên đấu giá — chỉ ADMIN bị ẩn nút
+        // ADMIN không có quyền bán; mọi role khác (hiện tại chỉ NORMAL) đều thấy nút tạo phiên.
         if (!"ADMIN".equals(model.getRole())) btnCreateAuction.setVisible(true);
 
-        // Bind từng cột với key trong Map — PropertyValueFactory không dùng được cho Map.
-        // ID là UUID dài 36 ký tự nên hiển thị 8 ký tự đầu cho gọn.
-        colId.setCellValueFactory(cd -> new SimpleStringProperty(shortId(str(cd.getValue(), "auctionId"))));
+        // Bind từng cột với key trong Map — PropertyValueFactory không dùng được cho Map
+        colId.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "auctionId")));
         colItem.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "itemName")));
         colCategory.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "itemCategory")));
         colPrice.setCellValueFactory(cd -> new SimpleStringProperty(
@@ -49,7 +53,7 @@ public class AuctionListController {
 
         tblAuctions.setItems(allData);
 
-        // Double-click → mở bidding screen
+        // Double-click → mở bidding screen. auctionId là UUID String.
         tblAuctions.setOnMouseClicked(event -> {
             if (event.getClickCount() == 2) {
                 Map<String, Object> sel = tblAuctions.getSelectionModel().getSelectedItem();
@@ -114,8 +118,14 @@ public class AuctionListController {
 
     @FXML
     private void handleLogout() {
-        ClientModel.getInstance().disconnect();
-        ClientApp.switchScene("login.fxml");
+        // disconnect() gọi socket/reader/writer.close() — I/O đồng bộ.
+        // Nếu chạy trên FX thread, UI sẽ treo (đặc biệt Windows + writer.close flush).
+        // Đẩy sang background; switchScene chỉ chạy SAU KHI disconnect xong để login
+        // tiếp theo không bị race với socket đang đóng.
+        new Thread(() -> {
+            ClientModel.getInstance().disconnect();
+            Platform.runLater(() -> ClientApp.switchScene("login.fxml"));
+        }, "logout-cleanup").start();
     }
 
     @FXML
@@ -151,18 +161,19 @@ public class AuctionListController {
         }).start();
     }
 
+    /**
+     * Profile dùng field {@code balance} (số dư có thể chi) và {@code revenue} (doanh thu bán).
+     * Hệ thống hiện chưa reserve balance lúc bid nên không có concept available/reserved riêng.
+     */
     private String formatProfileSummary(Map<String, Object> data) {
         String base = String.format("Xin chào, %s (%s)", str(data, "username"), str(data, "displayRole"));
         if ("ADMIN".equals(str(data, "role"))) return base;
-        return base + " | Số dư: " + formatMoney(data.get("balance"))
-                + " | Doanh thu: " + formatMoney(data.get("revenue"));
+        return base + " | Số dư: " + formatMoney(data.get("balance"));
     }
 
     private String formatProfileDetails(Map<String, Object> data) {
         StringBuilder sb = new StringBuilder();
         sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
-        sb.append("Email: ").append(str(data, "email")).append('\n');
-        sb.append("Họ tên: ").append(str(data, "fullName")).append('\n');
         sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
         sb.append("Trạng thái: ").append(str(data, "displayStatus"));
         if (!"ADMIN".equals(str(data, "role"))) {
@@ -175,15 +186,8 @@ public class AuctionListController {
     private String str(Map<String, Object> m, String k) {
         Object v = m.get(k);
         if (v == null) return "";
-        // Gson parse số JSON thành Double — render integer cho gọn (totalBids = "3" thay vì "3.0").
-        if (v instanceof Number n) return String.valueOf(n.longValue());
+        if (v instanceof Number n) return String.valueOf(n.intValue());
         return v.toString();
-    }
-
-    /** Hiển thị 8 ký tự đầu của UUID cho gọn — UUID đầy đủ 36 ký tự khó đọc. */
-    private String shortId(String id) {
-        if (id == null || id.length() <= 8) return id == null ? "" : id;
-        return id.substring(0, 8);
     }
 
     private String formatMoney(Object v) {
