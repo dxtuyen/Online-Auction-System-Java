@@ -27,18 +27,18 @@ public final class MysqlUserDao implements UserDao {
 
     private static final String COLS =
             "id, created_at, updated_at, username, hashed_password, password_salt, " +
-            "email, full_name, user_status, role, balance, revenue";
+            "email, full_name, user_status, role, balance, revenue, avatar_url";
 
     private static final String SELECT_ALL =
             "SELECT " + COLS + " FROM users";
 
     private static final String INSERT_SQL =
-            "INSERT INTO users (" + COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
+            "INSERT INTO users (" + COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private static final String UPDATE_SQL =
             "UPDATE users SET updated_at=?, hashed_password=?, password_salt=?, " +
-            "email=?, full_name=?, user_status=?, role=?, balance=?, revenue=? " +
-            "WHERE id=?";
+            "email=?, full_name=?, user_status=?, role=?, balance=?, revenue=?, " +
+            "avatar_url=? WHERE id=?";
 
     private final Database db;
 
@@ -65,6 +65,7 @@ public final class MysqlUserDao implements UserDao {
             ps.setString(10, user.getRole().name());
             ps.setBigDecimal(11, user.getBalance());
             ps.setBigDecimal(12, user.getRevenue());
+            ps.setString(13, user.getAvatarUrl());
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new PersistenceException("Insert user thất bại: " + e.getMessage(), e);
@@ -85,7 +86,8 @@ public final class MysqlUserDao implements UserDao {
             ps.setString(7, user.getRole().name());
             ps.setBigDecimal(8, user.getBalance());
             ps.setBigDecimal(9, user.getRevenue());
-            ps.setString(10, user.getId().toString());
+            ps.setString(10, user.getAvatarUrl());
+            ps.setString(11, user.getId().toString());
             int n = ps.executeUpdate();
             if (n == 0) {
                 throw new PersistenceException("User không tồn tại trong DB: " + user.getId());
@@ -170,7 +172,8 @@ public final class MysqlUserDao implements UserDao {
                 UserStatus.valueOf(rs.getString("user_status")),
                 Role.valueOf(rs.getString("role")),
                 balance == null ? BigDecimal.ZERO : balance,
-                revenue == null ? BigDecimal.ZERO : revenue
+                revenue == null ? BigDecimal.ZERO : revenue,
+                rs.getString("avatar_url")
         );
     }
 

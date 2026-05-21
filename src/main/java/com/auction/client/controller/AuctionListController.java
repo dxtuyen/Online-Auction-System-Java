@@ -2,12 +2,15 @@ package com.auction.client.controller;
 
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
+import com.auction.client.util.ImageCacheService;
 import com.auction.protocol.Response;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.*;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
+import javafx.scene.shape.Circle;
 
 import java.util.*;
 
@@ -20,6 +23,7 @@ import java.util.*;
 public class AuctionListController {
 
     @FXML private TableView<Map<String, Object>> tblAuctions;
+    @FXML private TableColumn<Map<String, Object>, String> colImage;
     @FXML private TableColumn<Map<String, Object>, String> colId;
     @FXML private TableColumn<Map<String, Object>, String> colItem;
     @FXML private TableColumn<Map<String, Object>, String> colCategory;
@@ -29,6 +33,7 @@ public class AuctionListController {
     @FXML private TextField txtSearch;
     @FXML private Label lblUserInfo;
     @FXML private Button btnCreateAuction;
+    @FXML private ImageView imgHeaderAvatar;
 
     private final ObservableList<Map<String, Object>> allData = FXCollections.observableArrayList();
 
@@ -37,12 +42,15 @@ public class AuctionListController {
         ClientModel model = ClientModel.getInstance();
         lblUserInfo.setText(String.format("Xin chào, %s (%s)",
                 model.getUsername(), model.getRole()));
+        imgHeaderAvatar.setClip(new Circle(16, 16, 16));
         loadProfileSummary();
 
         // ADMIN không có quyền bán; mọi role khác (hiện tại chỉ NORMAL) đều thấy nút tạo phiên.
         if (!"ADMIN".equals(model.getRole())) btnCreateAuction.setVisible(true);
 
         // Bind từng cột với key trong Map — PropertyValueFactory không dùng được cho Map
+        colImage.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "imageUrl")));
+        colImage.setCellFactory(c -> new ThumbnailCell());
         colId.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "auctionId")));
         colItem.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "itemName")));
         colCategory.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "itemCategory")));
@@ -130,7 +138,8 @@ public class AuctionListController {
 
     @FXML
     private void handleViewAccount() {
-        requestProfile(data -> ClientApp.showInfo(formatProfileDetails(data)));
+        ClientApp.switchSceneWithData("profile.fxml", ctrl ->
+                ((ProfileController) ctrl).setBackFxml("auction_list.fxml"));
     }
 
     @FXML
@@ -139,7 +148,13 @@ public class AuctionListController {
     }
 
     private void loadProfileSummary() {
-        requestProfile(data -> lblUserInfo.setText(formatProfileSummary(data)));
+        requestProfile(data -> {
+            lblUserInfo.setText(formatProfileSummary(data));
+            String avatarUrl = data.get("avatarUrl") == null ? null : data.get("avatarUrl").toString();
+            if (avatarUrl != null && !avatarUrl.isBlank()) {
+                ImageCacheService.getInstance().loadAsync(avatarUrl, imgHeaderAvatar::setImage);
+            }
+        });
     }
 
     private void requestProfile(java.util.function.Consumer<Map<String, Object>> onSuccess) {
@@ -171,18 +186,6 @@ public class AuctionListController {
         return base + " | Số dư: " + formatMoney(data.get("balance"));
     }
 
-    private String formatProfileDetails(Map<String, Object> data) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
-        sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
-        sb.append("Trạng thái: ").append(str(data, "displayStatus"));
-        if (!"ADMIN".equals(str(data, "role"))) {
-            sb.append('\n').append("Số dư: ").append(formatMoney(data.get("balance")));
-            sb.append('\n').append("Doanh thu: ").append(formatMoney(data.get("revenue")));
-        }
-        return sb.toString();
-    }
-
     private String str(Map<String, Object> m, String k) {
         Object v = m.get(k);
         if (v == null) return "";
@@ -193,5 +196,28 @@ public class AuctionListController {
     private String formatMoney(Object v) {
         if (v instanceof Number n) return String.format("%,.0f VNĐ", n.doubleValue());
         return "0 VNĐ";
+    }
+
+    /**
+     * Cell hiển thị thumbnail. Reuse ImageView để khỏi tạo node mới mỗi lần TableView
+     * scroll/re-render — JavaFX tái dùng cell instance, chỉ updateItem được gọi lại.
+     */
+    private static final class ThumbnailCell extends TableCell<Map<String, Object>, String> {
+        private final ImageView view = new ImageView();
+        ThumbnailCell() {
+            view.setFitWidth(60);
+            view.setFitHeight(60);
+            view.setPreserveRatio(false);
+            setGraphic(view);
+        }
+        @Override protected void updateItem(String url, boolean empty) {
+            super.updateItem(url, empty);
+            if (empty || url == null || url.isBlank()) {
+                view.setImage(null);
+            } else {
+                view.setImage(null);   // placeholder trước khi tải xong
+                ImageCacheService.getInstance().loadAsync(url, view::setImage);
+            }
+        }
     }
 }

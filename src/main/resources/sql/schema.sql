@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
     user_status   ENUM('ACTIVE','BANNED') NOT NULL DEFAULT 'ACTIVE',
     role          ENUM('ADMIN','NORMAL')  NOT NULL DEFAULT 'NORMAL',
     balance       DECIMAL(19,4)  NOT NULL DEFAULT 0,
-    revenue       DECIMAL(19,4)  NOT NULL DEFAULT 0
+    revenue       DECIMAL(19,4)  NOT NULL DEFAULT 0,
+    avatar_url    VARCHAR(500)
 );
 
 -- Single-table inheritance: một bảng cho mọi loại Item

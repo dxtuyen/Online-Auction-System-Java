@@ -10,7 +10,10 @@
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.Separator?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.shape.Rectangle?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.HBox?>
@@ -43,6 +46,10 @@
                <children>
                   <VBox prefHeight="331.0" prefWidth="442.0" spacing="10.0" styleClass="card">
                      <children>
+                        <StackPane>
+                           <Rectangle arcHeight="10" arcWidth="10" fill="#e5e7eb" height="200" stroke="#cbd5e1" width="400" />
+                           <ImageView fx:id="imgItem" fitHeight="200" fitWidth="400" preserveRatio="true" />
+                        </StackPane>
                         <Label fx:id="lblItemName" styleClass="label-title" />
                         <Label fx:id="lblItemInfo" styleClass="label-muted" />
                         <Separator prefHeight="0.0" prefWidth="403.0">

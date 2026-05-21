@@ -5,7 +5,10 @@
 <?import javafx.collections.*?>
 <?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.Circle?>
+<?import javafx.scene.shape.Rectangle?>
 
 <BorderPane prefHeight="620" prefWidth="920" style="-fx-background-color: #f8fafc;" xmlns:fx="http://javafx.com/fxml/1" xmlns="http://javafx.com/javafx/17.0.12" fx:controller="com.auction.client.controller.SellerDashboardController">
    <stylesheets>
@@ -17,6 +20,10 @@
          <Button onAction="#goBack" styleClass="btn-secondary" text="← Quay lại" />
          <Label styleClass="header-title" text="🏪 Dashboard người bán" />
          <Region HBox.hgrow="ALWAYS" />
+         <StackPane>
+            <Circle radius="16" style="-fx-fill: #e5e7eb; -fx-stroke: #cbd5e1; -fx-stroke-width: 1;" />
+            <ImageView fx:id="imgHeaderAvatar" fitHeight="32" fitWidth="32" preserveRatio="false" />
+         </StackPane>
          <Label fx:id="lblUserInfo" styleClass="muted-label" />
          <Button onAction="#handleViewAccount" styleClass="btn-secondary" text="Tài khoản" />
       </HBox>
@@ -101,6 +108,18 @@
             <Label text="Thuộc tính (tùy chọn):" />
             <TextField fx:id="txtBrand" promptText="Hãng/Tác giả" styleClass="text-input" />
             <TextField fx:id="txtModel" promptText="Model/Năm" styleClass="text-input" />
+
+            <Label text="Ảnh sản phẩm:" />
+            <HBox alignment="CENTER_LEFT" spacing="10">
+               <StackPane>
+                  <Rectangle fx:id="itemImagePreview" arcHeight="8" arcWidth="8" fill="#e5e7eb" height="80" stroke="#cbd5e1" width="80" />
+                  <ImageView fx:id="imgItemPreview" fitHeight="80" fitWidth="80" preserveRatio="false" />
+               </StackPane>
+               <VBox spacing="4">
+                  <Button onAction="#handlePickItemImage" styleClass="btn-secondary" text="Chọn ảnh..." />
+                  <Label fx:id="lblItemImageName" styleClass="muted-label" />
+               </VBox>
+            </HBox>
 
             <Button maxWidth="Infinity" onAction="#handleCreateItem" styleClass="btn-primary" text="Thêm sản phẩm" />
             <Label fx:id="lblItemStatus" styleClass="muted-label" wrapText="true" />

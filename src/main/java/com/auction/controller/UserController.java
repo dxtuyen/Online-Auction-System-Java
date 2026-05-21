@@ -2,6 +2,7 @@ package com.auction.controller;
 
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
+import com.auction.service.ImageStorageService;
 import com.auction.service.UserManager;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
@@ -27,6 +28,7 @@ public final class UserController {
     public static UserController getInstance() { return Holder.I; }
 
     private final UserManager userManager = UserManager.getInstance();
+    private final ImageStorageService imageStorage = ImageStorageService.getInstance();
 
     /**
      * Đăng nhập. Lưu userId vào Session để các request sau biết "tôi là ai".
@@ -47,6 +49,7 @@ public final class UserController {
         data.put("displayStatus", user.getUserStatus().getDisplayName());
         data.put("role", user.getRole().name());
         data.put("displayRole", user.getRole().getDisplayRole());
+        data.put("avatarUrl", user.getAvatarUrl());
 
         return Response.success("LOGIN", "Đăng nhập thành công", data);
     }
@@ -103,7 +106,116 @@ public final class UserController {
         data.put("displayStatus", user.getUserStatus().getDisplayName());
         data.put("balance", user.getBalance());
         data.put("revenue", user.getRevenue());
+        data.put("avatarUrl", user.getAvatarUrl());
 
         return Response.success("GET_PROFILE", null, data);
+    }
+
+    /**
+     * Cập nhật fullName và/hoặc email cho user đang đăng nhập.
+     *
+     * <p>Trường nào client không gửi (null/blank) thì giữ nguyên — cho phép sửa
+     * từng field riêng. Email đi qua {@link UserManager#changeEmail} để index
+     * không lệch state.</p>
+     */
+    public Response updateProfile(Request req, ClientHandler ctx) {
+        UUID userId = ctx.getSession().getCurrentUserId();
+        User user = userManager.findById(userId).orElse(null);
+        if (user == null) {
+            return Response.error("UPDATE_PROFILE", "Không tìm thấy người dùng hiện tại");
+        }
+
+        String fullName = req.getDataString("fullName");
+        String email = req.getDataString("email");
+
+        boolean changed = false;
+        if (fullName != null && !fullName.isBlank()
+                && !fullName.trim().equals(user.getFullName())) {
+            user.setFullName(fullName);
+            userManager.save(user);
+            changed = true;
+        }
+        if (email != null && !email.isBlank()
+                && !email.trim().equalsIgnoreCase(user.getEmail())) {
+            userManager.changeEmail(user, email);
+            changed = true;
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("fullName", user.getFullName());
+        data.put("email", user.getEmail());
+        String msg = changed ? "Cập nhật thông tin thành công" : "Không có thay đổi";
+        return Response.success("UPDATE_PROFILE", msg, data);
+    }
+
+    /**
+     * Đổi mật khẩu — bắt buộc khớp mật khẩu cũ trước khi đặt mới.
+     */
+    public Response changePassword(Request req, ClientHandler ctx) {
+        UUID userId = ctx.getSession().getCurrentUserId();
+        User user = userManager.findById(userId).orElse(null);
+        if (user == null) {
+            return Response.error("CHANGE_PASSWORD", "Không tìm thấy người dùng hiện tại");
+        }
+
+        String oldPassword = req.getDataString("oldPassword");
+        String newPassword = req.getDataString("newPassword");
+        if (oldPassword == null || newPassword == null) {
+            return Response.error("CHANGE_PASSWORD", "Vui lòng nhập đầy đủ mật khẩu cũ và mới");
+        }
+        if (!user.checkPassword(oldPassword)) {
+            return Response.error("CHANGE_PASSWORD", "Mật khẩu cũ không đúng");
+        }
+        if (newPassword.length() < 6) {
+            return Response.error("CHANGE_PASSWORD", "Mật khẩu mới phải >= 6 ký tự");
+        }
+        user.changePassword(newPassword);
+        userManager.save(user);
+        return Response.success("CHANGE_PASSWORD", "Đổi mật khẩu thành công", null);
+    }
+
+    /**
+     * Nhận base64 bytes từ client, lưu file ở uploads/avatars/, cập nhật DB.
+     * Payload: {@code fileName, dataBase64}.
+     */
+    public Response uploadAvatar(Request req, ClientHandler ctx) {
+        UUID userId = ctx.getSession().getCurrentUserId();
+        User user = userManager.findById(userId).orElse(null);
+        if (user == null) {
+            return Response.error("UPLOAD_AVATAR", "Không tìm thấy người dùng hiện tại");
+        }
+
+        String fileName = req.getDataString("fileName");
+        String base64 = req.getDataString("dataBase64");
+        if (base64 == null || base64.isBlank()) {
+            return Response.error("UPLOAD_AVATAR", "Thiếu dữ liệu ảnh");
+        }
+
+        String url = imageStorage.save(ImageStorageService.AVATAR_DIR, base64, fileName);
+        user.setAvatarUrl(url);
+        userManager.save(user);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("avatarUrl", url);
+        return Response.success("UPLOAD_AVATAR", "Đã cập nhật ảnh đại diện", data);
+    }
+
+    /**
+     * Trả bytes ảnh dạng base64 theo URL tương đối. PUBLIC để mọi user load
+     * avatar/thumbnail mà không cần check ownership.
+     */
+    public Response getImage(Request req, ClientHandler ctx) {
+        String url = req.getDataString("url");
+        if (url == null || url.isBlank()) {
+            return Response.error("GET_IMAGE", "Thiếu url");
+        }
+        String base64 = imageStorage.loadAsBase64(url);
+        if (base64 == null) {
+            return Response.error("GET_IMAGE", "Không tìm thấy ảnh");
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("url", url);
+        data.put("dataBase64", base64);
+        return Response.success("GET_IMAGE", null, data);
     }
 }

@@ -168,6 +168,38 @@ public final class UserManager {
     }
 
     /**
+     * Đổi email cho user — đồng bộ {@link #emailIndex} với User entity.
+     *
+     * <p>Bắt buộc đi qua đây thay vì gọi trực tiếp {@code user.setEmail()} để giữ index
+     * trùng với state thật + check trùng email với user khác.</p>
+     *
+     * @throws IllegalStateException nếu email mới đã có user khác dùng
+     */
+    public void changeEmail(User user, String newEmail) {
+        Objects.requireNonNull(user, "user must not be null");
+        Objects.requireNonNull(newEmail, "newEmail must not be null");
+        String newKey = newEmail.trim().toLowerCase();
+        String oldKey = user.getEmail().toLowerCase();
+        if (newKey.equals(oldKey)) {
+            user.setEmail(newEmail);  // validate format dù key không đổi
+            dao.update(user);
+            return;
+        }
+        UUID owner = emailIndex.putIfAbsent(newKey, user.getId());
+        if (owner != null && !owner.equals(user.getId())) {
+            throw new IllegalStateException("Email '" + newEmail.trim() + "' đã được sử dụng");
+        }
+        try {
+            user.setEmail(newEmail);
+            dao.update(user);
+        } catch (RuntimeException e) {
+            emailIndex.remove(newKey, user.getId());
+            throw e;
+        }
+        emailIndex.remove(oldKey, user.getId());
+    }
+
+    /**
      * Sync entity state xuống DB sau khi caller mutate User (setBalance, ban, activate...).
      * <p>
      * VÍ DỤ DÙNG:

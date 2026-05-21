@@ -12,10 +12,15 @@ public enum ActionType {
     REGISTER,
     LOGOUT,
     GET_PROFILE,
+    UPDATE_PROFILE,
+    CHANGE_PASSWORD,
+    UPLOAD_AVATAR,
+    GET_IMAGE,
 
     // ============== ITEM ==============
     CREATE_ITEM,
     LIST_MY_ITEMS,
+    UPLOAD_ITEM_IMAGE,
 
     // ============== AUCTION ==============
     LIST_AUCTIONS,

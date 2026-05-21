@@ -2,6 +2,7 @@ package com.auction.client.controller;
 
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
+import com.auction.client.util.ImageCacheService;
 import com.auction.protocol.Response;
 import javafx.animation.*;
 import javafx.application.Platform;
@@ -9,6 +10,7 @@ import javafx.collections.*;
 import javafx.fxml.FXML;
 import javafx.scene.chart.*;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
 import javafx.util.Duration;
 
 import java.math.BigDecimal;
@@ -26,6 +28,7 @@ import java.util.*;
 public class BiddingController {
 
     // Info labels
+    @FXML private ImageView imgItem;
     @FXML private Label lblItemName;
     @FXML private Label lblItemInfo;
     @FXML private Label lblStartPrice;
@@ -140,6 +143,10 @@ public class BiddingController {
     private void updateUI(Map<String, Object> data) {
         lblItemName.setText(str(data, "itemName"));
         lblItemInfo.setText(str(data, "itemDescription"));
+        String imageUrl = str(data, "imageUrl");
+        if (!imageUrl.isBlank()) {
+            ImageCacheService.getInstance().loadAsync(imageUrl, imgItem::setImage);
+        }
         lblStartPrice.setText(formatMoney(data.get("startingPrice")));
         lblCurrentPrice.setText(formatMoney(data.get("currentPrice")));
         lblIncrement.setText(formatMoney(data.get("minimumIncrement")));

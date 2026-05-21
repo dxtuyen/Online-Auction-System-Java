@@ -62,12 +62,17 @@ public final class RequestRouter {
         register(ActionType.REGISTER,     AuthLevel.PUBLIC, user::register);
         register(ActionType.LOGOUT,       AuthLevel.USER,   user::logout);
         register(ActionType.GET_PROFILE,  AuthLevel.USER,   user::getProfile);
+        register(ActionType.UPDATE_PROFILE, AuthLevel.USER, user::updateProfile);
+        register(ActionType.CHANGE_PASSWORD, AuthLevel.USER, user::changePassword);
+        register(ActionType.UPLOAD_AVATAR, AuthLevel.USER, user::uploadAvatar);
+        register(ActionType.GET_IMAGE, AuthLevel.PUBLIC, user::getImage);
 
         // ===== AUCTION & ITEM =====
         register(ActionType.LIST_AUCTIONS,  AuthLevel.PUBLIC, auction::listAuctions);
         register(ActionType.GET_AUCTION,    AuthLevel.PUBLIC, auction::getAuction);
         register(ActionType.CREATE_ITEM,    AuthLevel.USER,   auction::createItem);
         register(ActionType.LIST_MY_ITEMS,  AuthLevel.USER,   auction::listMyItems);
+        register(ActionType.UPLOAD_ITEM_IMAGE, AuthLevel.USER, auction::uploadItemImage);
         register(ActionType.CREATE_AUCTION, AuthLevel.USER,   auction::createAuction);
         register(ActionType.CLOSE_AUCTION,  AuthLevel.USER,   auction::closeAuction);
         register(ActionType.WATCH_AUCTION,  AuthLevel.PUBLIC, auction::watchAuction);
