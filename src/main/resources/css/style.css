@@ -134,6 +134,35 @@
 }
 
 
+/* =============== AUCTION CARD =============== */
+.auction-card {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 6, 0, 0, 2);
+}
+.auction-card:hover {
+    -fx-border-color: #2563eb;
+    -fx-effect: dropshadow(three-pass-box, rgba(37,99,235,0.18), 10, 0, 0, 3);
+    -fx-translate-y: -1;
+}
+
+/* Badge trạng thái — pill nhỏ ở góc card */
+.status-badge {
+    -fx-padding: 2 8 2 8;
+    -fx-background-radius: 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+}
+.status-running   { -fx-background-color: #059669; }
+.status-finished  { -fx-background-color: #6366f1; }
+.status-paid      { -fx-background-color: #2563eb; }
+.status-canceled  { -fx-background-color: #6b7280; }
+.status-pending   { -fx-background-color: #f59e0b; }
+
 /* =============== CHART =============== */
 .chart-series-line {
     -fx-stroke: #2563eb;
