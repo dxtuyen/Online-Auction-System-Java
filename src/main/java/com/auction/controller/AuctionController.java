@@ -59,6 +59,7 @@ public final class AuctionController {
             row.put("auctionId", a.getId().toString());
             row.put("itemName", item != null ? item.getName() : "N/A");
             row.put("itemCategory", item != null ? item.getCategory().getDisplayName() : "");
+            row.put("category", item != null ? item.getCategory().name() : "");
             row.put("imageUrl", primaryImage(item));
             row.put("currentPrice", a.getCurrentPrice());
             row.put("startingPrice", a.getStartingPrice());

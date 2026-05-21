@@ -33,6 +33,26 @@ public class AuctionListController {
     @FXML private Button btnCreateAuction;
     @FXML private ImageView imgHeaderAvatar;
 
+    @FXML private ToggleButton filterAll;
+    @FXML private ToggleButton filterPending;
+    @FXML private ToggleButton filterRunning;
+    @FXML private ToggleButton filterFinished;
+    @FXML private ToggleButton filterPaid;
+    @FXML private ToggleButton filterCanceled;
+
+    @FXML private CheckBox catElectronics;
+    @FXML private CheckBox catArt;
+    @FXML private CheckBox catVehicle;
+    @FXML private CheckBox catFashion;
+    @FXML private CheckBox catCollectible;
+    @FXML private CheckBox catOther;
+
+    /** Trạng thái filter hiện tại: "ALL" hoặc tên enum AuctionStatus. */
+    private String activeStatus = "ALL";
+
+    /** Tập category đang chọn (enum name). Rỗng = không filter theo category. */
+    private final Set<String> activeCategories = new HashSet<>();
+
     /** Dữ liệu gốc — filter dựng lại view từ list này. */
     private final List<Map<String, Object>> allData = new ArrayList<>();
 
@@ -41,9 +61,9 @@ public class AuctionListController {
 
     // Khoá số cột trong [MIN_CARDS, MAX_CARDS]. Ngoài khoảng này card sẽ dãn/co cho khít.
     private static final int MIN_CARDS_PER_ROW = 4;
-    private static final int MAX_CARDS_PER_ROW = 6;
-    /** Width tối thiểu để cho phép thêm 1 cột nữa — chọn 185 để 6 cột xuất hiện quanh ~1230px. */
-    private static final double CARD_WIDTH_THRESHOLD = 240;
+    private static final int MAX_CARDS_PER_ROW = 8;
+    /** Width tối thiểu để cho phép thêm 1 cột nữa. */
+    private static final double CARD_WIDTH_THRESHOLD = 185;
 
     @FXML
     private void initialize() {
@@ -58,6 +78,35 @@ public class AuctionListController {
 
         // Filter live khi gõ — re-render với keyword hiện tại.
         txtSearch.textProperty().addListener((obs, old, val) -> render(val));
+
+        // Group các ToggleButton lại — chọn 1 cái thì các cái còn lại tự bỏ chọn.
+        ToggleGroup filterGroup = new ToggleGroup();
+        for (ToggleButton b : List.of(filterAll, filterPending, filterRunning,
+                filterFinished, filterPaid, filterCanceled)) {
+            b.setToggleGroup(filterGroup);
+        }
+        // Khi user click vào button đang chọn, toggle nhả ra → group selectedToggle = null.
+        // Fallback về "Tất cả" để luôn có 1 filter active, tránh trạng thái "không chọn gì".
+        filterGroup.selectedToggleProperty().addListener((obs, old, val) -> {
+            if (val == null) {
+                filterAll.setSelected(true);
+                return;
+            }
+            activeStatus = String.valueOf(val.getUserData());
+            render(txtSearch.getText());
+        });
+
+        // Multi-select category — mỗi checkbox tự add/remove enum name khỏi set,
+        // sau đó re-render. Không chọn cái nào = hiển thị tất cả category.
+        for (CheckBox cb : List.of(catElectronics, catArt, catVehicle,
+                catFashion, catCollectible, catOther)) {
+            String code = String.valueOf(cb.getUserData());
+            cb.selectedProperty().addListener((obs, old, val) -> {
+                if (val) activeCategories.add(code);
+                else activeCategories.remove(code);
+                render(txtSearch.getText());
+            });
+        }
 
         // Khi cửa sổ thay đổi width, tính lại số card/hàng để card kéo dãn lấp đầy
         // — tránh khoảng trống lớn bên phải. Chỉ render lại khi count thay đổi thực sự
@@ -126,6 +175,12 @@ public class AuctionListController {
         String low = keyword == null ? "" : keyword.trim().toLowerCase();
         int rendered = 0;
         for (Map<String, Object> row : allData) {
+            if (!"ALL".equals(activeStatus) && !activeStatus.equals(str(row, "status"))) {
+                continue;
+            }
+            if (!activeCategories.isEmpty() && !activeCategories.contains(str(row, "category"))) {
+                continue;
+            }
             if (!low.isEmpty()
                     && !str(row, "itemName").toLowerCase().contains(low)
                     && !str(row, "auctionId").contains(low)) {

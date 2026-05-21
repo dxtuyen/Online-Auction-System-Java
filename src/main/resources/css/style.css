@@ -134,6 +134,43 @@
 }
 
 
+/* =============== SIDEBAR =============== */
+.sidebar {
+    -fx-background-color: white;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 0 1 0 0;
+}
+
+.filter-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #374151;
+    -fx-padding: 8 12 8 12;
+    -fx-alignment: CENTER_LEFT;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-font-size: 13px;
+}
+.filter-btn:hover {
+    -fx-background-color: #f1f5f9;
+}
+.filter-btn:selected {
+    -fx-background-color: #2563eb;
+    -fx-text-fill: white;
+}
+.filter-btn:selected:hover {
+    -fx-background-color: #1d4ed8;
+}
+
+.filter-check {
+    -fx-padding: 4 4 4 6;
+    -fx-text-fill: #374151;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+.filter-check:hover {
+    -fx-text-fill: #2563eb;
+}
+
 /* =============== AUCTION CARD =============== */
 .auction-card {
     -fx-background-color: white;
