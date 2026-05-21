@@ -15,7 +15,6 @@ public class LoginController {
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
     @FXML private Label lblError;
-    @FXML private ProgressIndicator spinLoading;
     @FXML private Button btnLogin;
 
     @FXML
@@ -53,7 +52,8 @@ public class LoginController {
                     if (res != null && res.isSuccess()) {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> data = (Map<String, Object>) res.getData();
-                        model.setUserId((String) data.get("userId"));
+                        // Server trả userId dưới dạng UUID string (xem UserController.login).
+                        model.setUserId(String.valueOf(data.get("userId")));
                         model.setUsername((String) data.get("username"));
                         model.setRole((String) data.get("role"));
                         ClientApp.switchScene("auction_list.fxml");
@@ -76,7 +76,6 @@ public class LoginController {
     }
 
     private void setLoading(boolean loading) {
-        spinLoading.setVisible(loading);
         btnLogin.setDisable(loading);
         txtUsername.setDisable(loading);
         txtPassword.setDisable(loading);

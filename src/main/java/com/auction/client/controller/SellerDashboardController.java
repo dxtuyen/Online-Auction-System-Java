@@ -11,6 +11,12 @@ import javafx.scene.control.*;
 
 import java.util.*;
 
+/**
+ * Dashboard cho người bán: tạo item, mở phiên đấu giá.
+ *
+ * <p>Sửa sau refactor: itemId/auctionId là UUID String. Profile dùng field {@code revenue}.
+ * Attribute name cho VEHICLE khớp với ItemFactory: {@code make}, {@code year}, {@code mileageKm}.</p>
+ */
 public class SellerDashboardController {
 
     @FXML private Label lblUserInfo;
@@ -40,15 +46,17 @@ public class SellerDashboardController {
         cboCategory.setValue("ELECTRONICS");
         cboCondition.setValue("NEW");
 
-        // ID là UUID dài 36 ký tự — hiển thị 8 ký tự đầu cho gọn, full UUID giữ trong row data.
-        colItemId.setCellValueFactory(cd -> new SimpleStringProperty(shortId(s(cd.getValue(), "itemId"))));
+        colItemId.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "itemId")));
         colItemName.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "name")));
         colItemPrice.setCellValueFactory(cd -> new SimpleStringProperty(money(cd.getValue().get("startingPrice"))));
         tblItems.setItems(itemsData);
 
-        // Click row → auto-fill ô Item ID bên panel tạo phiên (UUID khó copy thủ công).
-        tblItems.getSelectionModel().selectedItemProperty().addListener((obs, oldRow, newRow) -> {
-            if (newRow != null) txtAuctionItemId.setText(s(newRow, "itemId"));
+        // Double-click item để copy id sang khung tạo phiên — đỡ phải gõ UUID dài
+        tblItems.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2) {
+                Map<String, Object> sel = tblItems.getSelectionModel().getSelectedItem();
+                if (sel != null) txtAuctionItemId.setText(s(sel, "itemId"));
+            }
         });
 
         loadProfileSummary();
@@ -84,13 +92,12 @@ public class SellerDashboardController {
             return;
         }
 
-        // Build attributes cho từng category
+        // Tên attribute phải khớp với ItemFactory cho từng category (xem ItemFactory.create()).
         Map<String, String> attrs = new HashMap<>();
         String category = cboCategory.getValue();
         String brand = txtBrand.getText().trim();
         String modelVal = txtModel.getText().trim();
 
-        // Key phải khớp với ItemFactory.create — sai key là factory ném "Thiếu thuộc tính bắt buộc".
         switch (category) {
             case "ELECTRONICS" -> {
                 attrs.put("brand", brand);
@@ -98,16 +105,19 @@ public class SellerDashboardController {
                 attrs.put("warrantyMonths", "12");
             }
             case "ART" -> {
+                // Factory: artist (required), yearCreated (optional), medium (required)
                 attrs.put("artist", brand);
                 attrs.put("yearCreated", modelVal.isEmpty() ? "2024" : modelVal);
+                attrs.put("medium", "Sơn dầu");
             }
             case "VEHICLE" -> {
+                // Factory dùng "make"/"year"/"mileageKm" (KHÔNG phải brand/manufactureYear)
                 attrs.put("make", brand);
                 attrs.put("model", modelVal);
                 attrs.put("year", "2022");
                 attrs.put("mileageKm", "0");
             }
-            default -> { /* OtherItem — không có thuộc tính bắt buộc */ }
+            default -> { /* OtherItem — không cần attr bắt buộc */ }
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -138,18 +148,19 @@ public class SellerDashboardController {
 
     @FXML
     private void handleCreateAuction() {
+        // itemId là UUID string — KHÔNG parse int.
         String itemId = txtAuctionItemId.getText().trim();
-        if (itemId.isEmpty()) {
-            lblAuctionStatus.setText("Chọn item ở bảng bên trái hoặc nhập Item ID");
-            return;
-        }
         int duration;
         double incr;
         try {
             duration = Integer.parseInt(txtDuration.getText().trim());
             incr = Double.parseDouble(txtMinIncrement.getText().trim().replace(",", ""));
         } catch (NumberFormatException e) {
-            lblAuctionStatus.setText("Nhập thời gian/bước nhảy hợp lệ");
+            lblAuctionStatus.setText("Nhập số hợp lệ cho duration và increment");
+            return;
+        }
+        if (itemId.isEmpty()) {
+            lblAuctionStatus.setText("Nhập itemId (double-click item trong bảng để copy)");
             return;
         }
 
@@ -185,10 +196,8 @@ public class SellerDashboardController {
 
     private void loadProfileSummary() {
         requestProfile(data -> {
-            String summary = String.format("%s | Số dư: %s | Doanh thu: %s",
-                    s(data, "username"),
-                    money(data.get("balance")),
-                    money(data.get("revenue")));
+            String summary = String.format("%s | Doanh thu: %s",
+                    s(data, "username"), money(data.get("revenue")));
             lblUserInfo.setText(summary);
         });
     }
@@ -232,14 +241,8 @@ public class SellerDashboardController {
     private String s(Map<String, Object> m, String k) {
         Object v = m.get(k);
         if (v == null) return "";
-        if (v instanceof Number n) return String.valueOf(n.longValue());
+        if (v instanceof Number n) return String.valueOf(n.intValue());
         return v.toString();
-    }
-
-    /** Hiển thị 8 ký tự đầu của UUID cho gọn — UUID đầy đủ 36 ký tự khó đọc. */
-    private String shortId(String id) {
-        if (id == null || id.length() <= 8) return id == null ? "" : id;
-        return id.substring(0, 8);
     }
 
     private String money(Object v) {

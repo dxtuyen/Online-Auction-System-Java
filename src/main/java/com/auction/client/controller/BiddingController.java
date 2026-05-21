@@ -11,6 +11,7 @@ import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.util.Duration;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -19,15 +20,8 @@ import java.util.*;
 /**
  * Controller màn hình đấu giá realtime — trái tim của dự án.
  *
- * <p>Chức năng:
- * <ul>
- *   <li>Hiển thị thông tin phiên, giá hiện tại, lịch sử bid</li>
- *   <li>Countdown timer tới khi phiên kết thúc</li>
- *   <li>Nhận push từ server (BID_UPDATE, AUCTION_STATUS, AUCTION_EXTENDED)</li>
- *   <li>LineChart giá theo thời gian (cập nhật realtime)</li>
- *   <li>Hiệu ứng flash khi giá thay đổi</li>
- *   <li>Đặt giá thủ công + Auto-bid</li>
- * </ul>
+ * <p>Sửa sau refactor: auctionId là UUID String (server dùng UUID).
+ * Profile response trả {@code balance}/{@code revenue}, không có available/reserved.</p>
  */
 public class BiddingController {
 
@@ -51,17 +45,38 @@ public class BiddingController {
     @FXML private TextField txtIncrementAuto;
     @FXML private Label lblAutoBidStatus;
 
+    // Settlement (sau khi phiên FINISHED, winner chọn trả tiền hoặc bỏ)
+    @FXML private javafx.scene.layout.VBox paneSettlement;
+    @FXML private Label lblSettleInfo;
+    @FXML private Label lblSettleCountdown;
+    @FXML private Button btnConfirmPay;
+    @FXML private Button btnForfeit;
+    @FXML private Label lblSettleStatus;
+
     // History + chart
     @FXML private ListView<String> lstBidHistory;
     @FXML private LineChart<String, Number> chartPrice;
 
-    // State
+    // State — auctionId là UUID dạng String (đồng bộ với server protocol)
     private String auctionId;
     private LocalDateTime endTime;
     private Timeline countdown;
+    private Timeline settleCountdown;
     private XYChart.Series<String, Number> priceSeries;
-    private static final int MAX_CHART_POINTS = 50;
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
+
+    // Cần để dựng panel settlement: giữ startingPrice & currentPrice từ GET_AUCTION
+    // để khi push AUCTION_STATUS đến vẫn còn dữ liệu hiển thị mức phạt.
+    private double startingPrice;
+    private double currentPrice;
+    // Cache để cập nhật prompt text "Tối thiểu X" mỗi khi có BID_UPDATE
+    // (push không gửi increment lại vì là invariant của auction).
+    private double minimumIncrement;
+
+    // Phải đồng bộ với AuctionManager.AUTO_PAY_AFTER_MINUTES / FORFEIT_PENALTY_RATE server-side.
+    // Chỉ dùng cho hiển thị; tính toán thật server làm.
+    private static final int AUTO_PAY_AFTER_MINUTES = 5;
+    private static final double FORFEIT_PENALTY_RATE = 0.4;
 
     /** Gọi từ AuctionListController sau khi load FXML. */
     public void setAuctionId(String auctionId) {
@@ -77,11 +92,9 @@ public class BiddingController {
         lblError.setText("");
         txtBidAmount.setOnAction(e -> handlePlaceBid());
 
-        // Khởi tạo chart series
         priceSeries = new XYChart.Series<>();
         chartPrice.getData().add(priceSeries);
 
-        // Đăng ký lắng nghe push từ server
         setupPushHandlers();
     }
 
@@ -133,23 +146,29 @@ public class BiddingController {
         lblBidCount.setText(str(data, "totalBids"));
         lblLeader.setText(data.get("leaderName") != null ? str(data, "leaderName") : "Chưa có");
 
-        // Parse endTime cho countdown
+        startingPrice = num(data.get("startingPrice"));
+        currentPrice = num(data.get("currentPrice"));
+        minimumIncrement = num(data.get("minimumIncrement"));
+
         String endStr = str(data, "endTime");
         if (!endStr.isBlank()) {
             try { endTime = LocalDateTime.parse(endStr); }
             catch (Exception e) { endTime = LocalDateTime.now().plusMinutes(5); }
         }
 
-        // Gợi ý giá tiếp theo
-        double curr = num(data.get("currentPrice"));
-        double incr = num(data.get("minimumIncrement"));
-        txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", curr + incr));
+        txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", currentPrice + minimumIncrement));
+
+        // Reload trong khi phiên đã FINISHED và mình là winner → dựng panel ngay.
+        String status = str(data, "status");
+        String leaderId = data.get("highestBidderId") == null ? null : str(data, "highestBidderId");
+        if ("FINISHED".equals(status) && isMyId(leaderId)) {
+            showSettlementPanel();
+        }
     }
 
     private void renderHistory(List<Map<String, Object>> bids) {
         if (bids == null) return;
 
-        // List hiển thị: mới nhất trước
         ObservableList<String> items = FXCollections.observableArrayList();
         for (int i = bids.size() - 1; i >= 0; i--) {
             Map<String, Object> b = bids.get(i);
@@ -160,7 +179,6 @@ public class BiddingController {
         }
         lstBidHistory.setItems(items);
 
-        // Chart: tăng dần theo thời gian (cũ → mới)
         priceSeries.getData().clear();
         for (Map<String, Object> b : bids) {
             priceSeries.getData().add(new XYChart.Data<>(
@@ -178,36 +196,42 @@ public class BiddingController {
         }).start();
     }
 
+    /**
+     * So sánh auctionId trong push payload bằng chuỗi để tránh nhầm "0 != 0" khi cast int trên UUID.
+     */
+    private boolean matchesAuction(Map<String, Object> data) {
+        return auctionId != null
+                && auctionId.equals(String.valueOf(data.get("auctionId")));
+    }
+
     private void setupPushHandlers() {
         ClientModel model = ClientModel.getInstance();
 
         model.addPushHandler("BID_UPDATE", data -> {
-            if (!isForCurrentAuction(data)) return;
-
+            if (!matchesAuction(data)) return;
             Platform.runLater(() -> {
                 lblCurrentPrice.setText(formatMoney(data.get("amount")));
                 lblBidCount.setText(str(data, "totalBids"));
-                // Tải lại tên người dẫn đầu qua history để có username
+                currentPrice = num(data.get("amount"));
+                // Server giờ kèm bidderName trong push → cập nhật leader ngay
+                // mà không cần round-trip BID_HISTORY.
+                String bidderName = str(data, "bidderName");
+                lblLeader.setText(bidderName.isBlank() ? "Chưa có" : bidderName);
+                // Refresh prompt text với min next bid mới.
+                txtBidAmount.setPromptText(
+                        String.format("Tối thiểu %,.0f", currentPrice + minimumIncrement));
                 loadBidHistory();
                 flashLabel(lblCurrentPrice);
             });
         });
 
         model.addPushHandler("AUCTION_STATUS", data -> {
-            if (!isForCurrentAuction(data)) return;
-            Platform.runLater(() -> {
-                String status = str(data, "status");
-                if ("FINISHED".equals(status) || "PAID".equals(status) || "CANCELED".equals(status)) {
-                    lblTimer.setText("Phiên đã kết thúc");
-                    btnPlaceBid.setDisable(true);
-                    txtBidAmount.setDisable(true);
-                    ClientApp.showInfo("Phiên đấu giá đã kết thúc!");
-                }
-            });
+            if (!matchesAuction(data)) return;
+            Platform.runLater(() -> handleStatusChanged(data));
         });
 
         model.addPushHandler("AUCTION_EXTENDED", data -> {
-            if (!isForCurrentAuction(data)) return;
+            if (!matchesAuction(data)) return;
             Platform.runLater(() -> {
                 try { endTime = LocalDateTime.parse(str(data, "newEndTime")); }
                 catch (Exception ignored) {}
@@ -217,18 +241,15 @@ public class BiddingController {
         });
     }
 
-    /** Kiểm tra push này có phải dành cho phiên đang xem không — UUID so sánh dạng String. */
-    private boolean isForCurrentAuction(Map<String, Object> data) {
-        Object incoming = data == null ? null : data.get("auctionId");
-        return auctionId != null && auctionId.equals(String.valueOf(incoming));
-    }
-
     // =========== BID ===========
 
     @FXML
     private void handlePlaceBid() {
-        double amount = parseMoney(txtBidAmount.getText());
-        if (amount <= 0) { lblError.setText("Giá không hợp lệ"); return; }
+        BigDecimal amount = parseMoney(txtBidAmount.getText());
+        if (amount == null || amount.signum() <= 0) {
+            lblError.setText("Giá không hợp lệ");
+            return;
+        }
 
         lblError.setText("");
         btnPlaceBid.setDisable(true);
@@ -236,8 +257,11 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
+                // Gửi dạng String để server parse BigDecimal — giữ precision.
+                // Nếu gửi qua double, JSON serialize có thể rơi vào "1.0E7" hoặc
+                // mất số lẻ.
                 model.sendRequest("PLACE_BID", Map.of(
-                        "auctionId", auctionId, "amount", amount));
+                        "auctionId", auctionId, "amount", amount.toPlainString()));
                 Response res = model.waitForResponse("PLACE_BID", 5000);
 
                 Platform.runLater(() -> {
@@ -260,21 +284,192 @@ public class BiddingController {
         }).start();
     }
 
+    // =========== SETTLEMENT ===========
+
+    /**
+     * Xử lý push AUCTION_STATUS.
+     * - FINISHED + mình là winner → hiện panel trả tiền / bỏ.
+     * - FINISHED + không phải winner → chỉ disable bid.
+     * - PAID / CANCELED → ẩn panel, hiển thị kết quả.
+     */
+    private void handleStatusChanged(Map<String, Object> data) {
+        String status = str(data, "status");
+        String leaderId = data.get("highestBidderId") == null ? null : str(data, "highestBidderId");
+
+        if ("FINISHED".equals(status)) {
+            lblTimer.setText("Phiên đã kết thúc");
+            btnPlaceBid.setDisable(true);
+            txtBidAmount.setDisable(true);
+            if (isMyId(leaderId)) {
+                showSettlementPanel();
+            } else {
+                ClientApp.showInfo("Phiên đấu giá đã kết thúc!");
+            }
+        } else if ("PAID".equals(status)) {
+            hideSettlementPanel();
+            btnPlaceBid.setDisable(true);
+            txtBidAmount.setDisable(true);
+            ClientApp.showInfo("Phiên đã được thanh toán!");
+        } else if ("CANCELED".equals(status)) {
+            hideSettlementPanel();
+            btnPlaceBid.setDisable(true);
+            txtBidAmount.setDisable(true);
+            ClientApp.showInfo("Phiên đã bị hủy.");
+        }
+    }
+
+    private boolean isMyId(String id) {
+        String myId = ClientModel.getInstance().getUserId();
+        return id != null && id.equals(myId);
+    }
+
+    private void showSettlementPanel() {
+        if (paneSettlement == null) return;
+        double penalty = startingPrice * FORFEIT_PENALTY_RATE;
+        lblSettleInfo.setText(String.format(
+                "Số tiền phải trả: %,.0f VNĐ\nNếu bỏ, bạn sẽ mất %,.0f VNĐ phí phạt (%.0f%% giá khởi điểm) cho người bán.",
+                currentPrice, penalty, FORFEIT_PENALTY_RATE * 100));
+        lblSettleStatus.setText("");
+        btnConfirmPay.setDisable(false);
+        btnForfeit.setDisable(false);
+        paneSettlement.setVisible(true);
+        paneSettlement.setManaged(true);
+        startSettleCountdown();
+    }
+
+    private void hideSettlementPanel() {
+        if (paneSettlement == null) return;
+        paneSettlement.setVisible(false);
+        paneSettlement.setManaged(false);
+        if (settleCountdown != null) settleCountdown.stop();
+    }
+
+    /**
+     * Đếm ngược tới thời điểm server tự PAY. Tính từ endTime (khi push FINISHED đến,
+     * server vừa transition xong nên endTime ~ thời điểm hiện tại).
+     */
+    private void startSettleCountdown() {
+        if (settleCountdown != null) settleCountdown.stop();
+        settleCountdown = new Timeline(new javafx.animation.KeyFrame(
+                Duration.seconds(1), e -> updateSettleCountdown()));
+        settleCountdown.setCycleCount(Timeline.INDEFINITE);
+        settleCountdown.play();
+        updateSettleCountdown();
+    }
+
+    private void updateSettleCountdown() {
+        if (endTime == null) {
+            lblSettleCountdown.setText("");
+            return;
+        }
+        LocalDateTime autoPayAt = endTime.plusMinutes(AUTO_PAY_AFTER_MINUTES);
+        long sec = ChronoUnit.SECONDS.between(LocalDateTime.now(), autoPayAt);
+        if (sec <= 0) {
+            lblSettleCountdown.setText("Đang tự động thanh toán...");
+            if (settleCountdown != null) settleCountdown.stop();
+            return;
+        }
+        long mins = sec / 60;
+        long secs = sec % 60;
+        lblSettleCountdown.setText(String.format(
+                "⏰ Tự động thanh toán sau %02d:%02d", mins, secs));
+    }
+
+    @FXML
+    private void handleConfirmPayment() {
+        btnConfirmPay.setDisable(true);
+        btnForfeit.setDisable(true);
+        lblSettleStatus.setStyle("-fx-text-fill: #6b7280;");
+        lblSettleStatus.setText("Đang gửi yêu cầu thanh toán...");
+
+        new Thread(() -> {
+            try {
+                ClientModel model = ClientModel.getInstance();
+                model.sendRequest("CONFIRM_PAYMENT", Map.of("auctionId", auctionId));
+                Response res = model.waitForResponse("CONFIRM_PAYMENT", 5000);
+
+                Platform.runLater(() -> {
+                    if (res != null && res.isSuccess()) {
+                        lblSettleStatus.setStyle("-fx-text-fill: #059669;");
+                        lblSettleStatus.setText("✓ " + res.getMessage());
+                    } else {
+                        btnConfirmPay.setDisable(false);
+                        btnForfeit.setDisable(false);
+                        lblSettleStatus.setStyle("-fx-text-fill: #dc2626;");
+                        lblSettleStatus.setText(res != null ? res.getMessage() : "Timeout");
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    btnConfirmPay.setDisable(false);
+                    btnForfeit.setDisable(false);
+                    lblSettleStatus.setStyle("-fx-text-fill: #dc2626;");
+                    lblSettleStatus.setText("Lỗi: " + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    @FXML
+    private void handleForfeit() {
+        // Xác nhận trước khi bỏ — chống bấm nhầm.
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                String.format("Bạn chắc chắn bỏ phiên?\nSẽ mất %,.0f VNĐ phí phạt cho người bán.",
+                        startingPrice * FORFEIT_PENALTY_RATE),
+                ButtonType.YES, ButtonType.NO);
+        confirm.setHeaderText(null);
+        if (confirm.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+
+        btnConfirmPay.setDisable(true);
+        btnForfeit.setDisable(true);
+        lblSettleStatus.setStyle("-fx-text-fill: #6b7280;");
+        lblSettleStatus.setText("Đang gửi yêu cầu hủy...");
+
+        new Thread(() -> {
+            try {
+                ClientModel model = ClientModel.getInstance();
+                model.sendRequest("FORFEIT_AUCTION", Map.of("auctionId", auctionId));
+                Response res = model.waitForResponse("FORFEIT_AUCTION", 5000);
+
+                Platform.runLater(() -> {
+                    if (res != null && res.isSuccess()) {
+                        lblSettleStatus.setStyle("-fx-text-fill: #f59e0b;");
+                        lblSettleStatus.setText("✓ " + res.getMessage());
+                    } else {
+                        btnConfirmPay.setDisable(false);
+                        btnForfeit.setDisable(false);
+                        lblSettleStatus.setStyle("-fx-text-fill: #dc2626;");
+                        lblSettleStatus.setText(res != null ? res.getMessage() : "Timeout");
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    btnConfirmPay.setDisable(false);
+                    btnForfeit.setDisable(false);
+                    lblSettleStatus.setStyle("-fx-text-fill: #dc2626;");
+                    lblSettleStatus.setText("Lỗi: " + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
     @FXML
     private void handleSetAutoBid() {
-        double maxBid = parseMoney(txtMaxBid.getText());
-        double incr = parseMoney(txtIncrementAuto.getText());
-        if (maxBid <= 0 || incr <= 0) {
+        BigDecimal maxBid = parseMoney(txtMaxBid.getText());
+        BigDecimal incr = parseMoney(txtIncrementAuto.getText());
+        if (maxBid == null || maxBid.signum() <= 0
+                || incr == null || incr.signum() <= 0) {
             lblAutoBidStatus.setText("Nhập giá tối đa và bước nhảy");
             return;
         }
 
         new Thread(() -> {
             ClientModel model = ClientModel.getInstance();
+            // Gửi String → server parse BigDecimal — xem comment ở handlePlaceBid.
             model.sendRequest("SET_AUTO_BID", Map.of(
                     "auctionId", auctionId,
-                    "maxBid", maxBid,
-                    "increment", incr));
+                    "maxBid", maxBid.toPlainString(),
+                    "increment", incr.toPlainString()));
             Response res = model.waitForResponse("SET_AUTO_BID", 5000);
 
             Platform.runLater(() -> {
@@ -311,7 +506,6 @@ public class BiddingController {
         long secs = sec % 60;
         lblTimer.setText(String.format("⏰ %02d:%02d", mins, secs));
 
-        // Đổi màu đỏ khi còn < 60s
         if (sec < 60) lblTimer.getStyleClass().setAll("timer-urgent");
         else lblTimer.getStyleClass().setAll("timer-normal");
     }
@@ -353,10 +547,9 @@ public class BiddingController {
     @FXML
     private void goBack() {
         if (countdown != null) countdown.stop();
-        // Gỡ push handler để tránh leak khi mở phiên khác
+        if (settleCountdown != null) settleCountdown.stop();
         ClientModel.getInstance().clearBiddingPushHandlers();
 
-        // Unwatch ở server
         new Thread(() -> {
             ClientModel.getInstance().sendRequest("UNWATCH_AUCTION",
                     Map.of("auctionId", auctionId));
@@ -370,8 +563,7 @@ public class BiddingController {
     private String str(Map<String, Object> m, String k) {
         Object v = m == null ? null : m.get(k);
         if (v == null) return "";
-        // Gson parse số JSON thành Double — render integer cho gọn (totalBids = "3" thay vì "3.0").
-        if (v instanceof Number n) return String.valueOf(n.longValue());
+        if (v instanceof Number n) return String.valueOf(n.intValue());
         return v.toString();
     }
 
@@ -384,12 +576,23 @@ public class BiddingController {
         return "0 VNĐ";
     }
 
-    private double parseMoney(String s) {
-        try { return Double.parseDouble(s.trim().replace(",", "").replace(".", "")); }
-        catch (Exception e) { return -1; }
+    /**
+     * Parse số tiền VND user nhập. Dấu chấm và dấu phẩy đều coi là thousand
+     * separator → "1.000.000", "1,000,000", "1000000" đều ra 1_000_000.
+     * <p>VND không có thập phân nên không hỗ trợ phần lẻ. Trả {@code null} nếu
+     * input rỗng hoặc không parse được — caller validate signum > 0 trước khi gửi.
+     */
+    private BigDecimal parseMoney(String s) {
+        if (s == null) return null;
+        String cleaned = s.trim().replace(".", "").replace(",", "").replace(" ", "");
+        if (cleaned.isEmpty()) return null;
+        try {
+            return new BigDecimal(cleaned);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
-    /** "2026-04-22T14:30:15.xxx" → "14:30:15" */
     private String shortTime(String timestamp) {
         try {
             return LocalDateTime.parse(timestamp).format(TIME_FMT);
@@ -398,6 +601,10 @@ public class BiddingController {
         }
     }
 
+    /**
+     * Server trả {@code balance} (số dư) và {@code revenue} (doanh thu). Hệ thống chưa reserve balance
+     * lúc bid nên không có concept available/reserved tách biệt.
+     */
     private String formatProfileDetails(Map<String, Object> data) {
         StringBuilder sb = new StringBuilder();
         sb.append("Tài khoản: ").append(str(data, "username")).append('\n');

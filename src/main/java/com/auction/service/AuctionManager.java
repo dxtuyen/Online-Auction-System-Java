@@ -1,11 +1,16 @@
 package com.auction.service;
 
+import com.auction.config.AppConfig;
 import com.auction.model.entity.Auction;
 import com.auction.model.entity.BidTransaction;
 import com.auction.model.entity.Item;
 import com.auction.model.entity.User;
 import com.auction.model.enums.AuctionStatus;
+import com.auction.model.exception.IllegalAuctionStateException;
 import com.auction.model.observer.AuctionObserver;
+import com.auction.persistence.dao.AuctionDao;
+import com.auction.persistence.dao.MysqlAuctionDao;
+import com.auction.util.AppLogger;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -16,57 +21,19 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-/**
- * AuctionManager - REGISTRY TRUNG TÂM quản lý mọi phiên đấu giá trong hệ thống.
- * <p>
- * ============== DESIGN PATTERNS ÁP DỤNG ==============
- * <p>
- * 1. SINGLETON (Bill Pugh / Initialization-on-demand holder idiom)
- * - Toàn hệ thống chỉ có 1 AuctionManager duy nhất
- * - Lazy init, thread-safe, KHÔNG cần synchronized hay volatile
- * - JVM đảm bảo class Holder chỉ load 1 lần khi getInstance() lần đầu
- * → Đây là cách Singleton chuẩn nhất trong Java hiện đại
- * <p>
- * 2. FACADE
- * - Che giấu chi tiết internal (lock, scheduler, observers)
- * - Client chỉ cần biết placeBid(), createAuction()...
- * <p>
- * 3. OBSERVER (qua Auction)
- * - Manager tự đăng ký làm observer của mọi Auction nó quản lý
- * - Khi có event ở Auction → Manager forward cho global observers
- * - Hữu ích cho: log, analytics, push notification...
- * <p>
- * 4. REPOSITORY-LIKE
- * - findById, findActive, findBySellerId... giống Repository pattern
- * <p>
- * ============== CONCURRENCY ==============
- * <p>
- * - ConcurrentHashMap: thread-safe, không cần lock thủ công cho put/get/remove
- * - ScheduledExecutorService: tự động check & chuyển status mỗi giây
- * - Mọi mutate operation trên Auction đã được Auction TỰ lock (xem Auction.java)
- * - Manager KHÔNG lock thêm → tránh nested lock / deadlock
- * <p>
- * ============== TẠI SAO KHÔNG EXTENDS Entity? ==============
- * <p>
- * AuctionManager là SERVICE/REGISTRY, không phải DOMAIN ENTITY.
- * - Entity: có id, lưu DB, được CRUD (User, Auction, Item...)
- * - Service: cung cấp behavior, không lưu DB, là singleton
- * → Trộn lẫn là vi phạm Single Responsibility Principle
- */
 public final class AuctionManager {
 
-    // ============== SINGLETON (Bill Pugh idiom) ==============
+    private static final Logger log = AppLogger.get(AuctionManager.class);
 
-    /**
-     * Holder class chỉ được JVM load khi getInstance() được gọi lần đầu.
-     * Class loading trong Java thread-safe by design → không cần synchronized.
-     * Đây là Singleton "đẹp" nhất: lazy + thread-safe + không overhead.
-     */
+    // ============== SINGLETON ==============
+
     private static final class Holder {
         private static final AuctionManager INSTANCE = new AuctionManager();
     }
@@ -78,62 +45,59 @@ public final class AuctionManager {
     // ============== FIELDS ==============
 
     /**
-     * Storage chính - key: auctionId, value: Auction. ConcurrentHashMap thread-safe.
+     * Phiên ở FINISHED quá ngần này phút mà winner chưa quyết định → tự PAY giúp.
+     * Đổi 1 chỗ ở đây là xong (không cần đụng nhiều file).
      */
+    private static final int AUTO_PAY_AFTER_MINUTES = 5;
+
+    /**
+     * Tỷ lệ phạt khi winner từ chối thanh toán. Tính trên startingPrice của item.
+     * Đổi 1 chỗ ở đây là xong.
+     */
+    private static final BigDecimal FORFEIT_PENALTY_RATE = new BigDecimal("0.4");
+
+    private final AuctionDao dao;
     private final ConcurrentHashMap<UUID, Auction> auctions = new ConcurrentHashMap<>();
-
-    /**
-     * Global observers - nhận event từ TẤT CẢ auction. CopyOnWrite vì đọc nhiều ghi ít.
-     */
-    private final List<AuctionObserver> globalObservers = new java.util.concurrent.CopyOnWriteArrayList<>();
-
-    /**
-     * Scheduler tự động chuyển PENDING→RUNNING→FINISHED theo thời gian.
-     */
+    private final List<AuctionObserver> globalObservers = new CopyOnWriteArrayList<>();
     private final ScheduledExecutorService scheduler;
 
-    /**
-     * Cấu hình anti-sniping (tùy chọn - chức năng nâng cao).
-     */
-    private volatile int snipingThresholdSeconds = 10;   // còn ≤ 10s mà có bid → extend
-    private volatile int snipingExtensionSeconds = 30;   // extend thêm 30s
+    // Anti-sniping: cấu hình qua .env (SNIPING_THRESHOLD_SECONDS, SNIPING_EXTENSION_SECONDS).
+    private volatile int snipingThresholdSeconds;
+    private volatile int snipingExtensionSeconds;
 
     // ============== INTERNAL OBSERVER ==============
 
-    /**
-     * Observer NỘI BỘ - Manager đăng ký vào MỖI Auction.
-     * Khi Auction phát event → forward cho global observers + xử lý anti-sniping.
-     */
     private final AuctionObserver internalObserver = new AuctionObserver() {
         @Override
         public void onBidPlaced(Auction auction, BidTransaction bid) {
-            // 1. Anti-sniping: nếu bid xảy ra trong window cuối → extend auction
             if (auction.isInSnipingWindow(snipingThresholdSeconds)) {
                 try {
                     auction.extend(snipingExtensionSeconds);
-                } catch (Exception ignored) {
-                    // Auction có thể đã FINISHED giữa chừng - ignore
-                }
+                } catch (Exception ignored) { }
             }
-            // 2. Forward cho global observers
+            safeSave(auction);
             globalObservers.forEach(obs -> safeNotify(() -> obs.onBidPlaced(auction, bid)));
         }
 
         @Override
         public void onAuctionExtended(Auction auction, int seconds) {
+            safeSave(auction);
             globalObservers.forEach(obs -> safeNotify(() -> obs.onAuctionExtended(auction, seconds)));
         }
 
         @Override
         public void onStatusChanged(Auction auction, AuctionStatus oldStatus, AuctionStatus newStatus) {
+            safeSave(auction);
             globalObservers.forEach(obs -> safeNotify(() -> obs.onStatusChanged(auction, oldStatus, newStatus)));
         }
     };
 
-    // ============== CONSTRUCTOR (private - Singleton) ==============
+    // ============== CONSTRUCTOR ==============
 
     private AuctionManager() {
-        // Daemon thread - không block JVM shutdown
+        this.dao = new MysqlAuctionDao();
+        this.snipingThresholdSeconds = AppConfig.getInt("SNIPING_THRESHOLD_SECONDS", 10);
+        this.snipingExtensionSeconds = AppConfig.getInt("SNIPING_EXTENSION_SECONDS", 30);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "AuctionManager-Scheduler");
             t.setDaemon(true);
@@ -142,61 +106,61 @@ public final class AuctionManager {
         startLifecycleScheduler();
     }
 
-    // ============== AUCTION LIFECYCLE MANAGEMENT ==============
+    // ============== BOOTSTRAP ==============
 
-    /**
-     * Tạo phiên đấu giá MỚI cho item của seller, đăng ký luôn vào registry.
-     * Helper để client không phải tự new Auction() rồi register().
-     * <p>
-     * Bảo mật:
-     * - Validate seller phải có quyền sell
-     * - Validate item phải tồn tại và thuộc về seller này
-     */
-    public Auction createAuction(UUID itemId, UUID sellerId, LocalDateTime startTime, LocalDateTime endTime, BigDecimal startingPrice, BigDecimal minimumIncrement) {
+    public void loadAllFromDb() {
+        auctions.values().forEach(a -> a.removeObserver(internalObserver));
+        auctions.clear();
+        for (Auction a : dao.findAll()) {
+            auctions.put(a.getId(), a);
+            a.addObserver(internalObserver);
+        }
+        log.info(() -> "Đã load " + auctions.size() + " auction từ DB");
+    }
+
+    public long countInDb() {
+        return dao.count();
+    }
+
+    // ============== AUCTION LIFECYCLE ==============
+
+    public Auction createAuction(UUID itemId, UUID sellerId,
+                                 LocalDateTime startTime, LocalDateTime endTime,
+                                 BigDecimal startingPrice, BigDecimal minimumIncrement) {
         Objects.requireNonNull(itemId, "itemId");
         Objects.requireNonNull(sellerId, "sellerId");
 
-        // Check seller có quyền
-        User seller = UserManager.getInstance().findById(sellerId).orElseThrow(() -> new IllegalArgumentException("Seller không tồn tại: " + sellerId));
+        User seller = UserManager.getInstance().findById(sellerId)
+                .orElseThrow(() -> new IllegalArgumentException("Seller không tồn tại: " + sellerId));
         if (!seller.canSell()) {
-            throw new IllegalArgumentException("User không có quyền tạo phiên đấu giá(Tài khoản bị khóa)");
+            throw new IllegalArgumentException("User không có quyền tạo phiên đấu giá (Tài khoản bị khóa)");
         }
 
-        // Check item tồn tại + thuộc về seller này (chống tạo phiên cho item của người khác)
-        Item item = ItemManager.getInstance().findById(itemId).orElseThrow(() -> new IllegalArgumentException("Item không tồn tại: " + itemId));
+        Item item = ItemManager.getInstance().findById(itemId)
+                .orElseThrow(() -> new IllegalArgumentException("Item không tồn tại: " + itemId));
         if (!item.getSellerId().equals(sellerId)) {
             throw new IllegalArgumentException("Item này không thuộc về seller " + sellerId);
         }
 
-        Auction auction = new Auction(itemId, sellerId, startTime, endTime, startingPrice, minimumIncrement);
-        return register(auction);
-    }
+        Auction auction = new Auction(itemId, sellerId, startTime, endTime,
+                startingPrice, minimumIncrement);
 
-    /**
-     * Đăng ký 1 Auction mới vào hệ thống.
-     * Auction phải được tạo từ trước (vd qua Seller.createAuction() hoặc service khác).
-     *
-     * @return chính auction đã đăng ký (để chain)
-     * @throws IllegalStateException nếu auction đã tồn tại
-     */
-    public Auction register(Auction auction) {
-        Objects.requireNonNull(auction, "auction must not be null");
-
-        // putIfAbsent atomic - đảm bảo không 2 thread cùng register trùng id
-        Auction existed = auctions.putIfAbsent(auction.getId(), auction);
-        if (existed != null) {
-            throw new IllegalStateException("Auction đã tồn tại với id: " + auction.getId());
-        }
-
-        // Tự đăng ký làm observer để theo dõi lifecycle + anti-sniping
+        dao.insert(auction);
+        auctions.put(auction.getId(), auction);
         auction.addObserver(internalObserver);
         return auction;
     }
 
-    /**
-     * Hủy đăng ký auction (vd: khi đã PAID/CANCELED và muốn dọn memory).
-     * Trong production thường archive sang DB thay vì xóa hẳn.
-     */
+    public Auction register(Auction auction) {
+        Objects.requireNonNull(auction, "auction must not be null");
+        Auction existed = auctions.putIfAbsent(auction.getId(), auction);
+        if (existed != null) {
+            throw new IllegalStateException("Auction đã tồn tại với id: " + auction.getId());
+        }
+        auction.addObserver(internalObserver);
+        return auction;
+    }
+
     public boolean unregister(UUID auctionId) {
         Objects.requireNonNull(auctionId);
         Auction removed = auctions.remove(auctionId);
@@ -209,21 +173,6 @@ public final class AuctionManager {
 
     // ============== MANUAL CLOSE ==============
 
-    /**
-     * Đóng phiên theo yêu cầu của seller (hoặc admin) thay vì đợi scheduler hết giờ.
-     * <p>
-     * - PENDING → CANCELED: phiên chưa start, seller đổi ý → hủy
-     * - RUNNING → FINISHED: phiên đang chạy → kết thúc sớm, settlement chạy như bình thường
-     * - Trạng thái khác (FINISHED/PAID/CANCELED) → không đóng được nữa
-     * <p>
-     * Bảo mật: chỉ chính seller của phiên mới được đóng. Actor id phải lấy từ session,
-     * KHÔNG được tin client tự gửi.
-     *
-     * @return auction sau khi đã chuyển trạng thái
-     * @throws IllegalArgumentException nếu auction không tồn tại
-     * @throws SecurityException        nếu actor không phải seller của phiên
-     * @throws IllegalStateException    nếu phiên đã ở terminal state
-     */
     public Auction closeAuction(UUID auctionId, UUID actorUserId) {
         Objects.requireNonNull(auctionId, "auctionId");
         Objects.requireNonNull(actorUserId, "actorUserId");
@@ -239,11 +188,13 @@ public final class AuctionManager {
         AuctionStatus current = auction.getStatus();
         switch (current) {
             case PENDING -> auction.transitionTo(AuctionStatus.CANCELED);
-            // Đóng RUNNING = "kết thúc sớm, vẫn nhận winner hiện tại" → đi qua FINISHED
-            // rồi settle ngay (tương đương hết giờ tự nhiên).
             case RUNNING -> {
-                auction.transitionTo(AuctionStatus.FINISHED);
-                trySettle(auction);
+                // Đóng tay: nếu chưa có bid → CANCELED ngay; có bid → FINISHED chờ winner quyết định.
+                if (auction.getHighestBidderId() == null) {
+                    auction.transitionTo(AuctionStatus.CANCELED);
+                } else {
+                    auction.transitionTo(AuctionStatus.FINISHED);
+                }
             }
             default -> throw new IllegalStateException(
                     "Phiên đang ở trạng thái " + current + ", không thể đóng thủ công");
@@ -251,43 +202,113 @@ public final class AuctionManager {
         return auction;
     }
 
-    // ============== QUERY OPERATIONS (REPOSITORY-LIKE) ==============
+    // ============== SETTLEMENT (USER-FACING) ==============
 
     /**
-     * Tìm theo id - Optional để client xử lý null gracefully
+     * Winner xác nhận thanh toán: tiền đã reserve khi bid chuyển vào revenue seller,
+     * status → PAID.
+     *
+     * @throws SecurityException nếu actor không phải winner
+     * @throws IllegalStateException nếu phiên không ở trạng thái FINISHED
      */
+    public Auction confirmPayment(UUID auctionId, UUID userId) {
+        Objects.requireNonNull(auctionId, "auctionId");
+        Objects.requireNonNull(userId, "userId");
+
+        Auction auction = auctions.get(auctionId);
+        if (auction == null) {
+            throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
+        }
+        if (auction.getStatus() != AuctionStatus.FINISHED) {
+            throw new IllegalAuctionStateException(
+                    "Phiên đang ở trạng thái " + auction.getStatus() + ", không thể thanh toán");
+        }
+        if (!userId.equals(auction.getHighestBidderId())) {
+            throw new SecurityException("Bạn không phải người thắng phiên đấu giá này");
+        }
+
+        settleAsPaid(auction);
+        return auction;
+    }
+
+    /**
+     * Winner từ chối thanh toán: mất {@link #FORFEIT_PENALTY_RATE} × startingPrice
+     * cho seller, phần còn lại của tiền đã reserve được hoàn về balance của winner.
+     * Status → CANCELED.
+     */
+    public Auction forfeitAuction(UUID auctionId, UUID userId) {
+        Objects.requireNonNull(auctionId, "auctionId");
+        Objects.requireNonNull(userId, "userId");
+
+        Auction auction = auctions.get(auctionId);
+        if (auction == null) {
+            throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
+        }
+        if (auction.getStatus() != AuctionStatus.FINISHED) {
+            throw new IllegalAuctionStateException(
+                    "Phiên đang ở trạng thái " + auction.getStatus() + ", không thể hủy");
+        }
+        if (!userId.equals(auction.getHighestBidderId())) {
+            throw new SecurityException("Bạn không phải người thắng phiên đấu giá này");
+        }
+
+        BigDecimal reserved = auction.getCurrentPrice();
+        BigDecimal penalty = auction.getStartingPrice().multiply(FORFEIT_PENALTY_RATE);
+        // Defensive: nếu startingPrice * 0.4 > reserved (về lý thuyết không thể vì
+        // currentPrice >= startingPrice), kẹp lại để không trừ âm.
+        if (penalty.compareTo(reserved) > 0) penalty = reserved;
+        BigDecimal refund = reserved.subtract(penalty);
+
+        // Pre-lookup users TRƯỚC khi transition để fail-fast nếu thiếu dữ liệu.
+        User winner = UserManager.getInstance().findById(userId)
+                .orElseThrow(() -> new IllegalStateException("Winner không tồn tại"));
+        User seller = UserManager.getInstance().findById(auction.getSellerId())
+                .orElseThrow(() -> new IllegalStateException("Seller không tồn tại"));
+
+        // transitionTo là gate atomic: nếu thread khác (vd auto-PAY hoặc confirmPayment)
+        // đã đổi status, call này sẽ throw IllegalAuctionStateException trước khi money
+        // bị mutate → không có double-charge.
+        auction.transitionTo(AuctionStatus.CANCELED);
+
+        if (refund.signum() > 0) {
+            winner.release(refund);
+            safeSaveUser(winner);
+        }
+        if (penalty.signum() > 0) {
+            seller.addRevenue(penalty);
+            safeSaveUser(seller);
+        }
+
+        return auction;
+    }
+
+    // ============== QUERIES ==============
+
     public Optional<Auction> findById(UUID auctionId) {
         return Optional.ofNullable(auctions.get(auctionId));
     }
 
-    /**
-     * Lấy tất cả auction - immutable view, không thể modify từ ngoài
-     */
     public Collection<Auction> findAll() {
         return Collections.unmodifiableCollection(auctions.values());
     }
 
-    /**
-     * Chỉ lấy phiên đang RUNNING
-     */
     public List<Auction> findActive() {
-        return auctions.values().stream().filter(Auction::isActive).collect(Collectors.toUnmodifiableList());
+        return auctions.values().stream().filter(Auction::isActive)
+                .collect(Collectors.toUnmodifiableList());
     }
 
-    /**
-     * Auction theo seller - cho dashboard người bán
-     */
     public List<Auction> findBySellerId(UUID sellerId) {
         Objects.requireNonNull(sellerId);
-        return auctions.values().stream().filter(a -> a.getSellerId().equals(sellerId)).collect(Collectors.toUnmodifiableList());
+        return auctions.values().stream()
+                .filter(a -> a.getSellerId().equals(sellerId))
+                .collect(Collectors.toUnmodifiableList());
     }
 
-    /**
-     * Auction theo status - cho admin dashboard, filter UI...
-     */
     public List<Auction> findByStatus(AuctionStatus status) {
         Objects.requireNonNull(status);
-        return auctions.values().stream().filter(a -> a.getStatus() == status).collect(Collectors.toUnmodifiableList());
+        return auctions.values().stream()
+                .filter(a -> a.getStatus() == status)
+                .collect(Collectors.toUnmodifiableList());
     }
 
     public int count() {
@@ -296,9 +317,6 @@ public final class AuctionManager {
 
     // ============== GLOBAL OBSERVERS ==============
 
-    /**
-     * Đăng ký observer toàn cục - nhận event từ MỌI auction
-     */
     public void addGlobalObserver(AuctionObserver observer) {
         globalObservers.add(Objects.requireNonNull(observer));
     }
@@ -319,89 +337,87 @@ public final class AuctionManager {
 
     // ============== SCHEDULED TASKS ==============
 
-    /**
-     * Scheduler chạy MỖI GIÂY để:
-     * - Chuyển PENDING → RUNNING khi tới startTime
-     * - Chuyển RUNNING → FINISHED khi quá endTime
-     * <p>
-     * Dùng scheduleAtFixedRate thay vì thread + sleep vì:
-     * - Tự động retry khi 1 lần chạy fail
-     * - Tự shutdown gracefully khi gọi shutdown()
-     * - Daemon thread → không block JVM exit
-     */
     private void startLifecycleScheduler() {
         scheduler.scheduleAtFixedRate(this::tickLifecycle, 1, 1, TimeUnit.SECONDS);
     }
 
-    /**
-     * Một "tick" - quét tất cả auction và chuyển state nếu cần.
-     * Wrap trong try-catch để 1 auction lỗi không làm chết scheduler.
-     */
     private void tickLifecycle() {
         LocalDateTime now = LocalDateTime.now();
         for (Auction auction : auctions.values()) {
             try {
                 AuctionStatus status = auction.getStatus();
-
-                // PENDING → RUNNING
-                if (status == AuctionStatus.PENDING && !now.isBefore(auction.getStartTime()) && now.isBefore(auction.getEndTime())) {
+                if (status == AuctionStatus.PENDING
+                        && !now.isBefore(auction.getStartTime())
+                        && now.isBefore(auction.getEndTime())) {
                     auction.transitionTo(AuctionStatus.RUNNING);
-                }
-                // RUNNING → FINISHED → (settle) → PAID
-                else if (status == AuctionStatus.RUNNING && !now.isBefore(auction.getEndTime())) {
-                    auction.transitionTo(AuctionStatus.FINISHED);
-                    trySettle(auction);
+                } else if (status == AuctionStatus.RUNNING
+                        && !now.isBefore(auction.getEndTime())) {
+                    // Hết giờ: chưa có bid → CANCELED luôn; có bid → FINISHED chờ winner quyết định.
+                    if (auction.getHighestBidderId() == null) {
+                        auction.transitionTo(AuctionStatus.CANCELED);
+                    } else {
+                        auction.transitionTo(AuctionStatus.FINISHED);
+                    }
+                } else if (status == AuctionStatus.FINISHED
+                        && auction.getHighestBidderId() != null
+                        && auction.getUpdatedAt().plusMinutes(AUTO_PAY_AFTER_MINUTES).isBefore(now)) {
+                    // Winner không thao tác sau AUTO_PAY_AFTER_MINUTES phút → tự PAY giúp.
+                    // updatedAt sau khi RUNNING→FINISHED chính là thời điểm phiên kết thúc.
+                    try {
+                        settleAsPaid(auction);
+                    } catch (Exception e) {
+                        log.warning(() -> "Auto-PAY thất bại cho auction "
+                                + auction.getId() + ": " + e.getMessage());
+                    }
                 }
             } catch (Exception e) {
-                // Log nhưng không throw - scheduler phải tiếp tục chạy
-                System.err.println("[AuctionManager] Lỗi khi tick auction " + auction.getId() + ": " + e.getMessage());
+                log.warning(() -> "Lỗi khi tick auction " + auction.getId() + ": " + e.getMessage());
             }
         }
     }
 
-    // ============== SETTLEMENT ==============
+    // ============== SETTLEMENT (INTERNAL) ==============
 
     /**
-     * Settle 1 phiên đã FINISHED: chuyển reservation của winner thành revenue cho seller,
-     * rồi đẩy auction sang PAID.
-     *
-     * <p>Gọi NGOÀI lifecycle observer (gọi trực tiếp ngay sau transitionTo FINISHED) để
-     * tránh đảo thứ tự notification — client nhận được FINISHED rồi mới đến PAID, không
-     * bị PAID trước.</p>
-     *
-     * <p>Edge cases:
-     * <ul>
-     *   <li>Phiên không có ai bid (highestBidderId = null): không có gì để settle, giữ nguyên FINISHED.</li>
-     *   <li>Seller account đã bị xóa: skip cộng revenue, vẫn transition PAID — coi như "money lost".</li>
-     *   <li>Lần gọi thứ 2 (đã PAID): transitionTo throw, ta swallow — idempotent.</li>
-     * </ul>
-     * </p>
+     * Chuyển tiền winner reserved → revenue seller, status → PAID.
+     * Dùng chung cho {@link #confirmPayment(UUID, UUID)} (user gọi) và
+     * tickLifecycle (scheduler tự PAY sau timeout).
+     * <p>Caller đã đảm bảo {@code auction.getHighestBidderId() != null}
+     * và auction ở trạng thái FINISHED.</p>
      */
-    private void trySettle(Auction auction) {
-        UUID winnerId = auction.getHighestBidderId();
-        if (winnerId == null) {
-            // Phiên kết thúc mà không có ai bid — không settle, giữ FINISHED.
-            return;
-        }
-
+    private void settleAsPaid(Auction auction) {
         BigDecimal price = auction.getCurrentPrice();
-        UserManager.getInstance().findById(auction.getSellerId())
-                .ifPresent(seller -> seller.addRevenue(price));
+        // Pre-lookup TRƯỚC khi transition để fail-fast (không transition rồi mới thấy thiếu seller).
+        User seller = UserManager.getInstance().findById(auction.getSellerId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Seller không tồn tại: " + auction.getSellerId()));
 
+        // transitionTo là gate atomic: chống race giữa confirmPayment vs forfeit vs auto-PAY.
+        auction.transitionTo(AuctionStatus.PAID);
+
+        seller.addRevenue(price);
+        safeSaveUser(seller);
+    }
+
+    /**
+     * Persist user state với log SEVERE nếu fail.
+     *
+     * <p>Lưu ý: caller (forfeitAuction / settleAsPaid) đã mutate balance/revenue
+     * trong RAM TRƯỚC khi gọi method này. Nếu DB fail, RAM-DB lệch — devs phải
+     * sync manual hoặc restart sẽ rollback partial. Đây là TOCTOU đã biết; fix
+     * triệt để cần transactional outbox bao cả auction + user trong 1 tx.</p>
+     */
+    private void safeSaveUser(User user) {
         try {
-            auction.transitionTo(AuctionStatus.PAID);
-        } catch (RuntimeException e) {
-            // Auction đã ở terminal khác (PAID/CANCELED) — settle 2 lần là idempotent.
-            System.err.println("[AuctionManager] Settle bỏ qua: " + e.getMessage());
+            UserManager.getInstance().save(user);
+        } catch (Exception e) {
+            log.severe(() -> "CRITICAL: Không sync user " + user.getId()
+                    + " xuống DB. RAM-DB lệch (balance/revenue): " + e.getMessage());
         }
     }
 
     // ============== LIFECYCLE ==============
 
-    /**
-     * Shutdown manager - gọi khi server tắt.
-     * Quan trọng: nếu không gọi, scheduler thread có thể giữ resource.
-     */
     public void shutdown() {
         scheduler.shutdown();
         try {
@@ -417,20 +433,31 @@ public final class AuctionManager {
     // ============== HELPERS ==============
 
     /**
-     * Wrap notify để 1 observer crash không làm vỡ chuỗi
+     * Persist auction state với log SEVERE nếu fail.
+     *
+     * <p>Method này được gọi từ {@link #internalObserver} sau khi state đã mutate
+     * trong RAM (placeBid / extend / transitionTo). Nếu DB fail, RAM mới còn DB cũ.
+     * notifyXxx() ở entity swallow exception nên ta KHÔNG throw — chỉ log loud để
+     * devs nhìn thấy ngay. Fix triệt để cần move persistence ra khỏi observer + DI
+     * vào explicit caller (BidManager / lifecycle scheduler).</p>
      */
+    private void safeSave(Auction auction) {
+        try {
+            dao.update(auction);
+        } catch (Exception e) {
+            log.severe(() -> "CRITICAL: Không sync auction " + auction.getId()
+                    + " xuống DB. RAM-DB lệch (status/price/totalBids/endTime): " + e.getMessage());
+        }
+    }
+
     private static void safeNotify(Runnable r) {
         try {
             r.run();
-        } catch (Exception ignored) { /* observer không được phép crash hệ thống */ }
+        } catch (Exception ignored) { }
     }
 
     // ============== TEST ONLY ==============
 
-    /**
-     * CHỈ dùng trong unit test - reset state để test isolation.
-     * Production KHÔNG được gọi method này.
-     */
     void clearForTesting() {
         auctions.values().forEach(a -> a.removeObserver(internalObserver));
         auctions.clear();
