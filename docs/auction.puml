@@ -1,0 +1,977 @@
+@startuml auction
+'==============================================================
+'  AUCTION SYSTEM - 1 FILE / 3 NEWPAGE
+'  Page 1: OVERVIEW          (bird-eye, không method/field)
+'  Page 2: DOMAIN + SERVICE  (entity + manager, đầy đủ field/method quan trọng)
+'  Page 3: NETWORK + CLIENT  (thread, observer, protocol)
+'==============================================================
+
+' ---------- GLOBAL STYLING ----------
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundCorner 10
+skinparam DefaultFontName "Segoe UI"
+skinparam DefaultFontSize 12
+skinparam ArrowColor #34495E
+skinparam ArrowFontColor #34495E
+skinparam classBorderColor #2C3E50
+skinparam classBackgroundColor #FFFFFF
+skinparam classFontStyle bold
+skinparam packageStyle rectangle
+skinparam packageBackgroundColor #ECEFF1
+skinparam packageBorderColor #607D8B
+skinparam stereotypeCBackgroundColor #B3E5FC
+skinparam noteBackgroundColor #FFF9C4
+skinparam noteBorderColor #FBC02D
+hide empty members
+
+' Color theo stereotype (PlantUML cho phép gán background theo spot letter)
+skinparam class {
+  BackgroundColor<<Entity>>     #E3F2FD
+  BackgroundColor<<Service>>    #E8F5E9
+  BackgroundColor<<Singleton>>  #C8E6C9
+  BackgroundColor<<Controller>> #FFE0B2
+  BackgroundColor<<Thread>>     #FFCDD2
+  BackgroundColor<<Observer>>   #E1BEE7
+  BackgroundColor<<Factory>>    #FFF59D
+  BackgroundColor<<DTO>>        #ECEFF1
+  BackgroundColor<<Util>>       #F5F5F5
+  BackgroundColor<<Enum>>       #FFF3E0
+  BackgroundColor<<Exception>>  #FFCCBC
+}
+
+'==============================================================
+' ==================== PAGE 1: OVERVIEW =======================
+'==============================================================
+title Auction System — Overview (bird-eye)
+
+legend right
+  | Màu | Vai trò |
+  |<#E3F2FD>| Entity (domain) |
+  |<#C8E6C9>| Service / Singleton |
+  |<#FFE0B2>| Controller (request handler) |
+  |<#FFCDD2>| Thread / Runnable |
+  |<#E1BEE7>| Observer (push realtime) |
+  |<#FFF59D>| Factory |
+  |<#ECEFF1>| DTO (protocol) |
+  |<#FFF3E0>| Enum |
+endlegend
+
+package "com.auction.model.entity" as P_ENTITY {
+  abstract class Entity <<Entity>>
+  abstract class Item <<Entity>>
+  class User <<Entity>>
+  class Auction <<Entity>>
+  class BidTransaction <<Entity>>
+  class AutoBid <<Entity>>
+  class Electronics <<Entity>>
+  class Art <<Entity>>
+  class Vehicle <<Entity>>
+  class OtherItem <<Entity>>
+}
+
+package "com.auction.model.enums" as P_ENUM {
+  enum AuctionStatus <<Enum>>
+  enum BidStatus <<Enum>>
+  enum Role <<Enum>>
+  enum UserStatus <<Enum>>
+  enum ItemCategory <<Enum>>
+  enum ItemCondition <<Enum>>
+}
+
+package "com.auction.model.factory" as P_FACTORY {
+  class ItemFactory <<Factory>>
+}
+
+package "com.auction.model.observer" {
+  interface AuctionObserver <<Observer>>
+}
+
+package "com.auction.service" as P_SERVICE {
+  class UserManager <<Singleton>>
+  class ItemManager <<Singleton>>
+  class AuctionManager <<Singleton>>
+  class BidManager <<Singleton>>
+}
+
+package "com.auction.server" as P_SERVER {
+  class ServerMain <<Thread>>
+  class ClientHandler <<Thread>>
+  class RequestRouter
+  package "observer" {
+    class AuctionEventManager <<Observer>>
+  }
+}
+
+package "com.auction.controller" as P_CTRL {
+  class UserController <<Controller>>
+  class AuctionController <<Controller>>
+  class BidController <<Controller>>
+}
+
+package "com.auction.protocol" as P_PROTO {
+  class Request <<DTO>>
+  class Response <<DTO>>
+}
+
+package "com.auction.client" as P_CLIENT {
+  class ClientApp <<Thread>>
+  class ClientModel <<Singleton>>
+  package "network" {
+    class ServerConnection <<Thread>>
+  }
+  package "controller" as P_FXCTRL {
+    class LoginController <<Controller>>
+    class RegisterController <<Controller>>
+    class AuctionListController <<Controller>>
+    class BiddingController <<Controller>>
+    class SellerDashboardController <<Controller>>
+  }
+}
+
+' --- Inheritance backbone (chỉ extends/implements để giữ Overview sạch) ---
+Entity <|-- Item
+Entity <|-- User
+Entity <|-- Auction
+Entity <|-- BidTransaction
+Item <|-- Electronics
+Item <|-- Art
+Item <|-- Vehicle
+Item <|-- OtherItem
+
+AuctionObserver <|.. AuctionManager : "internalObserver"
+AuctionObserver <|.. BidManager : "anonymous inner"
+AuctionObserver <|.. AuctionEventManager
+AuctionObserver <|.. ClientHandler
+
+' --- High-level wiring ---
+ServerMain ..> ClientHandler : new Thread\nper accept()
+ClientHandler *-- RequestRouter
+RequestRouter ..> UserController
+RequestRouter ..> AuctionController
+RequestRouter ..> BidController
+UserController ..> UserManager
+AuctionController ..> AuctionManager
+AuctionController ..> ItemManager
+AuctionController ..> AuctionEventManager
+BidController ..> BidManager
+AuctionManager o-- "*" Auction : ConcurrentHashMap
+BidManager o-- "*" BidTransaction
+BidManager o-- "*" AutoBid
+ItemManager o-- "*" Item
+UserManager o-- "*" User
+ItemFactory ..> Item : creates
+AuctionEventManager ..> AuctionManager : addGlobalObserver
+
+ClientApp ..> ClientModel
+ClientModel *-- ServerConnection
+LoginController ..> ClientModel
+BiddingController ..> ClientModel
+AuctionListController ..> ClientModel
+SellerDashboardController ..> ClientModel
+RegisterController ..> ClientModel
+
+note bottom of P_SERVICE
+  4 SINGLETON service (Bill-Pugh holder).
+  Mọi state global đi qua đây.
+  ConcurrentHashMap + CopyOnWriteArrayList
+  cho thread-safety.
+end note
+
+note bottom of P_SERVER
+  1 Thread / client (ClientHandler).
+  ServerMain accept loop ở main thread.
+  Push event qua AuctionObserver chain.
+end note
+
+newpage
+'==============================================================
+' ============= PAGE 2: DOMAIN + SERVICE (chi tiết) ===========
+'==============================================================
+title Domain Model + Service Layer (chi tiết)
+
+package "com.auction.model.entity" {
+
+  abstract class Entity <<Entity>> {
+    - {final} id : UUID
+    - {final} createdAt : LocalDateTime
+    - updatedAt : LocalDateTime
+    # Entity()
+    # Entity(id : UUID, createdAt, updatedAt)
+    # markUpdated() : void
+    + getId() : UUID
+    + {final} equals(o : Object) : boolean
+    + {final} hashCode() : int
+  }
+
+  abstract class Item <<Entity>> {
+    - name : String
+    - description : String
+    - {final} sellerId : UUID
+    - startingPrice : BigDecimal
+    - {final} images : List<String>
+    - {final} category : ItemCategory
+    - condition : ItemCondition
+    + {abstract} getSpecificInfo() : String
+    + {final} printInfo() : String
+    + rename(newName : String) : void
+    + updatePrice(p : BigDecimal) : void
+    + addImage(url : String) : void
+  }
+
+  class Electronics <<Entity>> {
+    - {final} brand : String
+    - {final} model : String
+    - {final} warrantyMonths : int
+    + getSpecificInfo() : String
+  }
+  class Art <<Entity>> {
+    - {final} artist : String
+    - {final} yearCreated : Integer
+    - {final} medium : String
+    + getSpecificInfo() : String
+  }
+  class Vehicle <<Entity>> {
+    - {final} make : String
+    - {final} model : String
+    - {final} year : int
+    - {final} mileageKm : int
+    + getSpecificInfo() : String
+  }
+  class OtherItem <<Entity>> {
+    - extraInfo : String
+    + getSpecificInfo() : String
+    + updateExtraInfo(s : String) : void
+  }
+
+  class User <<Entity>> {
+    - username : String
+    - hashedPassword : String
+    - passwordSalt : String
+    - email : String
+    - fullName : String
+    - userStatus : UserStatus
+    - role : Role
+    - balance : BigDecimal
+    - revenue : BigDecimal
+    + <<synchronized>> checkPassword(plain : String) : boolean
+    + <<synchronized>> changePassword(plain : String) : void
+    + <<synchronized>> hasEnoughBalance(amt : BigDecimal) : boolean
+    + <<synchronized>> tryReserve(amt : BigDecimal) : boolean
+    + <<synchronized>> release(amt : BigDecimal) : void
+    + <<synchronized>> addRevenue(amt : BigDecimal) : void
+    + canSell() : boolean
+    + canBid() : boolean
+    + ban() : void
+    + activate() : void
+  }
+
+  class "User.Builder" as UserBuilder {
+    + username(v) : Builder
+    + password(plain) : Builder
+    + role(r) : Builder
+    + build() : User
+  }
+
+  class Auction <<Entity>> {
+    - {final} itemId : UUID
+    - {final} sellerId : UUID
+    - {final} startTime : LocalDateTime
+    - endTime : LocalDateTime
+    - {final} startingPrice : BigDecimal
+    - currentPrice : BigDecimal
+    - {final} minimumIncrement : BigDecimal
+    - highestBidderId : UUID
+    - status : AuctionStatus
+    - totalBids : int
+    - <<transient>> lock : ReentrantLock
+    - <<transient>> observers : CopyOnWriteArrayList<AuctionObserver>
+    + placeBid(bid : BidTransaction) : BidOutcome
+    + extend(seconds : int) : void
+    + transitionTo(s : AuctionStatus) : void
+    + isActive() : boolean
+    + minNextBid() : BigDecimal
+    + isInSnipingWindow(s : int) : boolean
+    + addObserver(o : AuctionObserver) : void
+    - readObject(in : ObjectInputStream)
+  }
+
+  class "Auction.BidOutcome" as BidOutcome <<DTO>> {
+    + previousBidderId : UUID
+    + previousAmount : BigDecimal
+  }
+
+  class BidTransaction <<Entity>> {
+    - {final} auctionId : UUID
+    - {final} bidderId : UUID
+    - {final} bidAmount : BigDecimal
+    - status : BidStatus
+    + markValid() : void
+    + markOutbid() : void
+    + reject() : void
+    + cancel() : void
+  }
+
+  class AutoBid <<Entity>> {
+    - {final} bidderId : UUID
+    - {final} auctionId : UUID
+    - {final} maxBid : BigDecimal
+    - {final} increment : BigDecimal
+    - <<volatile>> active : boolean
+    + isActive() : boolean
+    + deactivate() : void
+  }
+}
+
+package "com.auction.model.enums" {
+  enum AuctionStatus <<Enum>> {
+    PENDING
+    RUNNING
+    FINISHED
+    PAID
+    CANCELED
+    + isOpenForBidding() : boolean
+    + isTerminal() : boolean
+    + canTransitionTo(s : AuctionStatus) : boolean
+  }
+  enum BidStatus <<Enum>> {
+    PENDING
+    VALID
+    OUTBID
+    REJECTED
+    CANCELED
+    + isTerminal() : boolean
+    + canTransitionTo(s : BidStatus) : boolean
+  }
+  enum Role <<Enum>> {
+    ADMIN
+    NORMAL
+  }
+  enum UserStatus <<Enum>> {
+    ACTIVE
+    BANNED
+  }
+  enum ItemCategory <<Enum>> {
+    ELECTRONICS
+    ART
+    VEHICLE
+    FASHION
+    COLLECTIBLE
+    OTHER
+  }
+  enum ItemCondition <<Enum>>
+}
+
+package "com.auction.model.factory" {
+  class ItemFactory <<Factory>> {
+    + {static} create(category, name, desc, sellerId, price, images, condition, attrs) : Item
+  }
+}
+
+package "com.auction.model.observer" {
+  interface AuctionObserver <<Observer>> {
+    + {abstract} onBidPlaced(a : Auction, b : BidTransaction)
+    + {abstract} onAuctionExtended(a : Auction, sec : int)
+    + {abstract} onStatusChanged(a : Auction, old : AuctionStatus, new : AuctionStatus)
+  }
+}
+
+package "com.auction.model.exception" {
+  class AuctionException <<Exception>>
+  class AuctionClosedException <<Exception>>
+  class InvalidBidException <<Exception>>
+  class IllegalAuctionStateException <<Exception>>
+  class InsufficientBalanceException <<Exception>>
+  class AuthException <<Exception>>
+  AuctionException <|-- AuctionClosedException
+  AuctionException <|-- InvalidBidException
+  AuctionException <|-- IllegalAuctionStateException
+  AuctionException <|-- InsufficientBalanceException
+}
+
+package "com.auction.security" {
+  class PasswordEncoder <<Util>> {
+    - {static} {final} RANDOM : SecureRandom
+    + {static} generateSalt() : String
+    + {static} hash(plain : String, salt : String) : String
+    + {static} matches(plain, salt, expected) : boolean
+  }
+}
+
+package "com.auction.service" {
+  class UserManager <<Singleton>> {
+    - {static} INSTANCE (Holder)
+    - users : ConcurrentHashMap<UUID,User>
+    - usernameIndex : ConcurrentHashMap<String,UUID>
+    + {static} getInstance() : UserManager
+    + register(username, plainPwd, email, fullName, role) : User
+    + login(username, plainPwd) : User
+    + findById(id : UUID) : Optional<User>
+    + findByUsername(u : String) : Optional<User>
+  }
+
+  class ItemManager <<Singleton>> {
+    - items : ConcurrentHashMap<UUID,Item>
+    + {static} getInstance() : ItemManager
+    + createItem(category, name, ..., attrs) : Item
+    + findById(id : UUID) : Optional<Item>
+    + findBySellerId(id : UUID) : List<Item>
+  }
+
+  class AuctionManager <<Singleton>> {
+    - auctions : ConcurrentHashMap<UUID,Auction>
+    - globalObservers : CopyOnWriteArrayList<AuctionObserver>
+    - scheduler : ScheduledExecutorService
+    - <<volatile>> snipingThresholdSeconds : int
+    - <<volatile>> snipingExtensionSeconds : int
+    - internalObserver : AuctionObserver
+    + {static} getInstance() : AuctionManager
+    + createAuction(itemId, sellerId, start, end, price, inc) : Auction
+    + register(a : Auction) : Auction
+    + closeAuction(id : UUID, actor : UUID) : Auction
+    + findById(id : UUID) : Optional<Auction>
+    + findActive() : List<Auction>
+    + addGlobalObserver(o : AuctionObserver) : void
+    + configureAntiSniping(th : int, ext : int) : void
+    - startLifecycleScheduler() : void
+    - tickLifecycle() : void
+    - trySettle(a : Auction) : void
+    + shutdown() : void
+  }
+
+  class BidManager <<Singleton>> {
+    - bidHistory : ConcurrentHashMap<UUID,List<BidTransaction>>
+    - autoBidsByAuction : ConcurrentHashMap<UUID,List<AutoBid>>
+    - inAutoBid : ThreadLocal<Boolean>
+    + {static} getInstance() : BidManager
+    + placeBid(auctionId, userId, amount) : BidTransaction
+    + registerAutoBid(auctionId, bidderId, max, inc) : AutoBid
+    + getBidHistory(auctionId : UUID) : List<BidTransaction>
+    - recordBid(a : Auction, b : BidTransaction) : void
+    - tryTriggerAutoBids(a : Auction, trigger : BidTransaction) : void
+  }
+}
+
+package "com.auction.util" {
+  class IdGenerator <<Util>> {
+    - {static} {final} counter : AtomicInteger
+    + {static} generate(prefix : String) : String
+  }
+  class JsonHelper <<Util>> {
+    - {static} {final} gson : Gson
+    + {static} toJson(o : Object) : String
+    + {static} parseRequest(json : String) : Request
+    + {static} parseResponse(json : String) : Response
+  }
+}
+
+' ---------- RELATIONSHIPS ----------
+Entity <|-- Item
+Entity <|-- User
+Entity <|-- Auction
+Entity <|-- BidTransaction
+Item <|-- Electronics
+Item <|-- Art
+Item <|-- Vehicle
+Item <|-- OtherItem
+User +-- UserBuilder
+Auction +-- BidOutcome
+
+Item "1" o-- "1..*" ItemCategory : > category
+Item "1" o-- "1" ItemCondition : > condition
+User "1" o-- "1" Role
+User "1" o-- "1" UserStatus
+User ..> PasswordEncoder : hash/verify
+Auction "1" o-- "1" AuctionStatus
+Auction "1" o-- "0..*" AuctionObserver : observers
+BidTransaction "1" o-- "1" BidStatus
+Auction ..> BidTransaction : placeBid(bid)
+Auction ..> BidOutcome : returns
+
+ItemFactory ..> Electronics : creates
+ItemFactory ..> Art : creates
+ItemFactory ..> Vehicle : creates
+ItemFactory ..> OtherItem : creates
+
+UserManager "1" o-- "*" User
+ItemManager "1" o-- "*" Item
+AuctionManager "1" o-- "*" Auction
+BidManager "1" o-- "*" BidTransaction
+BidManager "1" o-- "*" AutoBid
+
+ItemManager ..> ItemFactory
+ItemManager ..> UserManager : check canSell
+AuctionManager ..> UserManager : check canSell, addRevenue
+AuctionManager ..> ItemManager : verify item
+BidManager ..> AuctionManager : findById / global observer
+BidManager ..> UserManager : tryReserve / release
+AuctionManager .|> AuctionObserver : internalObserver (anti-sniping)
+BidManager .|> AuctionObserver : anonymous inner (status watcher)
+
+InvalidBidException <.. Auction : throws
+AuctionClosedException <.. Auction : throws
+IllegalAuctionStateException <.. Auction : throws
+InsufficientBalanceException <.. BidManager : throws
+AuthException <.. UserManager : throws
+
+note right of Auction
+  THREAD-SAFE CORE
+  - placeBid()/extend()/transitionTo()
+    được bao bởi ReentrantLock.
+  - Notify observer NGOÀI lock
+    → tránh deadlock + không block
+       các bid khác khi observer chậm.
+  - lock & observers là transient,
+    readObject() khôi phục lại.
+end note
+
+note right of AuctionManager
+  Scheduler 1 daemon thread:
+    tickLifecycle() mỗi 1s
+  PENDING→RUNNING→FINISHED→PAID
+  internalObserver:
+    + anti-sniping
+    + forward global observers
+end note
+
+note right of BidManager
+  inAutoBid : ThreadLocal<Boolean>
+    chặn re-entry trong cùng thread
+    (auto-bid trigger auto-bid → storm)
+  placeBid() flow:
+    1. validate bidder
+    2. user.tryReserve() (atomic)
+    3. auction.placeBid() (entity lock)
+    4. release reservation cho leader cũ
+    5. recordBid + tryTriggerAutoBids
+end note
+
+newpage
+'==============================================================
+' ============== PAGE 3: NETWORK + CLIENT =====================
+'==============================================================
+title Network Layer + JavaFX Client (thread & observer flow)
+
+package "com.auction.server" {
+  class ServerMain <<Thread>> {
+    + {static} {final} PORT : int = 8888
+    + {static} main(args : String[]) : void
+  }
+
+  class ClientHandler <<Thread>> {
+    - {final} socket : Socket
+    - reader : BufferedReader
+    - writer : PrintWriter
+    - {final} router : RequestRouter
+    - {final} eventManager : AuctionEventManager
+    - currentUserId : UUID
+    + run() : void
+    + <<synchronized>> send(r : Response) : void
+    - handleLine(line : String) : void
+    - cleanup() : void
+    + onBidPlaced(a, b)
+    + onStatusChanged(a, old, new)
+    + onAuctionExtended(a, sec)
+  }
+
+  class RequestRouter {
+    - userCtrl : UserController
+    - auctionCtrl : AuctionController
+    - bidCtrl : BidController
+    + route(req : Request) : Response
+  }
+
+  package "observer" {
+    class AuctionEventManager <<Singleton, Observer>> {
+      - observers : ConcurrentHashMap<UUID,List<AuctionObserver>>
+      + {static} getInstance() : AuctionEventManager
+      + subscribe(auctionId, obs) : void
+      + unsubscribe(auctionId, obs) : void
+      + unsubscribeAll(obs : AuctionObserver) : void
+      + onBidPlaced(a, b)
+      + onStatusChanged(a, old, new)
+      + onAuctionExtended(a, sec)
+      - forEachSubscriber(id, action) : void
+    }
+  }
+}
+
+package "com.auction.controller" {
+  class UserController <<Controller>> {
+    - userManager : UserManager
+    - handler : ClientHandler
+    + login(req) : Response
+    + register(req) : Response
+    + logout(req) : Response
+    + getProfile(req) : Response
+  }
+  class AuctionController <<Controller>> {
+    - auctionManager : AuctionManager
+    - itemManager : ItemManager
+    - userManager : UserManager
+    - eventManager : AuctionEventManager
+    - handler : ClientHandler
+    + listAuctions(req) : Response
+    + getAuction(req) : Response
+    + createItem(req) : Response
+    + createAuction(req) : Response
+    + closeAuction(req) : Response
+    + watchAuction(req) : Response
+    + unwatchAuction(req) : Response
+  }
+  class BidController <<Controller>> {
+    - bidManager : BidManager
+    - handler : ClientHandler
+    + placeBid(req) : Response
+    + setAutoBid(req) : Response
+    + bidHistory(req) : Response
+  }
+}
+
+package "com.auction.protocol" {
+  class Request <<DTO>> {
+    - action : String
+    - data : Map<String,Object>
+    - token : String
+    + requireString(key) : String
+    + requireUUID(key) : UUID
+    + requireDouble(key) : double
+    + <E extends Enum<E>> requireEnum(c : Class<E>, key) : E
+  }
+  class Response <<DTO>> {
+    - action : String
+    - status : String
+    - message : String
+    - data : Object
+    + {static} success(action, msg, data) : Response
+    + {static} error(action, msg) : Response
+    + {static} push(action, data) : Response
+  }
+}
+
+package "com.auction.client" {
+  class ClientApp <<Thread>> {
+    - {static} primaryStage : Stage
+    + start(stage : Stage) : void
+    + {static} switchScene(fxml : String) : void
+    + {static} switchSceneWithData(fxml, setup) : void
+    + {static} main(args : String[]) : void
+  }
+
+  class ClientModel <<Singleton>> {
+    - {static} instance : ClientModel
+    - connection : ServerConnection
+    - userId : String
+    - responseQueues : ConcurrentHashMap<String,BlockingQueue<Response>>
+    - pushHandlers : ConcurrentHashMap<String,List<Consumer<Map>>>
+    + {static} <<synchronized>> getInstance() : ClientModel
+    + connect(host, port) : void
+    + sendRequest(action, data) : void
+    + waitForResponse(action, timeoutMs) : Response
+    + addPushHandler(action, h : Consumer) : void
+    - handleServerMessage(json : String) : void
+    - dispatchPush(action, res) : void
+  }
+
+  package "network" {
+    class ServerConnection <<Thread>> {
+      - socket : Socket
+      - reader : BufferedReader
+      - writer : PrintWriter
+      - <<volatile>> connected : boolean
+      - listener : MessageListener
+      - listenerThread : Thread
+      + connect(host, port) : void
+      + <<synchronized>> send(json : String) : void
+      + disconnect() : void
+    }
+    interface "ServerConnection.MessageListener" as MsgListener {
+      + onMessage(json : String)
+    }
+  }
+
+  package "controller" {
+    class LoginController <<Controller>>
+    class RegisterController <<Controller>>
+    class AuctionListController <<Controller>>
+    class BiddingController <<Controller>>
+    class SellerDashboardController <<Controller>>
+  }
+}
+
+' ---------- WIRING ----------
+ServerMain ..> ClientHandler : "new Thread(handler)\nper accept()"
+ClientHandler ..|> Runnable
+ClientHandler ..|> AuctionObserver
+ClientHandler *-- RequestRouter
+ClientHandler ..> AuctionEventManager : subscribe / unsubscribeAll
+ClientHandler ..> JsonHelper
+ClientHandler ..> Request
+ClientHandler ..> Response
+
+RequestRouter ..> UserController
+RequestRouter ..> AuctionController
+RequestRouter ..> BidController
+RequestRouter ..> Request
+RequestRouter ..> Response
+
+UserController ..> UserManager
+AuctionController ..> AuctionManager
+AuctionController ..> ItemManager
+AuctionController ..> UserManager
+AuctionController ..> AuctionEventManager
+BidController ..> BidManager
+BidController ..> UserManager
+
+AuctionEventManager .|> AuctionObserver
+AuctionEventManager ..> AuctionManager : addGlobalObserver(this)
+
+ClientApp ..> LoginController : load FXML
+ClientApp ..> ClientModel
+LoginController ..> ClientModel
+RegisterController ..> ClientModel
+AuctionListController ..> ClientModel
+BiddingController ..> ClientModel : sendRequest +\naddPushHandler(BID_UPDATE)
+SellerDashboardController ..> ClientModel
+
+ClientModel *-- ServerConnection
+ServerConnection +-- MsgListener
+ServerConnection ..> MsgListener : callback per line
+
+' --- EVENT/PUSH FLOW (note) ---
+note right of ClientHandler
+  THREAD MODEL
+  - 1 ClientHandler / 1 socket (mỗi connection 1 Thread)
+  - send() là synchronized
+    → tránh interleave giữa:
+        a) trả response cho request hiện tại
+        b) push do observer callback (thread khác)
+  - cleanup() gọi eventManager.unsubscribeAll(this)
+    → tránh memory leak khi client disconnect
+end note
+
+note right of AuctionEventManager
+  REALTIME PUSH PIPELINE
+  Auction.placeBid()      [worker thread của ClientHandler X]
+   └─> notifyBidPlaced     (NGOÀI lock)
+        └─> AuctionManager.internalObserver
+              └─> globalObservers
+                    └─> AuctionEventManager.onBidPlaced
+                          └─> for each subscriber (ClientHandler Y, Z, ...)
+                                └─> handler.send(JSON push)   [synchronized]
+end note
+
+note right of ClientModel
+  CLIENT THREAD MODEL
+  - ServerConnection chạy listenerThread (daemon)
+    đọc từng dòng JSON, gọi onMessage()
+  - handleServerMessage() route:
+      isPush()  → dispatchPush() (BID_UPDATE, AUCTION_STATUS...)
+      ELSE      → push vào responseQueues[action]
+  - JavaFX controller gọi waitForResponse() trên thread phụ,
+    sau đó Platform.runLater() update UI.
+end note
+
+newpage
+'==============================================================
+' ============= PAGE 4: AUCTION ZOOM-DEEP =====================
+'  Focus duy nhất vào Auction + tương tác trực tiếp.
+'  Mục tiêu: nhìn 1 trang là hiểu critical-section của hệ thống.
+'==============================================================
+title Auction (zoom-deep) — state, lock & event flow
+
+class Auction <<Entity>> {
+  .. immutable ..
+  - {final} itemId : UUID
+  - {final} sellerId : UUID
+  - {final} startTime : LocalDateTime
+  - {final} startingPrice : BigDecimal
+  - {final} minimumIncrement : BigDecimal
+  .. mutable (lock-protected) ..
+  - endTime : LocalDateTime
+  - currentPrice : BigDecimal
+  - highestBidderId : UUID
+  - status : AuctionStatus
+  - totalBids : int
+  .. transient (re-init in readObject) ..
+  - <<transient>> lock : ReentrantLock
+  - <<transient>> observers : CopyOnWriteArrayList<AuctionObserver>
+  .. constructors ..
+  + Auction(itemId, sellerId, start, end, price, inc)
+  + Auction(id, createdAt, updatedAt, ...)
+  .. read-only queries ..
+  + isActive() : boolean
+  + getRemainingSeconds() : long
+  + minNextBid() : BigDecimal
+  + isInSnipingWindow(sec : int) : boolean
+  .. mutation (LOCKED) ..
+  + placeBid(bid : BidTransaction) : BidOutcome
+  + extend(seconds : int) : void
+  + transitionTo(s : AuctionStatus) : void
+  .. observer mgmt ..
+  + addObserver(o : AuctionObserver) : void
+  + removeObserver(o : AuctionObserver) : void
+  - notifyBidPlaced(b : BidTransaction)
+  - notifyAuctionExtended(sec : int)
+  - notifyStatusChanged(old, new)
+  .. serialization ..
+  - readObject(in : ObjectInputStream)
+}
+
+class "Auction.BidOutcome" as BidOutcome <<DTO>> {
+  + {final} previousBidderId : UUID
+  + {final} previousAmount : BigDecimal
+}
+Auction +-- BidOutcome
+
+class BidTransaction <<Entity>> {
+  - {final} auctionId : UUID
+  - {final} bidderId : UUID
+  - {final} bidAmount : BigDecimal
+  - status : BidStatus
+  + markValid() / reject() / markOutbid() / cancel()
+}
+
+interface AuctionObserver <<Observer>> {
+  + onBidPlaced(a, b)
+  + onAuctionExtended(a, sec)
+  + onStatusChanged(a, old, new)
+}
+
+enum AuctionStatus <<Enum>> {
+  PENDING --> RUNNING
+  RUNNING --> FINISHED / CANCELED
+  FINISHED --> PAID / CANCELED
+  PAID, CANCELED  (terminal)
+  + canTransitionTo(next) : boolean
+  + isTerminal() : boolean
+}
+
+class BidManager <<Singleton>> {
+  + placeBid(auctionId, userId, amount) : BidTransaction
+}
+
+class AuctionManager <<Singleton>> {
+  - scheduler : ScheduledExecutorService
+  - internalObserver : AuctionObserver
+  + createAuction(...) : Auction
+  + closeAuction(id, actor) : Auction
+  - tickLifecycle() : void
+  - trySettle(a : Auction) : void
+}
+
+class User <<Entity>> {
+  + <<synchronized>> tryReserve(amt) : boolean
+  + <<synchronized>> release(amt) : void
+  + <<synchronized>> addRevenue(amt) : void
+}
+
+' --- relationships ---
+Auction "1" *-- "0..*" AuctionObserver : observers (CoW)
+Auction ..> BidOutcome : returns
+Auction ..> BidTransaction : mutate(status)
+Auction "1" o-- "1" AuctionStatus : status
+
+BidManager ..> Auction : placeBid(bid) [enters lock]
+BidManager ..> User : tryReserve / release [synchronized]
+AuctionManager ..> Auction : transitionTo, extend [enters lock]
+AuctionManager ..> User : addRevenue (in trySettle)
+AuctionManager .|> AuctionObserver : internalObserver (anti-sniping + forward)
+
+' ============= NOTES =============
+
+note top of Auction
+  CRITICAL SECTION = Auction.lock (ReentrantLock)
+  Mọi method mutate state đều mua lock này.
+  Read-only (isActive, getCurrentPrice…) KHÔNG lock
+   → đọc lúc đang ghi có thể thấy "stale" tích tắc,
+      nhưng KHÔNG inconsistent (BigDecimal immutable,
+      reference assignment atomic theo JLS §17.7).
+end note
+
+note as N_placeBid
+  **Auction.placeBid()** — LUỒNG (ATOMIC trong lock):
+  ┌─────────────────────────────────────────────┐
+  │ 1. requireNonNull + assert auctionId match  │
+  │ 2. lock.lock()                              │
+  │ 3.   if !isActive()  → bid.reject()         │
+  │                       throw AuctionClosed   │
+  │ 4.   if bidder == seller → reject + throw   │
+  │ 5.   if amount < minNextBid → reject + throw│
+  │ 6.   SNAPSHOT prev leader / prev amount     │
+  │ 7.   currentPrice = bid.amount              │
+  │      highestBidderId = bid.bidderId         │
+  │      totalBids++                            │
+  │      bid.markValid()                        │
+  │      markUpdated()                          │
+  │ 8. lock.unlock()  (finally)                 │
+  │ 9. notifyBidPlaced(bid)  ← NGOÀI LOCK       │
+  │ 10. return BidOutcome(prev…)                │
+  └─────────────────────────────────────────────┘
+  Tại sao snapshot prev TRONG lock?
+   → ngoài lock có thể bị bid khác overwrite,
+      caller (BidManager) cần đúng leader cũ
+      để release reservation.
+end note
+N_placeBid .. Auction
+
+note as N_transition
+  **Auction.transitionTo()** — STATE MACHINE
+  (validate qua AuctionStatus.canTransitionTo):
+        ┌──► RUNNING ─┐
+  PENDING            ├─► FINISHED ──► PAID
+        └─────────────┴─► CANCELED (terminal)
+  - PAID & CANCELED không có outgoing.
+  - Throw IllegalAuctionStateException nếu transition sai.
+  - oldStatus snapshot trong lock → notify ngoài lock.
+end note
+N_transition .. Auction
+
+note as N_extend
+  **Auction.extend()** — ANTI-SNIPING:
+  - Gọi bởi AuctionManager.internalObserver.onBidPlaced
+    khi auction.isInSnipingWindow(threshold).
+  - Lock RE-ENTRANT: cùng thread đang trong notify
+    (đã ra khỏi lock placeBid) → reacquire OK.
+end note
+N_extend .. Auction
+
+note right of AuctionObserver
+  CHUỖI OBSERVER (mỗi event):
+   Auction.notifyXxx (ngoài lock)
+    └─> AuctionManager.internalObserver
+         ├─ anti-sniping: auction.extend()
+         └─ globalObservers.forEach
+              ├─> BidManager (status watcher → tắt auto-bid)
+              └─> AuctionEventManager
+                    └─> ClientHandler[i].send(JSON push)
+                         (synchronized I/O — risk chậm)
+  Mỗi nấc đều safeNotify try-catch:
+    observer crash KHÔNG vỡ chain.
+end note
+
+note as N_tick
+  **AuctionManager.tickLifecycle()** — SCHEDULER:
+  scheduleAtFixedRate(this::tickLifecycle, 1s, 1s)
+  - daemon thread "AuctionManager-Scheduler"
+  - Mỗi tick quét toàn bộ auctions:
+      PENDING + (now >= start)        → transitionTo(RUNNING)
+      RUNNING + (now >= end)          → transitionTo(FINISHED)
+                                        → trySettle (cộng revenue + PAID)
+  - try-catch quanh từng auction → 1 lỗi không chết scheduler.
+  - Có thể chạy ĐỒNG THỜI placeBid của user
+    → cả 2 đều mua Auction.lock, kẻ thua thấy state đã đổi
+      và throw AuctionClosedException (đúng kỳ vọng).
+end note
+N_tick .. AuctionManager
+
+note as N_lockorder
+  **BidManager.placeBid()** — LOCK ORDER (ĐỪNG ĐẢO!):
+    User.intrinsic  ─►  Auction.lock  ─►  User.intrinsic (prev leader)
+        (reserve)         (entity)              (release)
+  Hiện code KHÔNG mua 2 lock cùng lúc → không deadlock.
+  Xem docs/lock-ordering.md để biết contract chi tiết.
+end note
+N_lockorder .. BidManager
+
+@enduml
