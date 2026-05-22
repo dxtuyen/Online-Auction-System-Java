@@ -108,7 +108,6 @@ public final class AuctionController {
         data.put("displayStatus", a.getStatus().getDisplayName());
         data.put("startTime", a.getStartTime().toString());
         data.put("endTime", a.getEndTime().toString());
-        data.put("remainingSeconds", a.getRemainingSeconds());
 
         return Response.success("GET_AUCTION", null, data);
     }

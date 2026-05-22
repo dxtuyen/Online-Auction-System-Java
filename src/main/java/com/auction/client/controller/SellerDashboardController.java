@@ -35,6 +35,8 @@ public class SellerDashboardController {
     @FXML private TableView<Map<String, Object>> tblItems;
     @FXML private TableColumn<Map<String, Object>, String> colItemId;
     @FXML private TableColumn<Map<String, Object>, String> colItemName;
+    @FXML private TableColumn<Map<String, Object>, String> colItemCategory;
+    @FXML private TableColumn<Map<String, Object>, String> colItemCondition;
     @FXML private TableColumn<Map<String, Object>, String> colItemPrice;
 
     @FXML private ComboBox<String> cboCategory;
@@ -75,6 +77,8 @@ public class SellerDashboardController {
 
         colItemId.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "itemId")));
         colItemName.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "name")));
+        colItemCategory.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "category")));
+        colItemCondition.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "condition")));
         colItemPrice.setCellValueFactory(cd -> new SimpleStringProperty(money(cd.getValue().get("startingPrice"))));
         tblItems.setItems(itemsData);
 

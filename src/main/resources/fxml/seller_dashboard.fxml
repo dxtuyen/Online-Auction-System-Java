@@ -95,9 +95,11 @@
             <Label style="-fx-font-weight: bold;" text="📦 Sản phẩm của tôi" />
             <TableView fx:id="tblItems" prefHeight="170" VBox.vgrow="SOMETIMES">
                <columns>
-                  <TableColumn fx:id="colItemId" prefWidth="60" text="ID" />
-                  <TableColumn fx:id="colItemName" prefWidth="220" text="Tên" />
-                  <TableColumn fx:id="colItemPrice" prefWidth="220" text="Giá KĐ" />
+                  <TableColumn fx:id="colItemId" prefWidth="50" text="ID" />
+                  <TableColumn fx:id="colItemName" prefWidth="160" text="Tên" />
+                  <TableColumn fx:id="colItemCategory" prefWidth="100" text="Danh mục" />
+                  <TableColumn fx:id="colItemCondition" prefWidth="80" text="Tình trạng" />
+                  <TableColumn fx:id="colItemPrice" prefWidth="120" text="Giá KĐ" />
                </columns>
                <placeholder><Label text="Chưa có sản phẩm" /></placeholder>
             </TableView>

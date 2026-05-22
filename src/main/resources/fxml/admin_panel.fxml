@@ -46,6 +46,7 @@
                                     <TableColumn fx:id="colRole" prefWidth="100" text="Vai trò" />
                                     <TableColumn fx:id="colStatus" prefWidth="120" text="Trạng thái" />
                                     <TableColumn fx:id="colBalance" prefWidth="120" text="Số dư" />
+                                    <TableColumn fx:id="colRevenue" prefWidth="120" text="Doanh thu" />
                                     <TableColumn fx:id="colAction" prefWidth="180" text="Hành động" />
                                 </columns>
                                 <placeholder>

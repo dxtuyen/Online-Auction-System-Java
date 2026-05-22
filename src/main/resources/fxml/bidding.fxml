@@ -20,6 +20,7 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
 <?import javafx.scene.text.Font?>
 
 <BorderPane prefHeight="620" prefWidth="920" style="-fx-background-color: #f8fafc;" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.controller.BiddingController">
@@ -34,7 +35,7 @@
          <children>
             <Button mnemonicParsing="false" onAction="#goBack" styleClass="btn-secondary" text="← Quay lại" />
             <Region prefHeight="200.0" prefWidth="200.0" HBox.hgrow="ALWAYS" />
-            <Label fx:id="lblUserInfo" styleClass="label-price" />
+            <Label fx:id="lblStatusBadge" styleClass="status-badge" />
             <Label fx:id="lblTimer" styleClass="timer-normal" />
          </children>
       </HBox>
@@ -44,14 +45,30 @@
          <children>
             <VBox prefHeight="200.0" prefWidth="100.0" spacing="14.0" HBox.hgrow="ALWAYS">
                <children>
-                  <VBox prefHeight="331.0" prefWidth="442.0" spacing="10.0" styleClass="card">
+                  <VBox prefHeight="331.0" prefWidth="442.0" spacing="8.0" styleClass="card">
                      <children>
                         <StackPane>
                            <Rectangle arcHeight="10" arcWidth="10" fill="#e5e7eb" height="200" stroke="#cbd5e1" width="400" />
                            <ImageView fx:id="imgItem" fitHeight="200" fitWidth="400" preserveRatio="true" />
                         </StackPane>
-                        <Label fx:id="lblItemName" styleClass="label-title" />
-                        <Label fx:id="lblItemInfo" styleClass="label-muted" />
+                        <HBox alignment="CENTER_LEFT" spacing="8.0">
+                           <children>
+                              <Label fx:id="lblItemName" styleClass="label-title" HBox.hgrow="ALWAYS" />
+                              <Region HBox.hgrow="ALWAYS" />
+                              <Label fx:id="lblItemCategory" styleClass="label-muted" />
+                           </children>
+                        </HBox>
+                        <Label fx:id="lblItemInfo" styleClass="label-muted" wrapText="true" />
+                        <HBox alignment="CENTER_LEFT" spacing="8.0">
+                           <children>
+                              <StackPane>
+                                 <Circle radius="14" style="-fx-fill: #e5e7eb; -fx-stroke: #cbd5e1; -fx-stroke-width: 1;" />
+                                 <ImageView fx:id="imgSellerAvatar" fitHeight="28" fitWidth="28" preserveRatio="false" />
+                              </StackPane>
+                              <Label styleClass="label-muted" text="Người bán:" />
+                              <Label fx:id="lblSellerName" />
+                           </children>
+                        </HBox>
                         <Separator prefHeight="0.0" prefWidth="403.0">
                            <opaqueInsets>
                               <Insets top="10.0" />

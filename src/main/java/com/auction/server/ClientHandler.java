@@ -132,17 +132,13 @@ public class ClientHandler implements Runnable, AuctionObserver {
     public void onBidPlaced(Auction auction, BidTransaction bid) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId().toString());
-        data.put("bidId", bid.getId().toString());
-        data.put("bidderId", bid.getBidderId().toString());
         // Resolve username để client cập nhật lblLeader trực tiếp từ push,
         // không phải đợi loadBidHistory chạy xong (bị async + flicker).
         String bidderName = UserManager.getInstance().findById(bid.getBidderId())
                 .map(User::getUsername).orElse("?");
         data.put("bidderName", bidderName);
         data.put("amount", bid.getBidAmount());
-        data.put("currentPrice", auction.getCurrentPrice());
         data.put("totalBids", auction.getTotalBids());
-        data.put("timestamp", bid.getTimestamp().toString());
         send(Response.push("BID_UPDATE", data));
     }
 
@@ -150,9 +146,8 @@ public class ClientHandler implements Runnable, AuctionObserver {
     public void onStatusChanged(Auction auction, AuctionStatus oldStatus, AuctionStatus newStatus) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId().toString());
-        data.put("oldStatus", oldStatus.name());
         data.put("status", newStatus.name());
-        data.put("currentPrice", auction.getCurrentPrice());
+        data.put("displayStatus", newStatus.getDisplayName());
         // highestBidderId có thể null (chưa ai bid) — giữ null để client biết.
         data.put("highestBidderId", auction.getHighestBidderId() == null
                 ? null : auction.getHighestBidderId().toString());

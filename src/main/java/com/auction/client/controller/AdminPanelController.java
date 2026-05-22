@@ -37,6 +37,7 @@ public class AdminPanelController {
     @FXML private TableColumn<Map<String, Object>, String> colRole;
     @FXML private TableColumn<Map<String, Object>, String> colStatus;
     @FXML private TableColumn<Map<String, Object>, String> colBalance;
+    @FXML private TableColumn<Map<String, Object>, String> colRevenue;
     @FXML private TableColumn<Map<String, Object>, Map<String, Object>> colAction;
     @FXML private Label lblUserStatus;
 
@@ -71,6 +72,7 @@ public class AdminPanelController {
         colRole.setCellValueFactory(cd -> col(cd.getValue(), "displayRole"));
         colStatus.setCellValueFactory(cd -> col(cd.getValue(), "displayStatus"));
         colBalance.setCellValueFactory(cd -> new SimpleStringProperty(money(cd.getValue().get("balance"))));
+        colRevenue.setCellValueFactory(cd -> new SimpleStringProperty(money(cd.getValue().get("revenue"))));
         colAction.setCellValueFactory(cd -> new javafx.beans.property.SimpleObjectProperty<>(cd.getValue()));
         colAction.setCellFactory(userActionCellFactory());
         tblUsers.setItems(userRows);
