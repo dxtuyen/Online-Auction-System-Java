@@ -5,14 +5,17 @@ import com.auction.client.model.ClientModel;
 import com.auction.client.util.ImageCacheService;
 import com.auction.protocol.Response;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.*;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.shape.Circle;
 import javafx.stage.FileChooser;
+import javafx.util.Callback;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -54,7 +57,15 @@ public class SellerDashboardController {
     @FXML private TextField txtMinIncrement;
     @FXML private Label lblAuctionStatus;
 
+    // Bảng "Phiên đấu giá của tôi" — load từ LIST_AUCTIONS rồi filter client-side theo sellerId.
+    @FXML private TableView<Map<String, Object>> tblMyAuctions;
+    @FXML private TableColumn<Map<String, Object>, String> colMyAuctionName;
+    @FXML private TableColumn<Map<String, Object>, String> colMyAuctionStatus;
+    @FXML private TableColumn<Map<String, Object>, Map<String, Object>> colMyAuctionAction;
+    @FXML private Label lblMyAuctionMsg;
+
     private final ObservableList<Map<String, Object>> itemsData = FXCollections.observableArrayList();
+    private final ObservableList<Map<String, Object>> myAuctionsData = FXCollections.observableArrayList();
 
     @FXML
     private void initialize() {
@@ -75,8 +86,106 @@ public class SellerDashboardController {
             }
         });
 
+        colMyAuctionName.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "itemName")));
+        colMyAuctionStatus.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "displayStatus")));
+        colMyAuctionAction.setCellValueFactory(cd -> new SimpleObjectProperty<>(cd.getValue()));
+        colMyAuctionAction.setCellFactory(myAuctionActionCellFactory());
+        tblMyAuctions.setItems(myAuctionsData);
+
         loadProfileSummary();
         loadMyItems();
+        loadMyAuctions();
+    }
+
+    private void loadMyAuctions() {
+        new Thread(() -> {
+            ClientModel model = ClientModel.getInstance();
+            model.sendRequest("LIST_AUCTIONS", Map.of());
+            Response res = model.waitForResponse("LIST_AUCTIONS", 5000);
+            if (res == null || !res.isSuccess()) return;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) res.getData();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> all = (List<Map<String, Object>>) data.get("auctions");
+            String me = model.getUserId();
+            List<Map<String, Object>> mine = new ArrayList<>();
+            if (all != null && me != null) {
+                for (Map<String, Object> a : all) {
+                    if (me.equals(s(a, "sellerId"))) mine.add(a);
+                }
+            }
+            Platform.runLater(() -> {
+                myAuctionsData.clear();
+                myAuctionsData.addAll(mine);
+            });
+        }, "seller-load-auctions").start();
+    }
+
+    /**
+     * Mỗi row render nút "Đóng phiên". Disable khi phiên không còn PENDING/RUNNING
+     * — khớp với gate ở {@code AuctionManager.closeAuction()}, không phụ thuộc server trả lỗi.
+     */
+    private Callback<TableColumn<Map<String, Object>, Map<String, Object>>,
+            TableCell<Map<String, Object>, Map<String, Object>>> myAuctionActionCellFactory() {
+        return column -> new TableCell<>() {
+            private final Button btnClose = new Button("🚫 Đóng");
+            {
+                btnClose.getStyleClass().add("btn-secondary");
+                btnClose.setOnAction(e -> {
+                    Map<String, Object> row = getItem();
+                    if (row != null) closeMyAuction(row);
+                });
+            }
+            @Override
+            protected void updateItem(Map<String, Object> row, boolean empty) {
+                super.updateItem(row, empty);
+                if (empty || row == null) {
+                    setGraphic(null);
+                    return;
+                }
+                String status = s(row, "status");
+                boolean closable = "PENDING".equals(status) || "RUNNING".equals(status);
+                btnClose.setDisable(!closable);
+                setAlignment(Pos.CENTER_LEFT);
+                setGraphic(btnClose);
+            }
+        };
+    }
+
+    private void closeMyAuction(Map<String, Object> row) {
+        String name = s(row, "itemName");
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Đóng phiên đấu giá '" + name + "'?\n\n"
+                        + "• Nếu chưa có ai đặt giá: phiên sẽ bị HỦY.\n"
+                        + "• Nếu đã có người đặt giá: phiên KẾT THÚC, người dẫn đầu nhận yêu cầu thanh toán.",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setHeaderText(null);
+        if (confirm.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+
+        showMyAuctionMsg("Đang gửi yêu cầu...", false);
+        new Thread(() -> {
+            try {
+                ClientModel model = ClientModel.getInstance();
+                model.sendRequest("CLOSE_AUCTION",
+                        Map.of("auctionId", s(row, "auctionId")));
+                Response res = model.waitForResponse("CLOSE_AUCTION", 5000);
+                Platform.runLater(() -> {
+                    if (res != null && res.isSuccess()) {
+                        showMyAuctionMsg("✓ " + res.getMessage(), false);
+                        loadMyAuctions();
+                    } else {
+                        showMyAuctionMsg(res != null ? res.getMessage() : "Không phản hồi", true);
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> showMyAuctionMsg("Lỗi: " + e.getMessage(), true));
+            }
+        }, "seller-close-auction").start();
+    }
+
+    private void showMyAuctionMsg(String msg, boolean error) {
+        lblMyAuctionMsg.setStyle(error ? "-fx-text-fill: #dc2626;" : "-fx-text-fill: #059669;");
+        lblMyAuctionMsg.setText(msg);
     }
 
     private void loadMyItems() {
@@ -233,6 +342,7 @@ public class SellerDashboardController {
                 if (res != null && res.isSuccess()) {
                     lblAuctionStatus.setStyle("-fx-text-fill: #059669;");
                     lblAuctionStatus.setText("✓ " + res.getMessage());
+                    loadMyAuctions();
                 } else {
                     lblAuctionStatus.setStyle("-fx-text-fill: #dc2626;");
                     lblAuctionStatus.setText(res != null ? res.getMessage() : "Lỗi");

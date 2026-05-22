@@ -55,6 +55,7 @@
                <ImageView fx:id="imgHeaderAvatar" fitHeight="32" fitWidth="32" preserveRatio="false" />
             </StackPane>
             <Label fx:id="lblUserInfo" styleClass="label-muted" />
+            <Button fx:id="btnAdminPanel" managed="false" mnemonicParsing="false" onAction="#goToAdminPanel" styleClass="btn-secondary" text="🛡 Quản trị" visible="false" />
             <Button mnemonicParsing="false" onAction="#handleViewAccount" styleClass="btn-secondary" text="Tài khoản" />
             <Button mnemonicParsing="false" onAction="#handleLogout" styleClass="btn-secondary" text="Đăng xuất" />
          </children></HBox>

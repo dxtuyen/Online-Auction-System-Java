@@ -57,6 +57,7 @@ public final class AuctionController {
             Item item = itemManager.findById(a.getItemId()).orElse(null);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("auctionId", a.getId().toString());
+            row.put("sellerId", a.getSellerId().toString());
             row.put("itemName", item != null ? item.getName() : "N/A");
             row.put("itemCategory", item != null ? item.getCategory().getDisplayName() : "");
             row.put("category", item != null ? item.getCategory().name() : "");

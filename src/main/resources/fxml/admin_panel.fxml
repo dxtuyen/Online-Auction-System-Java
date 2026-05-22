@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.net.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane prefHeight="640" prefWidth="1100" style="-fx-background-color: #f8fafc;" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.controller.AdminPanelController">
+
+    <stylesheets>
+        <URL value="@../css/style.css" />
+    </stylesheets>
+
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="header-bar">
+            <padding>
+                <Insets bottom="12" left="20" right="20" top="12" />
+            </padding>
+            <Button onAction="#goBack" styleClass="btn-secondary" text="← Quay lại" />
+            <Label styleClass="label-title" text="🛡 Bảng điều khiển Quản trị viên" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Label fx:id="lblAdminInfo" styleClass="label-muted" />
+            <Button onAction="#handleLogout" styleClass="btn-secondary" text="Đăng xuất" />
+        </HBox>
+    </top>
+
+    <center>
+        <TabPane tabClosingPolicy="UNAVAILABLE">
+            <tabs>
+                <Tab text="👥 Quản lý người dùng">
+                    <content>
+                        <VBox spacing="10">
+                            <padding>
+                                <Insets bottom="14" left="14" right="14" top="14" />
+                            </padding>
+                            <HBox alignment="CENTER_LEFT" spacing="10">
+                                <TextField fx:id="txtSearchUser" prefWidth="280" promptText="🔍 Tìm theo username / email..." styleClass="text-input" />
+                                <Region HBox.hgrow="ALWAYS" />
+                                <Button onAction="#handleRefreshUsers" styleClass="btn-secondary" text="🔄 Refresh" />
+                            </HBox>
+                            <TableView fx:id="tblUsers" VBox.vgrow="ALWAYS">
+                                <columns>
+                                    <TableColumn fx:id="colUsername" prefWidth="140" text="Username" />
+                                    <TableColumn fx:id="colEmail" prefWidth="200" text="Email" />
+                                    <TableColumn fx:id="colFullName" prefWidth="160" text="Họ tên" />
+                                    <TableColumn fx:id="colRole" prefWidth="100" text="Vai trò" />
+                                    <TableColumn fx:id="colStatus" prefWidth="120" text="Trạng thái" />
+                                    <TableColumn fx:id="colBalance" prefWidth="120" text="Số dư" />
+                                    <TableColumn fx:id="colAction" prefWidth="180" text="Hành động" />
+                                </columns>
+                                <placeholder>
+                                    <Label text="Không có người dùng nào" />
+                                </placeholder>
+                            </TableView>
+                            <Label fx:id="lblUserStatus" styleClass="label-muted" wrapText="true" />
+                        </VBox>
+                    </content>
+                </Tab>
+                <Tab text="🏛 Quản lý phiên đấu giá">
+                    <content>
+                        <VBox spacing="10">
+                            <padding>
+                                <Insets bottom="14" left="14" right="14" top="14" />
+                            </padding>
+                            <HBox alignment="CENTER_LEFT" spacing="10">
+                                <TextField fx:id="txtSearchAuction" prefWidth="280" promptText="🔍 Tìm theo tên sản phẩm / ID..." styleClass="text-input" />
+                                <Region HBox.hgrow="ALWAYS" />
+                                <Button onAction="#handleRefreshAuctions" styleClass="btn-secondary" text="🔄 Refresh" />
+                            </HBox>
+                            <TableView fx:id="tblAuctions" VBox.vgrow="ALWAYS">
+                                <columns>
+                                    <TableColumn fx:id="colAuctionId" prefWidth="220" text="Auction ID" />
+                                    <TableColumn fx:id="colItemName" prefWidth="220" text="Sản phẩm" />
+                                    <TableColumn fx:id="colCurrentPrice" prefWidth="140" text="Giá hiện tại" />
+                                    <TableColumn fx:id="colTotalBids" prefWidth="80" text="Lượt bid" />
+                                    <TableColumn fx:id="colAuctionStatus" prefWidth="120" text="Trạng thái" />
+                                    <TableColumn fx:id="colAuctionAction" prefWidth="160" text="Hành động" />
+                                </columns>
+                                <placeholder>
+                                    <Label text="Không có phiên đấu giá nào" />
+                                </placeholder>
+                            </TableView>
+                            <Label fx:id="lblAuctionStatus" styleClass="label-muted" wrapText="true" />
+                        </VBox>
+                    </content>
+                </Tab>
+            </tabs>
+        </TabPane>
+    </center>
+</BorderPane>

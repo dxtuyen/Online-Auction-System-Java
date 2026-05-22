@@ -256,7 +256,7 @@ public class ProfileController {
     @FXML
     private void handleLogout() {
         new Thread(() -> {
-            ClientModel.getInstance().disconnect();
+            ClientModel.getInstance().logoutAndDisconnect();
             Platform.runLater(() -> ClientApp.switchScene("login.fxml"));
         }, "logout-cleanup").start();
     }

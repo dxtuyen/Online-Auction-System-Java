@@ -37,6 +37,12 @@ public enum ActionType {
     BID_HISTORY,
     SET_AUTO_BID,
 
+    // ============== ADMIN ==============
+    LIST_USERS,             // admin xem danh sách toàn bộ user
+    BAN_USER,               // admin khóa tài khoản
+    UNBAN_USER,             // admin mở lại tài khoản
+    ADMIN_CLOSE_AUCTION,    // admin đóng cưỡng bức phiên đấu giá bất kỳ
+
     // ============== SERVER → CLIENT (PUSH) ==============
     BID_UPDATE,         // có bid mới ở phiên đang xem
     AUCTION_STATUS,     // phiên đổi status (RUNNING → FINISHED, ...)

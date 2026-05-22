@@ -31,6 +31,7 @@ public class AuctionListController {
     @FXML private TextField txtSearch;
     @FXML private Label lblUserInfo;
     @FXML private Button btnCreateAuction;
+    @FXML private Button btnAdminPanel;
     @FXML private ImageView imgHeaderAvatar;
 
     @FXML private ToggleButton filterAll;
@@ -74,7 +75,11 @@ public class AuctionListController {
         loadProfileSummary();
 
         // ADMIN không có quyền bán; mọi role khác (hiện tại chỉ NORMAL) đều thấy nút tạo phiên.
-        if (!"ADMIN".equals(model.getRole())) btnCreateAuction.setVisible(true);
+        boolean isAdmin = "ADMIN".equals(model.getRole());
+        btnCreateAuction.setVisible(!isAdmin);
+        btnCreateAuction.setManaged(!isAdmin);
+        btnAdminPanel.setVisible(isAdmin);
+        btnAdminPanel.setManaged(isAdmin);
 
         // Filter live khi gõ — re-render với keyword hiện tại.
         txtSearch.textProperty().addListener((obs, old, val) -> render(val));
@@ -265,12 +270,11 @@ public class AuctionListController {
 
     @FXML
     private void handleLogout() {
-        // disconnect() gọi socket/reader/writer.close() — I/O đồng bộ.
-        // Nếu chạy trên FX thread, UI sẽ treo (đặc biệt Windows + writer.close flush).
-        // Đẩy sang background; switchScene chỉ chạy SAU KHI disconnect xong để login
-        // tiếp theo không bị race với socket đang đóng.
+        // logoutAndDisconnect() block tối đa 2s (gửi LOGOUT + chờ ACK + close socket).
+        // Phải đẩy ra background, không gọi trên FX thread → UI sẽ treo.
+        // switchScene chạy SAU KHI cleanup xong để login tiếp theo không race với socket đang đóng.
         new Thread(() -> {
-            ClientModel.getInstance().disconnect();
+            ClientModel.getInstance().logoutAndDisconnect();
             Platform.runLater(() -> ClientApp.switchScene("login.fxml"));
         }, "logout-cleanup").start();
     }
@@ -284,6 +288,11 @@ public class AuctionListController {
     @FXML
     private void goToSellerDashboard() {
         ClientApp.switchScene("seller_dashboard.fxml");
+    }
+
+    @FXML
+    private void goToAdminPanel() {
+        ClientApp.switchScene("admin_panel.fxml");
     }
 
     private void loadProfileSummary() {

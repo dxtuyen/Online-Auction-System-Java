@@ -14,5 +14,7 @@ public enum AuthLevel {
     /** Không cần đăng nhập (LOGIN, REGISTER, LIST_AUCTIONS công khai...). */
     PUBLIC,
     /** Phải đăng nhập (PLACE_BID, CREATE_AUCTION, GET_PROFILE...). */
-    USER
+    USER,
+    /** Phải đăng nhập và có role ADMIN (BAN_USER, LIST_USERS...). */
+    ADMIN
 }

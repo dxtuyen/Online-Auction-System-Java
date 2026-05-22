@@ -202,6 +202,44 @@ public final class AuctionManager {
         return auction;
     }
 
+    /**
+     * Admin đóng cưỡng bức phiên — KHÔNG check seller, đóng được mọi auction
+     * đang ở PENDING/RUNNING. Nếu RUNNING có bid → vẫn cancel luôn (admin override
+     * khác seller-close): hoàn lại reserve cho người đang dẫn đầu để money không thất thoát.
+     *
+     * <p>Router đã enforce role ADMIN trước khi gọi method này.</p>
+     */
+    public Auction adminCloseAuction(UUID auctionId) {
+        Objects.requireNonNull(auctionId, "auctionId");
+
+        Auction auction = auctions.get(auctionId);
+        if (auction == null) {
+            throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
+        }
+
+        AuctionStatus current = auction.getStatus();
+        if (current != AuctionStatus.PENDING && current != AuctionStatus.RUNNING) {
+            throw new IllegalStateException(
+                    "Phiên đang ở trạng thái " + current + ", không thể đóng");
+        }
+
+        // Pre-lookup leader nếu có để refund sau khi transition.
+        UUID leaderId = auction.getHighestBidderId();
+        BigDecimal refund = leaderId == null ? null : auction.getCurrentPrice();
+        User leader = leaderId == null ? null
+                : UserManager.getInstance().findById(leaderId).orElse(null);
+
+        // transitionTo atomic — nếu thread khác (auto-tick) vừa đổi status, throw trước
+        // khi mutate balance → không double-refund.
+        auction.transitionTo(AuctionStatus.CANCELED);
+
+        if (leader != null && refund != null && refund.signum() > 0) {
+            leader.release(refund);
+            safeSaveUser(leader);
+        }
+        return auction;
+    }
+
     // ============== SETTLEMENT (USER-FACING) ==============
 
     /**

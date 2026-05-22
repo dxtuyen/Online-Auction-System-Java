@@ -33,47 +33,12 @@
       <HBox spacing="16">
          <padding><Insets bottom="16" left="16" right="16" top="16" /></padding>
 
-         <!-- LEFT: danh sách sản phẩm + tạo phiên -->
-         <VBox prefWidth="440" spacing="12" styleClass="card">
-            <Label style="-fx-font-weight: bold;" text="📦 Sản phẩm của tôi" />
-            <TableView fx:id="tblItems" prefHeight="220">
-               <columns>
-                  <TableColumn fx:id="colItemId" prefWidth="50" text="ID" />
-                  <TableColumn fx:id="colItemName" prefWidth="145.00000381469727" text="Tên" />
-                  <TableColumn fx:id="colItemPrice" prefWidth="194.99996948242188" text="Giá KĐ" />
-               </columns>
-               <placeholder><Label text="Chưa có sản phẩm" /></placeholder>
-            </TableView>
-
-            <Separator />
-            <Label style="-fx-font-weight: bold;" text="🏛️ Tạo phiên đấu giá" />
-            <GridPane hgap="8" vgap="8">
-               <columnConstraints>
-                  <ColumnConstraints minWidth="120" />
-                  <ColumnConstraints hgrow="ALWAYS" />
-               </columnConstraints>
-               <Label text="Item ID:" GridPane.columnIndex="0" GridPane.rowIndex="0" />
-               <TextField fx:id="txtAuctionItemId" styleClass="text-input" GridPane.columnIndex="1" GridPane.rowIndex="0" />
-               <Label text="Thời gian (phút):" GridPane.columnIndex="0" GridPane.rowIndex="1" />
-               <TextField fx:id="txtDuration" styleClass="text-input" text="30" GridPane.columnIndex="1" GridPane.rowIndex="1" />
-               <Label text="Bước nhảy (VNĐ):" GridPane.columnIndex="0" GridPane.rowIndex="2" />
-               <TextField fx:id="txtMinIncrement" styleClass="text-input" text="500000" GridPane.columnIndex="1" GridPane.rowIndex="2" />
-               <rowConstraints>
-                  <RowConstraints />
-                  <RowConstraints />
-                  <RowConstraints />
-               </rowConstraints>
-            </GridPane>
-            <Button maxWidth="Infinity" onAction="#handleCreateAuction" styleClass="btn-primary" text="Tạo phiên đấu giá" />
-            <Label fx:id="lblAuctionStatus" styleClass="muted-label" wrapText="true" />
-         </VBox>
-
-         <!-- RIGHT: tạo sản phẩm mới -->
-         <VBox spacing="10" styleClass="card" HBox.hgrow="ALWAYS">
+         <!-- LEFT: thêm sản phẩm mới (gọn lại) -->
+         <VBox prefWidth="340" spacing="8" styleClass="card">
             <Label style="-fx-font-weight: bold;" text="➕ Thêm sản phẩm mới" />
 
             <Label text="Danh mục:" />
-            <ComboBox fx:id="cboCategory" prefWidth="200" styleClass="text-input">
+            <ComboBox fx:id="cboCategory" maxWidth="Infinity" styleClass="text-input">
                <items>
                   <FXCollections fx:factory="observableArrayList">
                      <String fx:value="ELECTRONICS" />
@@ -90,13 +55,13 @@
             <TextField fx:id="txtName" styleClass="text-input" />
 
             <Label text="Mô tả:" />
-            <TextArea fx:id="txtDesc" prefHeight="60" styleClass="text-input" />
+            <TextArea fx:id="txtDesc" prefHeight="50" styleClass="text-input" />
 
             <Label text="Giá khởi điểm (VNĐ):" />
             <TextField fx:id="txtStartPrice" styleClass="text-input" />
 
             <Label text="Tình trạng:" />
-            <ComboBox fx:id="cboCondition" prefWidth="200" styleClass="text-input">
+            <ComboBox fx:id="cboCondition" maxWidth="Infinity" styleClass="text-input">
                <items>
                   <FXCollections fx:factory="observableArrayList">
                      <String fx:value="NEW" />
@@ -112,8 +77,8 @@
             <Label text="Ảnh sản phẩm:" />
             <HBox alignment="CENTER_LEFT" spacing="10">
                <StackPane>
-                  <Rectangle fx:id="itemImagePreview" arcHeight="8" arcWidth="8" fill="#e5e7eb" height="80" stroke="#cbd5e1" width="80" />
-                  <ImageView fx:id="imgItemPreview" fitHeight="80" fitWidth="80" preserveRatio="false" />
+                  <Rectangle fx:id="itemImagePreview" arcHeight="8" arcWidth="8" fill="#e5e7eb" height="64" stroke="#cbd5e1" width="64" />
+                  <ImageView fx:id="imgItemPreview" fitHeight="64" fitWidth="64" preserveRatio="false" />
                </StackPane>
                <VBox spacing="4">
                   <Button onAction="#handlePickItemImage" styleClass="btn-secondary" text="Chọn ảnh..." />
@@ -123,6 +88,52 @@
 
             <Button maxWidth="Infinity" onAction="#handleCreateItem" styleClass="btn-primary" text="Thêm sản phẩm" />
             <Label fx:id="lblItemStatus" styleClass="muted-label" wrapText="true" />
+         </VBox>
+
+         <!-- RIGHT: danh sách sản phẩm + phiên đấu giá của tôi + tạo phiên -->
+         <VBox spacing="10" styleClass="card" HBox.hgrow="ALWAYS">
+            <Label style="-fx-font-weight: bold;" text="📦 Sản phẩm của tôi" />
+            <TableView fx:id="tblItems" prefHeight="170" VBox.vgrow="SOMETIMES">
+               <columns>
+                  <TableColumn fx:id="colItemId" prefWidth="60" text="ID" />
+                  <TableColumn fx:id="colItemName" prefWidth="220" text="Tên" />
+                  <TableColumn fx:id="colItemPrice" prefWidth="220" text="Giá KĐ" />
+               </columns>
+               <placeholder><Label text="Chưa có sản phẩm" /></placeholder>
+            </TableView>
+
+            <Label style="-fx-font-weight: bold;" text="🏛️ Phiên đấu giá của tôi" />
+            <TableView fx:id="tblMyAuctions" prefHeight="170" VBox.vgrow="SOMETIMES">
+               <columns>
+                  <TableColumn fx:id="colMyAuctionName" prefWidth="240" text="Sản phẩm" />
+                  <TableColumn fx:id="colMyAuctionStatus" prefWidth="120" text="Trạng thái" />
+                  <TableColumn fx:id="colMyAuctionAction" prefWidth="140" text="Thao tác" />
+               </columns>
+               <placeholder><Label text="Chưa có phiên đấu giá nào" /></placeholder>
+            </TableView>
+            <Label fx:id="lblMyAuctionMsg" styleClass="muted-label" wrapText="true" />
+
+            <Separator />
+            <Label style="-fx-font-weight: bold;" text="🏛️ Tạo phiên đấu giá" />
+            <GridPane hgap="8" vgap="6">
+               <columnConstraints>
+                  <ColumnConstraints minWidth="130" />
+                  <ColumnConstraints hgrow="ALWAYS" />
+               </columnConstraints>
+               <Label text="Item ID:" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+               <TextField fx:id="txtAuctionItemId" styleClass="text-input" GridPane.columnIndex="1" GridPane.rowIndex="0" />
+               <Label text="Thời gian (phút):" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+               <TextField fx:id="txtDuration" styleClass="text-input" text="30" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+               <Label text="Bước nhảy (VNĐ):" GridPane.columnIndex="0" GridPane.rowIndex="2" />
+               <TextField fx:id="txtMinIncrement" styleClass="text-input" text="500000" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+               <rowConstraints>
+                  <RowConstraints />
+                  <RowConstraints />
+                  <RowConstraints />
+               </rowConstraints>
+            </GridPane>
+            <Button maxWidth="Infinity" onAction="#handleCreateAuction" styleClass="btn-primary" text="Tạo phiên đấu giá" />
+            <Label fx:id="lblAuctionStatus" styleClass="muted-label" wrapText="true" />
          </VBox>
       </HBox>
    </center>

@@ -2,6 +2,7 @@ package com.auction.service;
 
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
+import com.auction.model.enums.UserStatus;
 import com.auction.model.exception.AuthException;
 import com.auction.persistence.dao.MysqlUserDao;
 import com.auction.persistence.dao.UserDao;
@@ -251,6 +252,49 @@ public final class UserManager {
             throw new AuthException("Tài khoản đã bị khóa");
         }
         return user;
+    }
+
+    // ============== ADMIN OPERATIONS ==============
+
+    /**
+     * Ban (khóa) một user. Admin gọi qua AdminController; manager chỉ enforce
+     * invariant chứ không tự verify role (router middleware đã check ADMIN).
+     *
+     * @throws IllegalArgumentException nếu targetId không tồn tại
+     * @throws IllegalStateException nếu cố ban admin khác (admin không ban admin)
+     */
+    public User banUser(UUID targetId) {
+        Objects.requireNonNull(targetId, "targetId");
+        User target = users.get(targetId);
+        if (target == null) {
+            throw new IllegalArgumentException("Không tìm thấy user: " + targetId);
+        }
+        if (target.getRole() == Role.ADMIN) {
+            throw new IllegalStateException("Không thể khóa tài khoản quản trị viên khác");
+        }
+        if (target.getUserStatus() == UserStatus.BANNED) {
+            return target; // idempotent
+        }
+        target.ban();
+        dao.update(target);
+        return target;
+    }
+
+    /**
+     * Bỏ ban — đưa user về ACTIVE. Idempotent: nếu user đang ACTIVE thì không-op.
+     */
+    public User unbanUser(UUID targetId) {
+        Objects.requireNonNull(targetId, "targetId");
+        User target = users.get(targetId);
+        if (target == null) {
+            throw new IllegalArgumentException("Không tìm thấy user: " + targetId);
+        }
+        if (target.isActive()) {
+            return target; // idempotent
+        }
+        target.activate();
+        dao.update(target);
+        return target;
     }
 
     // ============== QUERIES ==============
