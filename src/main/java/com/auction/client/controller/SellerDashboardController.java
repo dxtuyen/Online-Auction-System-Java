@@ -3,6 +3,7 @@ package com.auction.client.controller;
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
 import com.auction.client.util.ImageCacheService;
+import com.auction.client.util.MoneyInputFormatter;
 import com.auction.protocol.Response;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
@@ -74,6 +75,7 @@ public class SellerDashboardController {
         cboCategory.setValue("ELECTRONICS");
         cboCondition.setValue("NEW");
         imgHeaderAvatar.setClip(new Circle(16, 16, 16));
+        MoneyInputFormatter.apply(txtStartPrice, txtMinIncrement);
 
         colItemId.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "itemId")));
         colItemName.setCellValueFactory(cd -> new SimpleStringProperty(s(cd.getValue(), "name")));

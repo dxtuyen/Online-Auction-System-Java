@@ -2,6 +2,7 @@ package com.auction.client.controller;
 
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
+import com.auction.client.util.MoneyInputFormatter;
 import com.auction.client.util.PasswordToggle;
 import com.auction.protocol.Response;
 import javafx.application.Platform;
@@ -36,6 +37,7 @@ public class RegisterController {
     private void initialize() {
         lblError.setText("");
         PasswordToggle.bind(txtPassword, txtPasswordVisible, btnTogglePassword, eyeIcon);
+        MoneyInputFormatter.apply(txtBalance);
         txtPassword.setOnAction(e -> handleRegister());
         txtPasswordVisible.setOnAction(e -> handleRegister());
     }
@@ -59,9 +61,11 @@ public class RegisterController {
         }
         // Validate balance format nếu có nhập — server chưa nhận field này
         // (default = 0) nhưng vẫn check để feedback sớm cho user.
-        if (!balanceText.isEmpty()) {
+        // Strip dấu phẩy do MoneyInputFormatter chèn trước khi parse.
+        String balanceRaw = balanceText.replace(",", "");
+        if (!balanceRaw.isEmpty()) {
             try {
-                if (new BigDecimal(balanceText).signum() < 0) {
+                if (new BigDecimal(balanceRaw).signum() < 0) {
                     lblError.setText("Số dư không được âm");
                     return;
                 }
@@ -83,9 +87,9 @@ public class RegisterController {
                 payload.put("password", password);
                 payload.put("email", email);
                 payload.put("fullName", fullName);
-                if (!balanceText.isEmpty()) {
-                    // Gửi String để server parse BigDecimal — giữ precision.
-                    payload.put("initialBalance", balanceText);
+                if (!balanceRaw.isEmpty()) {
+                    // Gửi String đã strip dấu phẩy để server parse BigDecimal — giữ precision.
+                    payload.put("initialBalance", balanceRaw);
                 }
                 model.sendRequest("REGISTER", payload);
                 Response res = model.waitForResponse("REGISTER", 5000);

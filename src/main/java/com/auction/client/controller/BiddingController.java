@@ -3,6 +3,7 @@ package com.auction.client.controller;
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
 import com.auction.client.util.ImageCacheService;
+import com.auction.client.util.MoneyInputFormatter;
 import com.auction.protocol.Response;
 import javafx.animation.*;
 import javafx.application.Platform;
@@ -98,6 +99,7 @@ public class BiddingController {
     @FXML
     private void initialize() {
         lblError.setText("");
+        MoneyInputFormatter.apply(txtBidAmount, txtMaxBid, txtIncrementAuto);
         txtBidAmount.setOnAction(e -> handlePlaceBid());
         // Clip avatar người bán thành hình tròn — ImageView vốn vuông.
         imgSellerAvatar.setClip(new Circle(14, 14, 14));
