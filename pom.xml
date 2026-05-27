@@ -38,6 +38,13 @@
         </dependency>
 
         <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.2.224</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>2.10.1</version>
@@ -84,13 +91,44 @@
                 <version>3.2.5</version>
                 <configuration>
                     <argLine>
+                        @{argLine}
                         -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/1.14.15/byte-buddy-agent-1.14.15.jar
                         -XX:+EnableDynamicAgentLoading
                         --add-opens java.base/java.lang=ALL-UNNAMED
                         --add-opens java.base/java.lang.reflect=ALL-UNNAMED
                         --add-opens java.base/java.util.concurrent=ALL-UNNAMED
                     </argLine>
+                    <!-- Test JVM trỏ DB vào H2 in-memory (MySQL mode) thay cho MySQL thật.
+                         Chỉ áp dụng cho test; production đọc .env / biến môi trường riêng. -->
+                    <environmentVariables>
+                        <DB_URL>jdbc:h2:mem:auction;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1</DB_URL>
+                        <DB_USER>sa</DB_USER>
+                        <DB_PASSWORD>test</DB_PASSWORD>
+                        <DB_POOL_SIZE>4</DB_POOL_SIZE>
+                        <DB_POOL_MIN_IDLE>1</DB_POOL_MIN_IDLE>
+                    </environmentVariables>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.13</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>

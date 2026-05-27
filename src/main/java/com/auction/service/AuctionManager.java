@@ -106,6 +106,21 @@ public final class AuctionManager {
         startLifecycleScheduler();
     }
 
+    /**
+     * Test-only constructor: nhận DAO từ ngoài và KHÔNG khởi động lifecycle scheduler
+     * để unit test tất định (không bị tick tự động đổi trạng thái phiên).
+     */
+    AuctionManager(AuctionDao dao) {
+        this.dao = Objects.requireNonNull(dao, "dao must not be null");
+        this.snipingThresholdSeconds = 10;
+        this.snipingExtensionSeconds = 30;
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "AuctionManager-Test-Scheduler");
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
     // ============== BOOTSTRAP ==============
 
     public void loadAllFromDb() {
