@@ -12,7 +12,9 @@
       "Bash(powershell *)",
       "Bash(taskkill *)",
       "PowerShell(Get-NetTCPConnection *)",
-      "Bash(del src\\\\main\\\\java\\\\com\\\\auction\\\\model\\\\entity\\\\readme *)"
+      "Bash(del src\\\\main\\\\java\\\\com\\\\auction\\\\model\\\\entity\\\\readme *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
