@@ -70,6 +70,11 @@ public final class UserManager {
         this.dao = new MysqlUserDao();
     }
 
+    /** Test-only constructor: nhận DAO từ ngoài để unit test không cần DB. */
+    UserManager(UserDao dao) {
+        this.dao = Objects.requireNonNull(dao, "dao must not be null");
+    }
+
     // ============== BOOTSTRAP ==============
 
     /**

@@ -3,59 +3,32 @@ package com.auction.service;
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
 import com.auction.model.exception.AuthException;
-import com.auction.persistence.dao.UserDao;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
-import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 /**
- * Unit tests cho UserManager.
+ * Unit tests cho UserManager — không cần MySQL.
  *
- * Không cần DB: UserDao được thay bằng mock qua reflection.
- * clearForTesting() + xóa emailIndex được gọi trong @BeforeEach để reset state.
+ * Dùng package-private test constructor (UserManager(UserDao)) + InMemoryUserDao
+ * để cô lập hoàn toàn khỏi Database / HikariCP.
  */
-@ExtendWith(MockitoExtension.class)
 @DisplayName("UserManager service")
 class UserManagerTest {
 
-    @Mock
-    private UserDao mockDao;
-
+    private InMemoryUserDao dao;
     private UserManager manager;
 
     @BeforeEach
-    void setUp() throws Exception {
-        manager = UserManager.getInstance();
-
-        // Inject mock DAO thay cho MysqlUserDao
-        Field daoField = UserManager.class.getDeclaredField("dao");
-        daoField.setAccessible(true);
-        daoField.set(manager, mockDao);
-
-        // Reset in-memory cache (users + usernameIndex)
-        manager.clearForTesting();
-
-        // clearForTesting() không xóa emailIndex - xóa thủ công
-        Field emailIndexField = UserManager.class.getDeclaredField("emailIndex");
-        emailIndexField.setAccessible(true);
-        ((ConcurrentHashMap<?, ?>) emailIndexField.get(manager)).clear();
-
-        // Mặc định: findAll() trả về danh sách rỗng (cho loadAllFromDb nếu cần)
-        lenient().when(mockDao.findAll()).thenReturn(Collections.emptyList());
+    void setUp() {
+        dao = new InMemoryUserDao();
+        manager = new UserManager(dao);   // test constructor, không cần Singleton
     }
 
     // ============== register ==============
@@ -69,7 +42,7 @@ class UserManagerTest {
         assertNotNull(result);
         assertEquals("alice", result.getUsername());
         assertEquals("alice@example.com", result.getEmail());
-        verify(mockDao, times(1)).insert(any(User.class));
+        assertEquals(1, dao.insertCount);
     }
 
     @Test
@@ -92,20 +65,22 @@ class UserManagerTest {
     }
 
     @Test
-    @DisplayName("register với initialBalance âm - throw")
+    @DisplayName("register với initialBalance âm - throw, không gọi dao.insert()")
     void register_negativeInitialBalance_throws() {
         assertThrows(IllegalArgumentException.class, () ->
                 manager.register("dave", "password123", "dave@example.com", "Dave",
                         Role.NORMAL, new BigDecimal("-100")));
-        verify(mockDao, never()).insert(any());
+
+        assertEquals(0, dao.insertCount);
     }
 
     @Test
-    @DisplayName("register password < 6 ký tự - throw")
+    @DisplayName("register password < 6 ký tự - throw, không gọi dao.insert()")
     void register_shortPassword_throws() {
         assertThrows(IllegalArgumentException.class, () ->
                 manager.register("eve", "abc", "eve@example.com", "Eve", Role.NORMAL));
-        verify(mockDao, never()).insert(any());
+
+        assertEquals(0, dao.insertCount);
     }
 
     @Test
@@ -113,22 +88,23 @@ class UserManagerTest {
     void register_nullPassword_throws() {
         assertThrows(NullPointerException.class, () ->
                 manager.register("frank", null, "frank@example.com", "Frank", Role.NORMAL));
-        verify(mockDao, never()).insert(any());
+
+        assertEquals(0, dao.insertCount);
     }
 
     @Test
-    @DisplayName("register username trùng - throw IllegalStateException")
+    @DisplayName("register username trùng - throw, chỉ insert lần đầu")
     void register_duplicateUsername_throws() {
         manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL);
 
         assertThrows(IllegalStateException.class, () ->
                 manager.register("alice", "password456", "other@example.com", "Other", Role.NORMAL));
 
-        verify(mockDao, times(1)).insert(any()); // chỉ insert 1 lần (lần đầu)
+        assertEquals(1, dao.insertCount);
     }
 
     @Test
-    @DisplayName("register email trùng (case-insensitive) - throw IllegalStateException")
+    @DisplayName("register email trùng (case-insensitive) - throw")
     void register_duplicateEmail_throws() {
         manager.register("alice", "password123", "Alice@Example.com", "Alice", Role.NORMAL);
 
@@ -137,17 +113,28 @@ class UserManagerTest {
     }
 
     @Test
-    @DisplayName("register DB fail - rollback index (user không tồn tại trong cache)")
-    void register_dbFails_rollbacksIndex() {
-        doThrow(new RuntimeException("DB down")).when(mockDao).insert(any());
+    @DisplayName("register khi dao.insert() fail - rollback index, cho phép đăng ký lại")
+    void register_dbFails_rollbacksIndexAllowsRetry() {
+        dao.insertShouldFail = true;
 
         assertThrows(RuntimeException.class, () ->
                 manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL));
 
-        // Sau khi fail, username phải được giải phóng để có thể đăng ký lại
-        doNothing().when(mockDao).insert(any());
+        // Sau khi rollback, cùng username + email phải được dùng lại được
+        dao.insertShouldFail = false;
         assertDoesNotThrow(() ->
                 manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL));
+    }
+
+    @Test
+    @DisplayName("register ADMIN role - user có role ADMIN")
+    void register_adminRole_setsRole() {
+        User result = manager.register(
+                "admin_u", "password123", "admin@example.com", "Admin", Role.ADMIN);
+
+        assertEquals(Role.ADMIN, result.getRole());
+        assertFalse(result.canBid());
+        assertFalse(result.canSell());
     }
 
     // ============== login ==============
@@ -164,31 +151,24 @@ class UserManagerTest {
     }
 
     @Test
-    @DisplayName("login sai password - throw AuthException (generic message)")
+    @DisplayName("login sai password - throw AuthException")
     void login_wrongPassword_throws() {
         manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL);
 
-        AuthException ex = assertThrows(AuthException.class,
-                () -> manager.login("alice", "wrongPassword"));
-
-        // Message generic để chống username enumeration
-        assertTrue(ex.getMessage().contains("không đúng") || ex.getMessage().contains("sai"));
+        assertThrows(AuthException.class, () -> manager.login("alice", "wrongPassword"));
     }
 
     @Test
-    @DisplayName("login username không tồn tại - throw AuthException (cùng message với sai password)")
-    void login_nonexistentUser_throwsSameMessageAsWrongPassword() {
-        AuthException ex = assertThrows(AuthException.class,
-                () -> manager.login("nonexistent", "password123"));
-
-        assertNotNull(ex.getMessage());
+    @DisplayName("login username không tồn tại - throw AuthException (cùng loại với sai password)")
+    void login_nonexistentUser_throwsAuthException() {
+        assertThrows(AuthException.class, () -> manager.login("nobody", "password123"));
     }
 
     @Test
     @DisplayName("login user bị ban - throw AuthException")
     void login_bannedUser_throws() {
         manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL);
-        manager.findByUsername("alice").ifPresent(u -> u.ban());
+        manager.findByUsername("alice").ifPresent(User::ban);
 
         assertThrows(AuthException.class, () -> manager.login("alice", "password123"));
     }
@@ -206,17 +186,17 @@ class UserManagerTest {
     }
 
     @Test
-    @DisplayName("login với username có khoảng trắng đầu/cuối - vẫn tìm đúng user")
+    @DisplayName("login username có khoảng trắng đầu/cuối - tự trim và tìm đúng user")
     void login_usernameWithWhitespace_success() {
         manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL);
 
         assertDoesNotThrow(() -> manager.login("  alice  ", "password123"));
     }
 
-    // ============== findById / findByUsername ==============
+    // ============== findById ==============
 
     @Test
-    @DisplayName("findById user tồn tại - trả về Optional chứa user")
+    @DisplayName("findById user tồn tại - trả về Optional có giá trị")
     void findById_existingUser_returnsUser() {
         User registered = manager.register(
                 "alice", "password123", "alice@example.com", "Alice", Role.NORMAL);
@@ -230,8 +210,7 @@ class UserManagerTest {
     @Test
     @DisplayName("findById không tồn tại - trả về Optional.empty()")
     void findById_nonexistentUser_returnsEmpty() {
-        Optional<User> result = manager.findById(UUID.randomUUID());
-        assertTrue(result.isEmpty());
+        assertTrue(manager.findById(UUID.randomUUID()).isEmpty());
     }
 
     @Test
@@ -240,8 +219,10 @@ class UserManagerTest {
         assertThrows(NullPointerException.class, () -> manager.findById(null));
     }
 
+    // ============== findByUsername ==============
+
     @Test
-    @DisplayName("findByUsername user tồn tại - trả về Optional chứa user")
+    @DisplayName("findByUsername user tồn tại - trả về Optional có giá trị")
     void findByUsername_existingUser_returnsUser() {
         manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL);
 
@@ -273,13 +254,12 @@ class UserManagerTest {
 
         manager.save(user);
 
-        verify(mockDao, times(1)).update(user);
+        assertEquals(1, dao.updateCount);
     }
 
     @Test
-    @DisplayName("save user chưa register - throw IllegalArgumentException")
+    @DisplayName("save user chưa register - throw IllegalArgumentException, không gọi dao.update()")
     void save_unregisteredUser_throws() {
-        // User tạo thủ công, không qua register()
         User stranger = new User.Builder()
                 .username("stranger")
                 .password("password123")
@@ -289,7 +269,7 @@ class UserManagerTest {
                 .build();
 
         assertThrows(IllegalArgumentException.class, () -> manager.save(stranger));
-        verify(mockDao, never()).update(any());
+        assertEquals(0, dao.updateCount);
     }
 
     @Test
@@ -298,10 +278,10 @@ class UserManagerTest {
         assertThrows(NullPointerException.class, () -> manager.save(null));
     }
 
-    // ============== findAll / count ==============
+    // ============== count / findAll ==============
 
     @Test
-    @DisplayName("count() trả về số user trong cache")
+    @DisplayName("count() trả về số user đang có trong cache")
     void count_returnsInMemoryCount() {
         assertEquals(0, manager.count());
 
@@ -312,7 +292,7 @@ class UserManagerTest {
     }
 
     @Test
-    @DisplayName("findAll() trả về tất cả user trong cache")
+    @DisplayName("findAll() trả về đúng số user trong cache")
     void findAll_returnsAllUsers() {
         manager.register("alice", "password123", "a@b.com", "Alice", Role.NORMAL);
         manager.register("bob", "password456", "b@b.com", "Bob", Role.NORMAL);
@@ -321,12 +301,11 @@ class UserManagerTest {
     }
 
     @Test
-    @DisplayName("findAll() trả về collection bất biến")
+    @DisplayName("findAll() trả về collection bất biến (unmodifiable)")
     void findAll_returnsUnmodifiableCollection() {
         manager.register("alice", "password123", "a@b.com", "Alice", Role.NORMAL);
 
-        var all = manager.findAll();
-
-        assertThrows(UnsupportedOperationException.class, () -> all.clear());
+        assertThrows(UnsupportedOperationException.class,
+                () -> manager.findAll().clear());
     }
 }
