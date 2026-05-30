@@ -23,199 +23,242 @@
 <?import javafx.scene.shape.Circle?>
 <?import javafx.scene.text.Font?>
 
-<BorderPane prefHeight="620" prefWidth="920" style="-fx-background-color: #f8fafc;" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.controller.BiddingController">
+<?import javafx.scene.control.ScrollPane?>
+<BorderPane prefHeight="620" prefWidth="920" style="-fx-background-color: #f8fafc;" xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.controller.BiddingController">
     <stylesheets>
-        <URL value="@../css/style.css" />
+        <URL value="@../css/style.css"/>
     </stylesheets>
-   <top>
-      <HBox alignment="CENTER_LEFT" prefHeight="50.0" spacing="10.0" styleClass="header-bar" BorderPane.alignment="CENTER">
-         <padding>
-            <Insets bottom="10.0" left="18.0" right="18.0" top="10.0" />
-         </padding>
-         <children>
-            <Button mnemonicParsing="false" onAction="#goBack" styleClass="btn-secondary" text="← Quay lại" />
-            <Region prefHeight="200.0" prefWidth="200.0" HBox.hgrow="ALWAYS" />
-            <Label fx:id="lblStatusBadge" styleClass="status-badge" />
-            <Label fx:id="lblTimer" styleClass="timer-normal" />
-         </children>
-      </HBox>
-   </top>
-   <center>
-      <HBox prefHeight="100.0" spacing="16.0" BorderPane.alignment="CENTER">
-         <children>
-            <VBox prefHeight="200.0" prefWidth="100.0" spacing="14.0" HBox.hgrow="ALWAYS">
-               <children>
-                  <VBox prefHeight="331.0" prefWidth="442.0" spacing="8.0" styleClass="card">
-                     <children>
-                        <StackPane>
-                           <Rectangle arcHeight="10" arcWidth="10" fill="#e5e7eb" height="200" stroke="#cbd5e1" width="400" />
-                           <ImageView fx:id="imgItem" fitHeight="200" fitWidth="400" preserveRatio="true" />
-                        </StackPane>
-                        <HBox alignment="CENTER_LEFT" spacing="8.0">
-                           <children>
-                              <Label fx:id="lblItemName" styleClass="label-title" HBox.hgrow="ALWAYS" />
-                              <Region HBox.hgrow="ALWAYS" />
-                              <Label fx:id="lblItemCategory" styleClass="label-muted" />
-                           </children>
-                        </HBox>
-                        <Label fx:id="lblItemInfo" styleClass="label-muted" wrapText="true" />
-                        <HBox alignment="CENTER_LEFT" spacing="8.0">
-                           <children>
-                              <StackPane>
-                                 <Circle radius="14" style="-fx-fill: #e5e7eb; -fx-stroke: #cbd5e1; -fx-stroke-width: 1;" />
-                                 <ImageView fx:id="imgSellerAvatar" fitHeight="28" fitWidth="28" preserveRatio="false" />
-                              </StackPane>
-                              <Label styleClass="label-muted" text="Người bán:" />
-                              <Label fx:id="lblSellerName" />
-                           </children>
-                        </HBox>
-                        <Separator prefHeight="0.0" prefWidth="403.0">
-                           <opaqueInsets>
-                              <Insets top="10.0" />
-                           </opaqueInsets>
-                        </Separator>
-                        <GridPane hgap="14.0" prefWidth="400.0" vgap="12.0">
-                          <columnConstraints>
-                            <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="140.0" />
-                            <ColumnConstraints hgrow="ALWAYS" minWidth="10.0" prefWidth="160.0" />
-                          </columnConstraints>
-                          <rowConstraints>
-                            <RowConstraints minHeight="24.0" />
-                            <RowConstraints minHeight="24.0" />
-                              <RowConstraints minHeight="24.0" />
-                              <RowConstraints minHeight="24.0" />
-                              <RowConstraints minHeight="24.0" />
-                          </rowConstraints>
-                           <children>
-                              <Label styleClass="label-muted" text="Giá khởi điểm:" textFill="#6b7280" />
-                              <Label styleClass="label-muted" text="Giá hiện tại:" GridPane.rowIndex="1" />
-                              <Label styleClass="label-muted" text="Bước nhảy tối thiểu:" GridPane.rowIndex="2" />
-                              <Label styleClass="label-muted" text="Lượt bid:" GridPane.rowIndex="3" />
-                              <Label styleClass="label-muted" text="Người dẫn đầu:" GridPane.rowIndex="4" />
-                              <Label fx:id="lblStartPrice" GridPane.columnIndex="1" />
-                              <Label fx:id="lblCurrentPrice" textFill="#059669" GridPane.columnIndex="1" GridPane.rowIndex="1">
-                                 <font>
-                                    <Font name="System Bold" size="14.0" />
-                                 </font>
-                              </Label>
-                              <Label fx:id="lblBidCount" GridPane.columnIndex="1" GridPane.rowIndex="3" />
-                              <Label fx:id="lblLeader" textFill="#3a6cc9" GridPane.columnIndex="1" GridPane.rowIndex="4">
-                                 <font>
-                                    <Font name="System Bold" size="12.0" />
-                                 </font>
-                              </Label>
-                              <Label fx:id="lblIncrement" GridPane.columnIndex="1" GridPane.rowIndex="2" />
-                           </children>
-                        </GridPane>
-                     </children>
-                  </VBox>
+    <top>
+        <HBox alignment="CENTER_LEFT" prefHeight="50.0" spacing="10.0" styleClass="header-bar"
+              BorderPane.alignment="CENTER">
+            <padding>
+                <Insets bottom="10.0" left="18.0" right="18.0" top="10.0"/>
+            </padding>
+            <children>
+                <Button mnemonicParsing="false" onAction="#goBack" styleClass="btn-secondary" text="← Quay lại"/>
+                <Region prefHeight="200.0" prefWidth="200.0" HBox.hgrow="ALWAYS"/>
+                <Label fx:id="lblStatusBadge" styleClass="status-badge"/>
+                <Label fx:id="lblTimer" styleClass="timer-normal"/>
+            </children>
+        </HBox>
+    </top>
+    <center>
+        <HBox prefHeight="100.0" spacing="16.0" BorderPane.alignment="CENTER">
+            <children>
+                <ScrollPane fitToWidth="true" hbarPolicy="NEVER"
+                            style="-fx-background-color: transparent; -fx-background: #f8fafc;"
+                            HBox.hgrow="ALWAYS">
+                    <content>
+                        <VBox prefWidth="100.0" spacing="14.0">
+                            <children>
+                                <VBox prefHeight="331.0" prefWidth="442.0" spacing="8.0" styleClass="card">
+                                    <children>
+                                        <StackPane>
+                                            <Rectangle arcHeight="10" arcWidth="10" fill="#e5e7eb" height="200"
+                                                       stroke="#cbd5e1" width="400"/>
+                                            <ImageView fx:id="imgItem" fitHeight="200" fitWidth="400"
+                                                       preserveRatio="true"/>
+                                        </StackPane>
+                                        <HBox alignment="CENTER_LEFT" spacing="8.0">
+                                            <children>
+                                                <Label fx:id="lblItemName" styleClass="label-title"
+                                                       HBox.hgrow="ALWAYS"/>
+                                                <Region HBox.hgrow="ALWAYS"/>
+                                                <Label fx:id="lblItemCategory" styleClass="label-muted"/>
+                                            </children>
+                                        </HBox>
+                                        <Label fx:id="lblItemInfo" styleClass="label-muted" wrapText="true"/>
+                                        <HBox alignment="CENTER_LEFT" spacing="8.0">
+                                            <children>
+                                                <StackPane>
+                                                    <Circle radius="14"
+                                                            style="-fx-fill: #e5e7eb; -fx-stroke: #cbd5e1; -fx-stroke-width: 1;"/>
+                                                    <ImageView fx:id="imgSellerAvatar" fitHeight="28" fitWidth="28"
+                                                               preserveRatio="false"/>
+                                                </StackPane>
+                                                <Label styleClass="label-muted" text="Người bán:"/>
+                                                <Label fx:id="lblSellerName"/>
+                                            </children>
+                                        </HBox>
+                                        <Separator prefHeight="0.0" prefWidth="403.0">
+                                            <opaqueInsets>
+                                                <Insets top="10.0"/>
+                                            </opaqueInsets>
+                                        </Separator>
+                                        <GridPane hgap="14.0" prefWidth="400.0" vgap="12.0">
+                                            <columnConstraints>
+                                                <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="140.0"/>
+                                                <ColumnConstraints hgrow="ALWAYS" minWidth="10.0" prefWidth="160.0"/>
+                                            </columnConstraints>
+                                            <rowConstraints>
+                                                <RowConstraints minHeight="24.0"/>
+                                                <RowConstraints minHeight="24.0"/>
+                                                <RowConstraints minHeight="24.0"/>
+                                                <RowConstraints minHeight="24.0"/>
+                                                <RowConstraints minHeight="24.0"/>
+                                            </rowConstraints>
+                                            <children>
+                                                <Label styleClass="label-muted" text="Giá khởi điểm:"
+                                                       textFill="#6b7280"/>
+                                                <Label styleClass="label-muted" text="Giá hiện tại:"
+                                                       GridPane.rowIndex="1"/>
+                                                <Label styleClass="label-muted" text="Bước nhảy tối thiểu:"
+                                                       GridPane.rowIndex="2"/>
+                                                <Label styleClass="label-muted" text="Lượt bid:" GridPane.rowIndex="3"/>
+                                                <Label styleClass="label-muted" text="Người dẫn đầu:"
+                                                       GridPane.rowIndex="4"/>
+                                                <Label fx:id="lblStartPrice" GridPane.columnIndex="1"/>
+                                                <Label fx:id="lblCurrentPrice" textFill="#059669"
+                                                       GridPane.columnIndex="1" GridPane.rowIndex="1">
+                                                    <font>
+                                                        <Font name="System Bold" size="14.0"/>
+                                                    </font>
+                                                </Label>
+                                                <Label fx:id="lblBidCount" GridPane.columnIndex="1"
+                                                       GridPane.rowIndex="3"/>
+                                                <Label fx:id="lblLeader" textFill="#3a6cc9" GridPane.columnIndex="1"
+                                                       GridPane.rowIndex="4">
+                                                    <font>
+                                                        <Font name="System Bold" size="12.0"/>
+                                                    </font>
+                                                </Label>
+                                                <Label fx:id="lblIncrement" GridPane.columnIndex="1"
+                                                       GridPane.rowIndex="2"/>
+                                            </children>
+                                        </GridPane>
+                                    </children>
+                                </VBox>
 
-                  <VBox prefHeight="157.0" prefWidth="399.0" styleClass="card">
-                     <children>
-                        <Label styleClass="column-header" text="💰 Đặt giá">
-                           <font>
-                              <Font size="15.0" />
-                           </font>
-                        </Label>
-                        <HBox alignment="CENTER_LEFT" prefHeight="100.0" prefWidth="200.0" spacing="8.0">
-                           <children>
-                              <TextField fx:id="txtBidAmount" promptText="Nhập giá muốn đặt..." styleClass="text-input" HBox.hgrow="ALWAYS" />
-                              <Button fx:id="btnPlaceBid" mnemonicParsing="false" onAction="#handlePlaceBid" prefHeight="33.0" prefWidth="89.0" styleClass="btn-primary" text="Đặt giá" />
-                           </children>
-                           <padding>
-                              <Insets top="10.0" />
-                           </padding>
-                        </HBox>
-                        <Label fx:id="lblError" styleClass="label-muted" />
-                     </children>
-                  </VBox>
+                                <VBox prefHeight="157.0" prefWidth="399.0" styleClass="card">
+                                    <children>
+                                        <Label styleClass="column-header" text="💰 Đặt giá">
+                                            <font>
+                                                <Font size="15.0"/>
+                                            </font>
+                                        </Label>
+                                        <HBox alignment="CENTER_LEFT" prefHeight="100.0" prefWidth="200.0"
+                                              spacing="8.0">
+                                            <children>
+                                                <TextField fx:id="txtBidAmount" promptText="Nhập giá muốn đặt..."
+                                                           styleClass="text-input" HBox.hgrow="ALWAYS"/>
+                                                <Button fx:id="btnPlaceBid" mnemonicParsing="false"
+                                                        onAction="#handlePlaceBid" prefHeight="33.0" prefWidth="89.0"
+                                                        styleClass="btn-primary" text="Đặt giá"/>
+                                            </children>
+                                            <padding>
+                                                <Insets top="10.0"/>
+                                            </padding>
+                                        </HBox>
+                                        <Label fx:id="lblError" styleClass="label-muted"/>
+                                    </children>
+                                </VBox>
 
-                  <VBox fx:id="paneSettlement" managed="false" spacing="6.0" style="-fx-background-color: #fef3c7; -fx-border-color: #f59e0b; -fx-border-radius: 8; -fx-background-radius: 8;" styleClass="card" visible="false">
-                     <children>
-                        <Label styleClass="column-header" text="🎉 Bạn đã thắng phiên đấu giá!">
-                           <font>
-                              <Font size="15.0" />
-                           </font>
-                        </Label>
-                        <Label fx:id="lblSettleInfo" styleClass="label-muted" wrapText="true" />
-                        <Label fx:id="lblSettleCountdown" styleClass="timer-urgent" />
-                        <HBox alignment="CENTER_LEFT" spacing="8.0">
-                           <children>
-                              <Button fx:id="btnConfirmPay" mnemonicParsing="false" onAction="#handleConfirmPayment" styleClass="btn-primary" text="Trả tiền" />
-                              <Button fx:id="btnForfeit" mnemonicParsing="false" onAction="#handleForfeit" styleClass="btn-secondary" text="Bỏ (mất phí phạt)" />
-                           </children>
-                           <padding>
-                              <Insets top="4.0" />
-                           </padding>
-                        </HBox>
-                        <Label fx:id="lblSettleStatus" styleClass="label-muted" />
-                     </children>
-                  </VBox>
+                                <VBox fx:id="paneSettlement" managed="false" spacing="6.0"
+                                      style="-fx-background-color: #fef3c7; -fx-border-color: #f59e0b; -fx-border-radius: 8; -fx-background-radius: 8;"
+                                      styleClass="card" visible="false">
+                                    <children>
+                                        <Label styleClass="column-header" text="🎉 Bạn đã thắng phiên đấu giá!">
+                                            <font>
+                                                <Font size="15.0"/>
+                                            </font>
+                                        </Label>
+                                        <Label fx:id="lblSettleInfo" styleClass="label-muted" wrapText="true"/>
+                                        <Label fx:id="lblSettleCountdown" styleClass="timer-urgent"/>
+                                        <HBox alignment="CENTER_LEFT" spacing="8.0">
+                                            <children>
+                                                <Button fx:id="btnConfirmPay" mnemonicParsing="false"
+                                                        onAction="#handleConfirmPayment" styleClass="btn-primary"
+                                                        text="Trả tiền"/>
+                                                <Button fx:id="btnForfeit" mnemonicParsing="false"
+                                                        onAction="#handleForfeit" styleClass="btn-secondary"
+                                                        text="Bỏ (mất phí phạt)"/>
+                                            </children>
+                                            <padding>
+                                                <Insets top="4.0"/>
+                                            </padding>
+                                        </HBox>
+                                        <Label fx:id="lblSettleStatus" styleClass="label-muted"/>
+                                    </children>
+                                </VBox>
 
-                  <VBox style="-fx-background-color: #f0f9ff; box-border-color: #bae6fd;" styleClass="card">
-                     <children>
-                        <Label styleClass="column-header" text="🤖 Auto-Bid — Đặt giá tự động">
-                           <font>
-                              <Font size="15.0" />
-                           </font>
-                        </Label>
-                        <HBox alignment="CENTER_LEFT" prefHeight="100.0" prefWidth="200.0" spacing="8.0">
-                           <children>
-                              <TextField fx:id="txtMaxBid" prefHeight="36.0" prefWidth="139.0" promptText="Giá tối đa" styleClass="text-input" HBox.hgrow="ALWAYS" />
-                              <TextField fx:id="txtIncrementAuto" prefHeight="36.0" prefWidth="124.0" promptText="Bước nhảy" styleClass="text-input" HBox.hgrow="ALWAYS" />
-                              <Button mnemonicParsing="false" onAction="#handleSetAutoBid" styleClass="btn-secondary" text="Đăng ký" />
-                           </children>
-                           <padding>
-                              <Insets top="10.0" />
-                           </padding>
-                        </HBox>
-                        <Label fx:id="lblAutoBidStatus" styleClass="label-muted" />
-                     </children>
-                     <opaqueInsets>
-                        <Insets />
-                     </opaqueInsets>
-                  </VBox>
+                                <VBox style="-fx-background-color: #f0f9ff; box-border-color: #bae6fd;"
+                                      styleClass="card">
+                                    <children>
+                                        <Label styleClass="column-header" text="🤖 Auto-Bid — Đặt giá tự động">
+                                            <font>
+                                                <Font size="15.0"/>
+                                            </font>
+                                        </Label>
+                                        <HBox alignment="CENTER_LEFT" prefHeight="100.0" prefWidth="200.0"
+                                              spacing="8.0">
+                                            <children>
+                                                <TextField fx:id="txtMaxBid" prefHeight="36.0" prefWidth="139.0"
+                                                           promptText="Giá tối đa" styleClass="text-input"
+                                                           HBox.hgrow="ALWAYS"/>
+                                                <TextField fx:id="txtIncrementAuto" prefHeight="36.0" prefWidth="124.0"
+                                                           promptText="Bước nhảy" styleClass="text-input"
+                                                           HBox.hgrow="ALWAYS"/>
+                                                <Button mnemonicParsing="false" onAction="#handleSetAutoBid"
+                                                        styleClass="btn-secondary" text="Đăng ký"/>
+                                            </children>
+                                            <padding>
+                                                <Insets top="10.0"/>
+                                            </padding>
+                                        </HBox>
+                                        <Label fx:id="lblAutoBidStatus" styleClass="label-muted"/>
+                                    </children>
+                                    <opaqueInsets>
+                                        <Insets/>
+                                    </opaqueInsets>
+                                </VBox>
 
-               </children>
-               <padding>
-                  <Insets bottom="10.0" left="10.0" top="5.0" />
-               </padding>
+                            </children>
+                            <padding>
+                                <Insets bottom="10.0" left="10.0" top="5.0"/>
+                            </padding>
 
-            </VBox>
-            <VBox alignment="CENTER_LEFT" prefHeight="200.0" prefWidth="100.0" spacing="14.0" HBox.hgrow="ALWAYS">
-               <children>
-                  <VBox prefHeight="250.0" prefWidth="500.0" spacing="5.0" styleClass="card">
-                     <children>
-                        <Label styleClass="column-header" text="📈 Biểu đồ giá" />
-                        <LineChart fx:id="chartPrice" legendVisible="false" style="-fx-background-radius: 8; box-border-radius: 8;" VBox.vgrow="ALWAYS">
-                          <xAxis>
-                            <CategoryAxis label="Thời gian" side="BOTTOM" styleClass="label-muted" fx:id="xAxis" />
-                          </xAxis>
-                          <yAxis>
-                            <NumberAxis fx:id="yAxis" label="Giá (VNĐ)" side="LEFT" styleClass="label-muted" />
-                          </yAxis>
-                           <padding>
-                              <Insets top="5.0" />
-                           </padding>
-                        </LineChart>
-                     </children>
-                  </VBox>
+                        </VBox>
+                    </content>
+                </ScrollPane>
+                <VBox alignment="CENTER_LEFT" prefHeight="200.0" prefWidth="100.0" spacing="14.0" HBox.hgrow="ALWAYS">
+                    <children>
+                        <VBox prefHeight="250.0" prefWidth="500.0" spacing="5.0" styleClass="card">
+                            <children>
+                                <Label styleClass="column-header" text="📈 Biểu đồ giá"/>
+                                <LineChart fx:id="chartPrice" legendVisible="false"
+                                           style="-fx-background-radius: 8; box-border-radius: 8;" VBox.vgrow="ALWAYS">
+                                    <xAxis>
+                                        <CategoryAxis label="Thời gian" side="BOTTOM" styleClass="label-muted"
+                                                      fx:id="xAxis"/>
+                                    </xAxis>
+                                    <yAxis>
+                                        <NumberAxis fx:id="yAxis" label="Giá (VNĐ)" side="LEFT"
+                                                    styleClass="label-muted"/>
+                                    </yAxis>
+                                    <padding>
+                                        <Insets top="5.0"/>
+                                    </padding>
+                                </LineChart>
+                            </children>
+                        </VBox>
 
-                  <VBox prefHeight="200.0" prefWidth="100.0" spacing="10.0" styleClass="card" VBox.vgrow="ALWAYS">
-                     <children>
-                        <Label styleClass="column-header" text="📜 Lịch sử đặt giá" />
-                        <ListView fx:id="lstBidHistory" prefHeight="200.0" prefWidth="200.0" style="-fx-background-radius: 8; -fx-border-radius: 8;" VBox.vgrow="ALWAYS" />
-                     </children>
-                  </VBox>
+                        <VBox prefHeight="200.0" prefWidth="100.0" spacing="10.0" styleClass="card" VBox.vgrow="ALWAYS">
+                            <children>
+                                <Label styleClass="column-header" text="📜 Lịch sử đặt giá"/>
+                                <ListView fx:id="lstBidHistory" prefHeight="200.0" prefWidth="200.0"
+                                          style="-fx-background-radius: 8; -fx-border-radius: 8;" VBox.vgrow="ALWAYS"/>
+                            </children>
+                        </VBox>
 
-               </children>
-               
-               <padding>
-                  <Insets bottom="10.0" right="10.0" top="5.0" />
-               </padding>
-            </VBox>
+                    </children>
 
-         </children>
-      </HBox>
-   </center>
+                    <padding>
+                        <Insets bottom="10.0" right="10.0" top="5.0"/>
+                    </padding>
+                </VBox>
+
+            </children>
+        </HBox>
+    </center>
 </BorderPane>
