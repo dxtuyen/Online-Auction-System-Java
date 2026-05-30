@@ -21,30 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-/**
- * Quản lý sản phẩm - registry trung tâm + write-through DB.
- * <p>
- * ============== KIẾN TRÚC ==============
- * <p>
- * Write-through cache pattern (giống UserManager):
- * - In-memory map làm cache cho find() nhanh
- * - createItem ghi DB rồi mới commit cache
- * - save(item) flush mutation (rename, updatePrice, addImage...) xuống DB
- * - loadAllFromDb() fill cache lúc startup
- * <p>
- * ============== DESIGN PATTERNS ==============
- * 1. SINGLETON (Bill Pugh idiom)
- * 2. FACADE - che giấu ItemFactory + DAO
- * 3. REPOSITORY-LIKE
- * <p>
- * ============== BẢO MẬT ==============
- * - createItem KIỂM TRA seller phải có quyền sell (canSell())
- */
 public final class ItemManager {
 
     private static final Logger log = AppLogger.get(ItemManager.class);
-
-    // ============== SINGLETON ==============
 
     private static final class Holder {
         private static final ItemManager INSTANCE = new ItemManager();
@@ -54,8 +33,6 @@ public final class ItemManager {
         return Holder.INSTANCE;
     }
 
-    // ============== FIELDS ==============
-
     private final ItemDao dao;
     private final ConcurrentHashMap<UUID, Item> items = new ConcurrentHashMap<>();
 
@@ -63,17 +40,10 @@ public final class ItemManager {
         this.dao = new MysqlItemDao();
     }
 
-    /** Test-only constructor: nhận DAO từ ngoài để unit test không cần DB. */
     ItemManager(ItemDao dao) {
         this.dao = Objects.requireNonNull(dao, "dao must not be null");
     }
 
-    // ============== BOOTSTRAP ==============
-
-    /**
-     * Load toàn bộ item từ DB vào cache. Phải gọi SAU UserManager.loadAllFromDb()
-     * vì item có FK seller_id tới users.
-     */
     public void loadAllFromDb() {
         items.clear();
         for (Item item : dao.findAll()) {
@@ -86,12 +56,6 @@ public final class ItemManager {
         return dao.count();
     }
 
-    // ============== ITEM CREATION ==============
-
-    /**
-     * Tạo sản phẩm mới. Seller phải tồn tại + có quyền sell.
-     * Persist DB trước, rollback cache nếu fail.
-     */
     public Item createItem(ItemCategory category, String name, String description,
                            UUID sellerId, BigDecimal startingPrice,
                            List<String> images, ItemCondition condition,
@@ -109,15 +73,11 @@ public final class ItemManager {
         Item item = ItemFactory.create(category, name, description, sellerId,
                 startingPrice, images, condition, specificAttrs);
 
-        dao.insert(item);     // throws nếu DB fail → cache không thay đổi
+        dao.insert(item);
         items.put(item.getId(), item);
         return item;
     }
 
-    /**
-     * Sync entity state xuống DB sau khi caller mutate Item
-     * (rename, updatePrice, updateCondition, addImage, removeImage...).
-     */
     public void save(Item item) {
         Objects.requireNonNull(item, "item must not be null");
         if (!items.containsKey(item.getId())) {
@@ -126,8 +86,6 @@ public final class ItemManager {
         }
         dao.update(item);
     }
-
-    // ============== QUERIES ==============
 
     public Optional<Item> findById(UUID itemId) {
         return Optional.ofNullable(items.get(Objects.requireNonNull(itemId)));
@@ -154,8 +112,6 @@ public final class ItemManager {
     public int count() {
         return items.size();
     }
-
-    // ============== TEST ONLY ==============
 
     void clearForTesting() {
         items.clear();

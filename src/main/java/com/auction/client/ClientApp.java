@@ -9,13 +9,6 @@ import javafx.stage.Stage;
 
 import java.util.function.Consumer;
 
-/**
- * Entry point cho JavaFX Client.
- *
- * <p>{@code launch()} khởi tạo JavaFX runtime → gọi {@code start()}.
- * Cửa sổ đầu tiên là Login; các controller có thể gọi {@link #switchScene}
- * để chuyển màn.</p>
- */
 public class ClientApp extends Application {
 
     private static Stage primaryStage;
@@ -27,8 +20,6 @@ public class ClientApp extends Application {
         Parent root = FXMLLoader.load(getClass().getResource("/fxml/login.fxml"));
         Scene scene = new Scene(root,920,600);
 
-
-        // Load CSS nếu có
         var css = getClass().getResource("/css/style.css");
         if (css != null) scene.getStylesheets().add(css.toExternalForm());
 
@@ -37,7 +28,6 @@ public class ClientApp extends Application {
         stage.show();
     }
 
-    /** Chuyển scene đơn giản — load FXML mới và set làm root. */
     public static void switchScene(String fxmlFile) {
         try {
             Parent root = FXMLLoader.load(ClientApp.class.getResource("/fxml/" + fxmlFile));
@@ -48,7 +38,6 @@ public class ClientApp extends Application {
         }
     }
 
-    /** Chuyển scene + truyền data tới controller sau khi load xong. */
     public static void switchSceneWithData(String fxmlFile, Consumer<Object> setupCtrl) {
         try {
             FXMLLoader loader = new FXMLLoader(ClientApp.class.getResource("/fxml/" + fxmlFile));

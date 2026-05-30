@@ -17,33 +17,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/**
- * Quản lý user - registry trung tâm + authentication.
- * <p>
- * ============== KIẾN TRÚC ==============
- * <p>
- * Write-through cache pattern:
- * - In-memory map vẫn giữ làm cache cho find() nhanh + để code cũ không vỡ.
- * - Mọi mutation (register, save) ghi xuống DB qua {@link UserDao}, rồi mới update cache.
- * - Lúc startup, {@link #loadAllFromDb()} fill cache từ DB.
- * <p>
- * Nếu DB write fail → cache không bị thay đổi, throw exception lên caller.
- * <p>
- * ============== DESIGN PATTERNS ==============
- * 1. SINGLETON (Bill Pugh idiom)
- * 2. REPOSITORY-LIKE (findById, findByUsername)
- * 3. FACADE (che giấu hash password, validate uniqueness, DAO)
- * <p>
- * ============== BẢO MẬT ==============
- * - Password hash + salt qua PasswordEncoder TRƯỚC khi lưu
- * - Login không phân biệt "user không tồn tại" vs "sai password" → chống username enumeration
- * - Banned user không login được
- */
 public final class UserManager {
 
     private static final Logger log = AppLogger.get(UserManager.class);
-
-    // ============== SINGLETON ==============
 
     private static final class Holder {
         private static final UserManager INSTANCE = new UserManager();
@@ -53,34 +29,22 @@ public final class UserManager {
         return Holder.INSTANCE;
     }
 
-    // ============== FIELDS ==============
-
     private final UserDao dao;
 
-    /** Cache chính - key: userId */
     private final ConcurrentHashMap<UUID, User> users = new ConcurrentHashMap<>();
 
-    /** Index theo username để check trùng O(1) và login nhanh */
     private final ConcurrentHashMap<String, UUID> usernameIndex = new ConcurrentHashMap<>();
 
-    /** Index theo email để check trùng O(1) — email được DB UNIQUE constrain. */
     private final ConcurrentHashMap<String, UUID> emailIndex = new ConcurrentHashMap<>();
 
     private UserManager() {
         this.dao = new MysqlUserDao();
     }
 
-    /** Test-only constructor: nhận DAO từ ngoài để unit test không cần DB. */
     UserManager(UserDao dao) {
         this.dao = Objects.requireNonNull(dao, "dao must not be null");
     }
 
-    // ============== BOOTSTRAP ==============
-
-    /**
-     * Load toàn bộ user từ DB vào cache. Gọi 1 lần lúc server khởi động.
-     * Idempotent: clear cache trước khi load → có thể gọi lại để refresh.
-     */
     public void loadAllFromDb() {
         users.clear();
         usernameIndex.clear();
@@ -93,30 +57,15 @@ public final class UserManager {
         log.info(() -> "Đã load " + users.size() + " user từ DB");
     }
 
-    /** Số user trong DB - dùng cho DataSeeder check xem đã seed chưa. */
     public long countInDb() {
         return dao.count();
     }
 
-    // ============== REGISTRATION ==============
-
-    /**
-     * Đăng ký user mới. Password được hash + salt trước khi lưu xuống DB.
-     *
-     * @throws IllegalArgumentException nếu input không hợp lệ
-     * @throws IllegalStateException    nếu username đã tồn tại
-     */
     public User register(String username, String plainPassword, String email,
                          String fullName, Role role) {
         return register(username, plainPassword, email, fullName, role, null);
     }
 
-    /**
-     * Đăng ký user mới + nạp số dư ban đầu.
-     *
-     * @param initialBalance nếu non-null và > 0 sẽ set vào balance trước khi persist.
-     *                       null hoặc 0 → balance mặc định = 0.
-     */
     public User register(String username, String plainPassword, String email,
                          String fullName, Role role, BigDecimal initialBalance) {
         Objects.requireNonNull(plainPassword, "password must not be null");
@@ -146,7 +95,6 @@ public final class UserManager {
             user.setBalance(initialBalance);
         }
 
-        // Reserve username + email atomic — chống race giữa 2 register cùng lúc.
         UUID prev = usernameIndex.putIfAbsent(user.getUsername(), user.getId());
         if (prev != null) {
             throw new IllegalStateException(
@@ -160,7 +108,6 @@ public final class UserManager {
                     "Email '" + user.getEmail() + "' vừa được dùng bởi user khác");
         }
 
-        // Persist DB TRƯỚC khi commit cache. Nếu DB fail → rollback index.
         try {
             dao.insert(user);
         } catch (RuntimeException e) {
@@ -172,17 +119,6 @@ public final class UserManager {
         return user;
     }
 
-    /**
-     * Sync entity state xuống DB sau khi caller mutate User (setBalance, ban, activate...).
-     * <p>
-     * VÍ DỤ DÙNG:
-     * <pre>{@code
-     *   user.setBalance(newBalance);
-     *   userManager.save(user);   // flush xuống DB
-     * }</pre>
-     * <p>
-     * Throws {@link com.auction.persistence.dao.PersistenceException} nếu DB không có user này.
-     */
     public void save(User user) {
         Objects.requireNonNull(user, "user must not be null");
         if (!users.containsKey(user.getId())) {
@@ -190,18 +126,9 @@ public final class UserManager {
                     "User chưa được register: " + user.getId());
         }
         dao.update(user);
-        // Cache đã reference cùng object → không cần put lại
+
     }
 
-    // ============== AUTHENTICATION ==============
-
-    /**
-     * Đăng nhập bằng username + plain password.
-     * <p>
-     * BẢO MẬT:
-     * - Mọi lỗi đều generic message → chống username enumeration
-     * - Luôn chạy hash cả khi không tìm thấy user → timing đều, chống timing attack
-     */
     public User login(String username, String plainPassword) {
         Objects.requireNonNull(username, "username");
         Objects.requireNonNull(plainPassword, "password");
@@ -226,8 +153,6 @@ public final class UserManager {
         return user;
     }
 
-    // ============== QUERIES ==============
-
     public Optional<User> findById(UUID userId) {
         return Optional.ofNullable(users.get(Objects.requireNonNull(userId)));
     }
@@ -246,9 +171,6 @@ public final class UserManager {
         return users.size();
     }
 
-    // ============== TEST ONLY ==============
-
-    /** Reset cache - chỉ dùng trong unit test. KHÔNG xóa DB. */
     void clearForTesting() {
         users.clear();
         usernameIndex.clear();

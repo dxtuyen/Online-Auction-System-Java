@@ -13,33 +13,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Factory Method Pattern - tạo Item theo category.
- * <p>
- * Lý do dùng Factory:
- * 1. CLIENT KHÔNG cần biết về các subclass cụ thể (Electronics, Art, Vehicle...).
- * Chỉ cần truyền category + thuộc tính → factory lo phần "new".
- * 2. Khi thêm category mới (vd Fashion), CHỈ sửa 1 chỗ là factory.
- * → Open/Closed Principle (SOLID).
- * 3. Encapsulate logic validation đặc thù của từng loại.
- * <p>
- * Ví dụ sử dụng:
- * Item phone = ItemFactory.create(
- * ItemCategory.ELECTRONICS,
- * "iPhone 15", "Like new", sellerId,
- * new BigDecimal("20000000"), List.of("img.jpg"), ItemCondition.USED,
- * Map.of("brand", "Apple", "model", "iPhone 15", "warrantyMonths", 6)
- * );
- */
 public final class ItemFactory {
 
-    private ItemFactory() { /* utility class */ }
+    private ItemFactory() {  }
 
-    /**
-     * Tạo item theo category.
-     *
-     * @param specificAttrs thuộc tính đặc thù của từng loại (xem doc của từng case)
-     */
     public static Item create(ItemCategory category,
                               String name,
                               String description,
@@ -54,8 +31,6 @@ public final class ItemFactory {
         }
         if (specificAttrs == null) specificAttrs = Map.of();
 
-        // Switch exhaustive - KHÔNG dùng default. Khi thêm category mới vào enum,
-        // compiler sẽ báo lỗi ngay tại đây → tránh quên handle.
         return switch (category) {
             case ELECTRONICS -> new Electronics(
                     name, description, sellerId, startingPrice, images, condition,
@@ -76,9 +51,7 @@ public final class ItemFactory {
                     integer(specificAttrs, "year", 0),
                     integer(specificAttrs, "mileageKm", 0)
             );
-            // FASHION, COLLECTIBLE, OTHER không có subclass riêng → dùng OtherItem
-            // với extraInfo dạng text tự do. Khi nào category đó cần thuộc tính
-            // có cấu trúc (vd Fashion cần size + brand + material) thì tách subclass mới.
+
             case FASHION, COLLECTIBLE, OTHER -> new OtherItem(
                     name, description, sellerId, startingPrice, images,
                     category, condition,
@@ -87,7 +60,6 @@ public final class ItemFactory {
         };
     }
 
-    // ============== HELPERS ==============
     private static String str(Map<String, Object> map, String key) {
         Object v = map.get(key);
         if (v == null) {

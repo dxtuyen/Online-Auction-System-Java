@@ -14,9 +14,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/**
- * JDBC implementation cho AutoBidDao.
- */
 public final class MysqlAutoBidDao implements AutoBidDao {
 
     private static final String COLS =
@@ -81,7 +78,7 @@ public final class MysqlAutoBidDao implements AutoBidDao {
             ps.setString(2, bidderId.toString());
             ps.setString(3, auctionId.toString());
             ps.executeUpdate();
-            // Không throw nếu rowCount=0: row có thể đã bị xóa, deactivate là idempotent
+
         } catch (SQLException e) {
             throw new PersistenceException("Update auto-bid active thất bại: " + e.getMessage(), e);
         }

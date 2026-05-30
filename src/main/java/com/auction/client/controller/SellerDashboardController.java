@@ -11,12 +11,6 @@ import javafx.scene.control.*;
 
 import java.util.*;
 
-/**
- * Dashboard cho người bán: tạo item, mở phiên đấu giá.
- *
- * <p>Sửa sau refactor: itemId/auctionId là UUID String. Profile dùng field {@code revenue}.
- * Attribute name cho VEHICLE khớp với ItemFactory: {@code make}, {@code year}, {@code mileageKm}.</p>
- */
 public class SellerDashboardController {
 
     @FXML private Label lblUserInfo;
@@ -51,7 +45,6 @@ public class SellerDashboardController {
         colItemPrice.setCellValueFactory(cd -> new SimpleStringProperty(money(cd.getValue().get("startingPrice"))));
         tblItems.setItems(itemsData);
 
-        // Double-click item để copy id sang khung tạo phiên — đỡ phải gõ UUID dài
         tblItems.setOnMouseClicked(event -> {
             if (event.getClickCount() == 2) {
                 Map<String, Object> sel = tblItems.getSelectionModel().getSelectedItem();
@@ -92,7 +85,6 @@ public class SellerDashboardController {
             return;
         }
 
-        // Tên attribute phải khớp với ItemFactory cho từng category (xem ItemFactory.create()).
         Map<String, String> attrs = new HashMap<>();
         String category = cboCategory.getValue();
         String brand = txtBrand.getText().trim();
@@ -105,19 +97,19 @@ public class SellerDashboardController {
                 attrs.put("warrantyMonths", "12");
             }
             case "ART" -> {
-                // Factory: artist (required), yearCreated (optional), medium (required)
+
                 attrs.put("artist", brand);
                 attrs.put("yearCreated", modelVal.isEmpty() ? "2024" : modelVal);
                 attrs.put("medium", "Sơn dầu");
             }
             case "VEHICLE" -> {
-                // Factory dùng "make"/"year"/"mileageKm" (KHÔNG phải brand/manufactureYear)
+
                 attrs.put("make", brand);
                 attrs.put("model", modelVal);
                 attrs.put("year", "2022");
                 attrs.put("mileageKm", "0");
             }
-            default -> { /* OtherItem — không cần attr bắt buộc */ }
+            default -> {  }
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -148,7 +140,7 @@ public class SellerDashboardController {
 
     @FXML
     private void handleCreateAuction() {
-        // itemId là UUID string — KHÔNG parse int.
+
         String itemId = txtAuctionItemId.getText().trim();
         int duration;
         double incr;

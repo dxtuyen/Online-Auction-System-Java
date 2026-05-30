@@ -7,12 +7,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.Logger;
 
-/**
- * Quản lý socket tới Server.
- *
- * <p>Mở thread riêng để lắng nghe tin nhắn từ server liên tục.
- * Mỗi dòng JSON nhận được sẽ đẩy cho {@link MessageListener}.</p>
- */
 public class ServerConnection {
 
     private static final Logger log = AppLogger.get(ServerConnection.class);
@@ -28,17 +22,15 @@ public class ServerConnection {
     private MessageListener listener;
     private Thread listenerThread;
 
-    /** Mở kết nối + tạo listener thread. */
     public void connect(String host, int port) throws IOException {
         socket = new Socket(host, port);
-        // UTF-8 bắt buộc để handle tiếng Việt
+
         reader = new BufferedReader(new InputStreamReader(
                 socket.getInputStream(), StandardCharsets.UTF_8));
         writer = new PrintWriter(new OutputStreamWriter(
                 socket.getOutputStream(), StandardCharsets.UTF_8), true);
         connected = true;
 
-        // Thread riêng để không block main thread khi đọc từ socket
         listenerThread = new Thread(() -> {
             try {
                 String line;
@@ -55,10 +47,6 @@ public class ServerConnection {
         listenerThread.start();
     }
 
-    /**
-     * Gửi JSON lên server. synchronized tránh 2 thread ghi cùng lúc
-     * gây lỗi interleaving.
-     */
     public synchronized void send(String json) {
         if (writer != null && connected) writer.println(json);
     }
@@ -68,9 +56,7 @@ public class ServerConnection {
 
     public void disconnect() {
         connected = false;
-        // Đóng socket TRƯỚC TIÊN: làm reader.readLine() trong listener thread throw
-        // ngay lập tức (thread thoát luôn). Nếu đóng writer trước, writer.close()
-        // sẽ flush ra socket — trên Windows có thể block vài giây làm UI treo.
+
         try { if (socket != null) socket.close(); } catch (IOException ignored) {}
         try { if (reader != null) reader.close(); } catch (IOException ignored) {}
         try { if (writer != null) writer.close(); } catch (RuntimeException ignored) {}

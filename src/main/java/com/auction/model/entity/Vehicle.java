@@ -1,4 +1,3 @@
-// File: com/auction/model/entity/Vehicle.java
 package com.auction.model.entity;
 
 import com.auction.model.enums.ItemCategory;
@@ -9,14 +8,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Phương tiện - có hãng, đời, số km đã đi.
- */
 public class Vehicle extends Item {
 
     private static final long serialVersionUID = 1L;
 
-    private final String make;          // Toyota, Honda...
+    private final String make;
     private final String model;
     private final int year;
     private final int mileageKm;
@@ -35,7 +31,6 @@ public class Vehicle extends Item {
         this.mileageKm = mileageKm;
     }
 
-    /** Restore từ DB - giữ nguyên id và timestamps. */
     public Vehicle(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                    String name, String description, UUID sellerId,
                    BigDecimal startingPrice, List<String> images,

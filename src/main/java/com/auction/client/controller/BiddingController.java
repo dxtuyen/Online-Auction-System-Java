@@ -17,15 +17,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-/**
- * Controller màn hình đấu giá realtime — trái tim của dự án.
- *
- * <p>Sửa sau refactor: auctionId là UUID String (server dùng UUID).
- * Profile response trả {@code balance}/{@code revenue}, không có available/reserved.</p>
- */
 public class BiddingController {
 
-    // Info labels
     @FXML private Label lblItemName;
     @FXML private Label lblItemInfo;
     @FXML private Label lblStartPrice;
@@ -36,16 +29,13 @@ public class BiddingController {
     @FXML private Label lblTimer;
     @FXML private Label lblError;
 
-    // Bid controls
     @FXML private TextField txtBidAmount;
     @FXML private Button btnPlaceBid;
 
-    // Auto-bid
     @FXML private TextField txtMaxBid;
     @FXML private TextField txtIncrementAuto;
     @FXML private Label lblAutoBidStatus;
 
-    // Settlement (sau khi phiên FINISHED, winner chọn trả tiền hoặc bỏ)
     @FXML private javafx.scene.layout.VBox paneSettlement;
     @FXML private Label lblSettleInfo;
     @FXML private Label lblSettleCountdown;
@@ -53,11 +43,9 @@ public class BiddingController {
     @FXML private Button btnForfeit;
     @FXML private Label lblSettleStatus;
 
-    // History + chart
     @FXML private ListView<String> lstBidHistory;
     @FXML private LineChart<String, Number> chartPrice;
 
-    // State — auctionId là UUID dạng String (đồng bộ với server protocol)
     private String auctionId;
     private LocalDateTime endTime;
     private Timeline countdown;
@@ -65,20 +53,14 @@ public class BiddingController {
     private XYChart.Series<String, Number> priceSeries;
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
-    // Cần để dựng panel settlement: giữ startingPrice & currentPrice từ GET_AUCTION
-    // để khi push AUCTION_STATUS đến vẫn còn dữ liệu hiển thị mức phạt.
     private double startingPrice;
     private double currentPrice;
-    // Cache để cập nhật prompt text "Tối thiểu X" mỗi khi có BID_UPDATE
-    // (push không gửi increment lại vì là invariant của auction).
+
     private double minimumIncrement;
 
-    // Phải đồng bộ với AuctionManager.AUTO_PAY_AFTER_MINUTES / FORFEIT_PENALTY_RATE server-side.
-    // Chỉ dùng cho hiển thị; tính toán thật server làm.
     private static final int AUTO_PAY_AFTER_MINUTES = 5;
     private static final double FORFEIT_PENALTY_RATE = 0.4;
 
-    /** Gọi từ AuctionListController sau khi load FXML. */
     public void setAuctionId(String auctionId) {
         this.auctionId = auctionId;
         loadAuctionDetail();
@@ -97,8 +79,6 @@ public class BiddingController {
 
         setupPushHandlers();
     }
-
-    // =========== LOAD DATA ===========
 
     private void loadAuctionDetail() {
         new Thread(() -> {
@@ -133,7 +113,7 @@ public class BiddingController {
 
                     Platform.runLater(() -> renderHistory(bids));
                 }
-            } catch (Exception e) { /* ignore */ }
+            } catch (Exception e) {  }
         }).start();
     }
 
@@ -158,7 +138,6 @@ public class BiddingController {
 
         txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", currentPrice + minimumIncrement));
 
-        // Reload trong khi phiên đã FINISHED và mình là winner → dựng panel ngay.
         String status = str(data, "status");
         String leaderId = data.get("highestBidderId") == null ? null : str(data, "highestBidderId");
         if ("FINISHED".equals(status) && isMyId(leaderId)) {
@@ -187,8 +166,6 @@ public class BiddingController {
         }
     }
 
-    // =========== WATCH + PUSH ===========
-
     private void watchAuction() {
         new Thread(() -> {
             ClientModel.getInstance().sendRequest("WATCH_AUCTION",
@@ -196,9 +173,6 @@ public class BiddingController {
         }).start();
     }
 
-    /**
-     * So sánh auctionId trong push payload bằng chuỗi để tránh nhầm "0 != 0" khi cast int trên UUID.
-     */
     private boolean matchesAuction(Map<String, Object> data) {
         return auctionId != null
                 && auctionId.equals(String.valueOf(data.get("auctionId")));
@@ -213,11 +187,10 @@ public class BiddingController {
                 lblCurrentPrice.setText(formatMoney(data.get("amount")));
                 lblBidCount.setText(str(data, "totalBids"));
                 currentPrice = num(data.get("amount"));
-                // Server giờ kèm bidderName trong push → cập nhật leader ngay
-                // mà không cần round-trip BID_HISTORY.
+
                 String bidderName = str(data, "bidderName");
                 lblLeader.setText(bidderName.isBlank() ? "Chưa có" : bidderName);
-                // Refresh prompt text với min next bid mới.
+
                 txtBidAmount.setPromptText(
                         String.format("Tối thiểu %,.0f", currentPrice + minimumIncrement));
                 loadBidHistory();
@@ -241,8 +214,6 @@ public class BiddingController {
         });
     }
 
-    // =========== BID ===========
-
     @FXML
     private void handlePlaceBid() {
         BigDecimal amount = parseMoney(txtBidAmount.getText());
@@ -257,9 +228,7 @@ public class BiddingController {
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
-                // Gửi dạng String để server parse BigDecimal — giữ precision.
-                // Nếu gửi qua double, JSON serialize có thể rơi vào "1.0E7" hoặc
-                // mất số lẻ.
+
                 model.sendRequest("PLACE_BID", Map.of(
                         "auctionId", auctionId, "amount", amount.toPlainString()));
                 Response res = model.waitForResponse("PLACE_BID", 5000);
@@ -284,14 +253,6 @@ public class BiddingController {
         }).start();
     }
 
-    // =========== SETTLEMENT ===========
-
-    /**
-     * Xử lý push AUCTION_STATUS.
-     * - FINISHED + mình là winner → hiện panel trả tiền / bỏ.
-     * - FINISHED + không phải winner → chỉ disable bid.
-     * - PAID / CANCELED → ẩn panel, hiển thị kết quả.
-     */
     private void handleStatusChanged(Map<String, Object> data) {
         String status = str(data, "status");
         String leaderId = data.get("highestBidderId") == null ? null : str(data, "highestBidderId");
@@ -344,10 +305,6 @@ public class BiddingController {
         if (settleCountdown != null) settleCountdown.stop();
     }
 
-    /**
-     * Đếm ngược tới thời điểm server tự PAY. Tính từ endTime (khi push FINISHED đến,
-     * server vừa transition xong nên endTime ~ thời điểm hiện tại).
-     */
     private void startSettleCountdown() {
         if (settleCountdown != null) settleCountdown.stop();
         settleCountdown = new Timeline(new javafx.animation.KeyFrame(
@@ -412,7 +369,7 @@ public class BiddingController {
 
     @FXML
     private void handleForfeit() {
-        // Xác nhận trước khi bỏ — chống bấm nhầm.
+
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
                 String.format("Bạn chắc chắn bỏ phiên?\nSẽ mất %,.0f VNĐ phí phạt cho người bán.",
                         startingPrice * FORFEIT_PENALTY_RATE),
@@ -465,7 +422,7 @@ public class BiddingController {
 
         new Thread(() -> {
             ClientModel model = ClientModel.getInstance();
-            // Gửi String → server parse BigDecimal — xem comment ở handlePlaceBid.
+
             model.sendRequest("SET_AUTO_BID", Map.of(
                     "auctionId", auctionId,
                     "maxBid", maxBid.toPlainString(),
@@ -483,8 +440,6 @@ public class BiddingController {
             });
         }).start();
     }
-
-    // =========== COUNTDOWN ===========
 
     private void startCountdown() {
         countdown = new Timeline(new javafx.animation.KeyFrame(
@@ -510,8 +465,6 @@ public class BiddingController {
         else lblTimer.getStyleClass().setAll("timer-normal");
     }
 
-    // =========== EFFECTS ===========
-
     private void flashLabel(Label label) {
         FadeTransition ft = new FadeTransition(Duration.millis(150), label);
         ft.setFromValue(0.3);
@@ -520,8 +473,6 @@ public class BiddingController {
         ft.setAutoReverse(true);
         ft.play();
     }
-
-    // =========== NAV ===========
 
     @FXML
     private void handleViewAccount() {
@@ -558,8 +509,6 @@ public class BiddingController {
         ClientApp.switchScene("auction_list.fxml");
     }
 
-    // =========== HELPERS ===========
-
     private String str(Map<String, Object> m, String k) {
         Object v = m == null ? null : m.get(k);
         if (v == null) return "";
@@ -576,12 +525,6 @@ public class BiddingController {
         return "0 VNĐ";
     }
 
-    /**
-     * Parse số tiền VND user nhập. Dấu chấm và dấu phẩy đều coi là thousand
-     * separator → "1.000.000", "1,000,000", "1000000" đều ra 1_000_000.
-     * <p>VND không có thập phân nên không hỗ trợ phần lẻ. Trả {@code null} nếu
-     * input rỗng hoặc không parse được — caller validate signum > 0 trước khi gửi.
-     */
     private BigDecimal parseMoney(String s) {
         if (s == null) return null;
         String cleaned = s.trim().replace(".", "").replace(",", "").replace(" ", "");
@@ -601,10 +544,6 @@ public class BiddingController {
         }
     }
 
-    /**
-     * Server trả {@code balance} (số dư) và {@code revenue} (doanh thu). Hệ thống chưa reserve balance
-     * lúc bid nên không có concept available/reserved tách biệt.
-     */
     private String formatProfileDetails(Map<String, Object> data) {
         StringBuilder sb = new StringBuilder();
         sb.append("Tài khoản: ").append(str(data, "username")).append('\n');

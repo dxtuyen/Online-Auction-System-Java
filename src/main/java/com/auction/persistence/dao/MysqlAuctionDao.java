@@ -17,12 +17,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * JDBC implementation cho AuctionDao.
- *
- * <p>Mỗi bid hợp lệ sẽ trigger 1-2 UPDATE (1 cho onBidPlaced, +1 nếu anti-sniping
- * extend endTime). Idempotent UPDATE nên 2 lần ghi cùng state không gây sai.</p>
- */
 public final class MysqlAuctionDao implements AuctionDao {
 
     private static final String COLS =
@@ -45,8 +39,6 @@ public final class MysqlAuctionDao implements AuctionDao {
     public MysqlAuctionDao() {
         this.db = Database.getInstance();
     }
-
-    // ============== WRITE ==============
 
     @Override
     public void insert(Auction auction) {
@@ -94,8 +86,6 @@ public final class MysqlAuctionDao implements AuctionDao {
         }
     }
 
-    // ============== READ ==============
-
     @Override
     public Optional<Auction> findById(UUID id) {
         Objects.requireNonNull(id);
@@ -133,8 +123,6 @@ public final class MysqlAuctionDao implements AuctionDao {
             throw new PersistenceException("count auction thất bại: " + e.getMessage(), e);
         }
     }
-
-    // ============== HELPERS ==============
 
     private static Auction mapRow(ResultSet rs) throws SQLException {
         UUID id = UUID.fromString(rs.getString("id"));

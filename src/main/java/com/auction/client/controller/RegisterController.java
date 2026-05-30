@@ -11,12 +11,6 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Controller cho màn Đăng ký.
- *
- * <p>{@code txtBalance} optional: bỏ trống → server set balance = 0; có giá trị thì gửi
- * dạng String để giữ precision (BigDecimal).</p>
- */
 public class RegisterController {
 
     @FXML private TextField txtFullName;
@@ -50,8 +44,7 @@ public class RegisterController {
             lblError.setText("Mật khẩu phải ít nhất 6 ký tự");
             return;
         }
-        // Validate balance format nếu có nhập — server chưa nhận field này
-        // (default = 0) nhưng vẫn check để feedback sớm cho user.
+
         if (!balanceText.isEmpty()) {
             try {
                 if (new BigDecimal(balanceText).signum() < 0) {
@@ -77,7 +70,7 @@ public class RegisterController {
                 payload.put("email", email);
                 payload.put("fullName", fullName);
                 if (!balanceText.isEmpty()) {
-                    // Gửi String để server parse BigDecimal — giữ precision.
+
                     payload.put("initialBalance", balanceText);
                 }
                 model.sendRequest("REGISTER", payload);

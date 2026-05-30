@@ -15,12 +15,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/**
- * JDBC implementation cho BidTransactionDao.
- *
- * <p>Append-only: bid được insert 1 lần với status cuối cùng, không update sau đó.
- * findAll dùng ORDER BY created_at để giữ thứ tự thời gian (bidHistory cần sắp xếp).</p>
- */
 public final class MysqlBidTransactionDao implements BidTransactionDao {
 
     private static final String COLS =

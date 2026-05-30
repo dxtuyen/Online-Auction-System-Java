@@ -8,16 +8,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tác phẩm nghệ thuật - có tác giả, năm sáng tác, chất liệu.
- */
 public class Art extends Item {
 
     private static final long serialVersionUID = 1L;
 
     private final String artist;
-    private final Integer yearCreated;   // có thể null nếu không rõ
-    private final String medium;          // chất liệu: oil/acrylic/watercolor...
+    private final Integer yearCreated;
+    private final String medium;
 
     public Art(String name, String description, UUID sellerId,
                BigDecimal startingPrice, List<String> images,
@@ -30,7 +27,6 @@ public class Art extends Item {
         this.medium = medium;
     }
 
-    /** Restore từ DB - giữ nguyên id và timestamps. */
     public Art(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                String name, String description, UUID sellerId,
                BigDecimal startingPrice, List<String> images,

@@ -14,33 +14,18 @@ public class User extends Entity {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * QUY TẮC ĐẶT EMAIL
-     * Cho phép local part: chữ, số, dấu chấm, gạch dưới, gạch ngang, plus, %.
-     * Domain phải có ít nhất 1 dấu chấm và TLD ≥ 2 chữ.
-     */
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})$");
 
-
-    /**
-     * THUỘC TÍNH
-     */
     private String username;
     private String hashedPassword;
-    private String passwordSalt;        // unique per-user, sinh ra lúc đặt password
+    private String passwordSalt;
     private String email;
     private String fullName;
     private UserStatus userStatus;
     private Role role;
-    private BigDecimal balance;     // số dư khả dụng để đặt cọc/thanh toán
-    private BigDecimal revenue;     // tổng doanh thu nhận được từ bán đấu giá
-
-    /**
-     * VALIDATE
-     *
-     * kiểm tra thông số được nhập có hợp lệ không
-     */
+    private BigDecimal balance;
+    private BigDecimal revenue;
 
     private static String validateUsername(String username) {
         Objects.requireNonNull(username, "username khong the la null");
@@ -48,16 +33,13 @@ public class User extends Entity {
         if (trimmed.length() < 3 || trimmed.length() > 50) {
             throw new IllegalArgumentException("Username phai tu 3-50 ky tu");
         }
-        // Chỉ cho phép chữ, số, gạch dưới, chấm - tránh ký tự lạ làm SQL/log injection
+
         if (!trimmed.matches("[A-Za-z0-9._]+")) {
             throw new IllegalArgumentException("Username chỉ được chứa chữ, số, dấu . và _");
         }
         return trimmed;
     }
 
-    /**
-     * validate hash đã có (load từ DB hoặc đã hash sẵn) - không phải plain password
-     */
     private static String validateHashedPassword(String hashed) {
         Objects.requireNonNull(hashed, "hashedPassword must not be null");
         if (hashed.isBlank()) {
@@ -77,7 +59,7 @@ public class User extends Entity {
     private static String validateEmail(String email) {
         Objects.requireNonNull(email, "Email khong duoc null");
         String trimmed = email.trim();
-        // RFC 5321: tổng độ dài địa chỉ email tối đa 254 ký tự
+
         if (trimmed.length() > 254) {
             throw new IllegalArgumentException("Email vuot qua 254 ky tu");
         }
@@ -99,9 +81,6 @@ public class User extends Entity {
         return trimmed;
     }
 
-    /**
-     * Validate số tiền: không null, không âm (cho phép = 0).
-     */
     private static BigDecimal validateNonNegativeAmount(BigDecimal amount, String fieldName) {
         Objects.requireNonNull(amount, fieldName + " must not be null");
         if (amount.compareTo(BigDecimal.ZERO) < 0) {
@@ -110,10 +89,6 @@ public class User extends Entity {
         return amount;
     }
 
-    /**
-     * TẠO USER MỚI
-     * (Caller phải hash password trước - thường qua UserManager.register)
-     */
     public User(String username, String hashedPassword, String passwordSalt,
                 String email, String fullName, Role role) {
         super();
@@ -128,9 +103,6 @@ public class User extends Entity {
         this.revenue = BigDecimal.ZERO;
     }
 
-    /**
-     * LOAD USER TỪ DATA BASE
-     */
     public User(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                 String username, String hashedPassword, String passwordSalt,
                 String email, String fullName, UserStatus status, Role role,
@@ -147,11 +119,6 @@ public class User extends Entity {
         this.revenue = validateNonNegativeAmount(revenue, "revenue");
     }
 
-    /**
-     * KIỂM TRA PASSWORD - dùng cho login.
-     * Trả về false (không throw) nếu password null/sai - để caller quyết định xử lý.
-     * synchronized để đọc salt+hash atomic với changePassword (tránh đọc nửa-cập-nhật).
-     */
     public synchronized boolean checkPassword(String plainPassword) {
         if (plainPassword == null) {
             return false;
@@ -159,10 +126,6 @@ public class User extends Entity {
         return PasswordEncoder.matches(plainPassword, passwordSalt, hashedPassword);
     }
 
-    /**
-     * ĐỔI PASSWORD - tự sinh salt mới, hash lại.
-     * Dùng khi user thay password.
-     */
     public synchronized void changePassword(String newPlainPassword) {
         Objects.requireNonNull(newPlainPassword, "password must not be null");
         if (newPlainPassword.length() < 6) {
@@ -172,10 +135,6 @@ public class User extends Entity {
         this.hashedPassword = PasswordEncoder.hash(newPlainPassword, passwordSalt);
         markUpdated();
     }
-
-    /**
-     * Check quyền
-     */
 
     public boolean canSell() {
         return isActive() && role != Role.ADMIN;
@@ -189,48 +148,23 @@ public class User extends Entity {
         return isActive() && role == Role.ADMIN;
     }
 
-    /**
-     * Check hoạt động, chỉnh trạng thái User
-     */
     public boolean isActive() {
         return userStatus == UserStatus.ACTIVE;
     }
 
-    /**
-     * Bật lại user bị ban
-     */
     public void activate() {
         setUserStatus(UserStatus.ACTIVE);
     }
 
-    /**
-     * Khóa user
-     */
     public void ban() {
         setUserStatus(UserStatus.BANNED);
     }
 
-    /**
-     * Kiểm tra xem có đủ số dư để thực hiện bid.
-     *
-     * <p>Đây chỉ là eligibility check không đảm bảo atomicity với mutate sau đó —
-     * code đặt bid phải dùng {@link #tryReserve(BigDecimal)} để check-and-deduct atomic.</p>
-     */
     public synchronized boolean hasEnoughBalance(BigDecimal amount) {
         Objects.requireNonNull(amount, "amount must not be null");
         return balance.compareTo(amount) >= 0;
     }
 
-    /**
-     * RESERVE - Atomic check-and-deduct: nếu đủ tiền → trừ ngay khỏi {@code balance} và trả {@code true}.
-     *
-     * <p>Mục đích: khi user đặt bid và trở thành highest bidder, số tiền đó được "giữ"
-     * khỏi balance để chống user spend cùng một số tiền cho nhiều phiên cùng lúc
-     * (race khi 2 thread placeBid song song).</p>
-     *
-     * <p>Cặp với {@link #release(BigDecimal)} (hoàn lại khi bị outbid hoặc phiên CANCELED)
-     * và {@link #addRevenue(BigDecimal)} (chuyển cho seller khi phiên FINISHED→PAID).</p>
-     */
     public synchronized boolean tryReserve(BigDecimal amount) {
         Objects.requireNonNull(amount, "amount must not be null");
         if (amount.signum() <= 0) {
@@ -242,13 +176,6 @@ public class User extends Entity {
         return true;
     }
 
-    /**
-     * RELEASE - Hoàn lại số tiền đã reserve. Dùng khi:
-     * <ul>
-     *   <li>User bị outbid → trả lại reservation cũ.</li>
-     *   <li>Phiên CANCELED khi user đang là highest bidder.</li>
-     * </ul>
-     */
     public synchronized void release(BigDecimal amount) {
         Objects.requireNonNull(amount, "amount must not be null");
         if (amount.signum() <= 0) {
@@ -258,10 +185,6 @@ public class User extends Entity {
         markUpdated();
     }
 
-    /**
-     * Tăng doanh thu cho seller khi phiên FINISHED→PAID. Tiền winner đã reserve trước đó
-     * (đã trừ khỏi balance) được chuyển hết sang revenue của seller.
-     */
     public synchronized void addRevenue(BigDecimal amount) {
         Objects.requireNonNull(amount, "amount must not be null");
         if (amount.signum() <= 0) {
@@ -271,24 +194,10 @@ public class User extends Entity {
         markUpdated();
     }
 
-    /**
-     * GETTER SETTER
-     */
     public String getUsername() {
         return username;
     }
 
-    /** Username là invariant - KHÔNG cho đổi sau khi tạo (login bị vỡ, audit log lệch).
-     *  Nếu bắt buộc phải đổi thì gỡ comment dưới và document rõ. */
-    // public void setUsername(String username) {
-    //     this.username = validateUsername(username);
-    //     markUpdated();
-    // }
-
-    /**
-     * Trả hash đã store - KHÔNG bao giờ trả plain password vì không lưu.
-     * synchronized để đồng bộ với changePassword (xem checkPassword).
-     */
     public synchronized String getHashedPassword() {
         return hashedPassword;
     }
@@ -319,9 +228,6 @@ public class User extends Entity {
         return userStatus;
     }
 
-    /**
-     * package-private hoặc protected sẽ tốt hơn nhưng AdminProfile khác package nên đành public
-     */
     public void setUserStatus(UserStatus userStatus) {
         this.userStatus = Objects.requireNonNull(userStatus, "status must not be null");
         markUpdated();
@@ -340,11 +246,6 @@ public class User extends Entity {
         return balance;
     }
 
-    /**
-     * Đặt balance trực tiếp - chỉ dùng cho admin / data seeding.
-     * Mutate balance thông thường (đặt bid) PHẢI đi qua {@link #tryReserve}/{@link #release}
-     * để giữ atomic check-and-modify.
-     */
     public synchronized void setBalance(BigDecimal balance) {
         this.balance = validateNonNegativeAmount(balance, "balance");
         markUpdated();
@@ -361,7 +262,7 @@ public class User extends Entity {
 
     @Override
     public String toString() {
-        // KHÔNG bao giờ in hashedPassword/salt - tránh leak qua log
+
         return "User{" +
                 "id=" + getId() +
                 ", username='" + username + '\'' +
@@ -370,12 +271,6 @@ public class User extends Entity {
                 '}';
     }
 
-    /**
-     * BUILDER PATTERN
-     * <p>
-     * Builder nhận PLAIN password - tự hash bằng PasswordEncoder.
-     * Khác với constructor (constructor đòi hash sẵn để load từ DB).
-     */
     public static final class Builder {
         private String username, plainPassword, email, fullName;
         private Role role;
@@ -385,9 +280,6 @@ public class User extends Entity {
             return this;
         }
 
-        /**
-         * Truyền password DẠNG PLAIN - builder sẽ hash khi build()
-         */
         public Builder password(String v) {
             this.plainPassword = v;
             return this;

@@ -8,19 +8,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Đọc config từ .env (dev) hoặc system env (production / Docker).
- *
- * <p>Ưu tiên: System.getenv() ⟶ .env file ở root project.
- * File .env KHÔNG được commit; team dùng .env.example làm template.</p>
- */
 public final class AppConfig {
 
     private static final Map<String, String> ENV_FILE = loadEnvFile();
 
-    private AppConfig() { /* static-only */ }
+    private AppConfig() {  }
 
-    /** Trả về giá trị config theo key, throw nếu thiếu. */
     public static String require(String key) {
         String value = get(key);
         if (value == null || value.isBlank()) {
@@ -30,7 +23,6 @@ public final class AppConfig {
         return value;
     }
 
-    /** Trả về giá trị hoặc null - dùng cho config optional. */
     public static String get(String key) {
         Objects.requireNonNull(key);
         String fromEnv = System.getenv(key);
@@ -38,13 +30,11 @@ public final class AppConfig {
         return ENV_FILE.get(key);
     }
 
-    /** Trả về giá trị hoặc {@code defaultValue} nếu thiếu/rỗng. */
     public static String get(String key, String defaultValue) {
         String v = get(key);
         return (v == null || v.isBlank()) ? defaultValue : v;
     }
 
-    /** Đọc int từ config; fallback về {@code defaultValue} nếu thiếu hoặc parse fail. */
     public static int getInt(String key, int defaultValue) {
         String v = get(key);
         if (v == null || v.isBlank()) return defaultValue;
@@ -72,7 +62,7 @@ public final class AppConfig {
                 map.put(key, value);
             }
         } catch (IOException e) {
-            // Không log secret — chỉ thông báo file đọc fail.
+
             System.err.println("[AppConfig] Không đọc được .env: " + e.getMessage());
         }
         return map;

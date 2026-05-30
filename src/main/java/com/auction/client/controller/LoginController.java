@@ -9,7 +9,6 @@ import javafx.scene.control.*;
 
 import java.util.Map;
 
-/** Controller cho màn Login. */
 public class LoginController {
 
     @FXML private TextField txtUsername;
@@ -20,7 +19,7 @@ public class LoginController {
     @FXML
     private void initialize() {
         lblError.setText("");
-        // Enter trên ô password = nhấn nút login
+
         txtPassword.setOnAction(e -> handleLogin());
     }
 
@@ -36,7 +35,6 @@ public class LoginController {
 
         setLoading(true);
 
-        // Gửi lên server trên thread riêng, không block UI
         new Thread(() -> {
             try {
                 ClientModel model = ClientModel.getInstance();
@@ -46,13 +44,12 @@ public class LoginController {
                         "username", username, "password", password));
                 Response res = model.waitForResponse("LOGIN", 5000);
 
-                // Cập nhật UI phải chạy trên JavaFX thread — dùng Platform.runLater
                 Platform.runLater(() -> {
                     setLoading(false);
                     if (res != null && res.isSuccess()) {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> data = (Map<String, Object>) res.getData();
-                        // Server trả userId dưới dạng UUID string (xem UserController.login).
+
                         model.setUserId(String.valueOf(data.get("userId")));
                         model.setUsername((String) data.get("username"));
                         model.setRole((String) data.get("role"));

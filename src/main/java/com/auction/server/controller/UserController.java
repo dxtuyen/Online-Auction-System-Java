@@ -1,4 +1,4 @@
-package com.auction.controller;
+package com.auction.server.controller;
 
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
@@ -13,24 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Controller xử lý các action liên quan đến User: LOGIN, REGISTER, LOGOUT, GET_PROFILE.
- *
- * <p>Singleton stateless: 1 instance dùng chung cho mọi connection. State per-connection
- * (userId đang đăng nhập) nằm ở {@link Session} truyền qua {@link ClientHandler}.</p>
- */
 public final class UserController {
 
-    // ============== SINGLETON (Bill Pugh) ==============
     private UserController() {}
     private static final class Holder { static final UserController I = new UserController(); }
     public static UserController getInstance() { return Holder.I; }
 
     private final UserManager userManager = UserManager.getInstance();
 
-    /**
-     * Đăng nhập. Lưu userId vào Session để các request sau biết "tôi là ai".
-     */
     public Response login(Request req, ClientHandler ctx) {
         String username = req.getDataString("username");
         String password = req.getDataString("password");
@@ -56,7 +46,7 @@ public final class UserController {
         String password = req.getDataString("password");
         String email = req.getDataString("email");
         String fullName = req.getDataString("fullName");
-        // Optional — client có thể bỏ trống, mặc định 0.
+
         BigDecimal initialBalance = req.getDataDecimal("initialBalance");
 
         User user = userManager.register(username, password, email, fullName,
@@ -79,11 +69,6 @@ public final class UserController {
         return Response.success("LOGOUT", "Đã đăng xuất", null);
     }
 
-    /**
-     * Trả thông tin tài khoản của user đang đăng nhập.
-     *
-     * <p>Auth đã được middleware ở router check trước → ở đây userId chắc chắn != null.</p>
-     */
     public Response getProfile(Request req, ClientHandler ctx) {
         UUID userId = ctx.getSession().getCurrentUserId();
 

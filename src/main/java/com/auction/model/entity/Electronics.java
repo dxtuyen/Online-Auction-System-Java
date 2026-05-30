@@ -8,23 +8,20 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Sản phẩm điện tử - có thêm brand, model, thời hạn bảo hành.
- */
 public class Electronics extends Item {
 
     private static final long serialVersionUID = 1L;
 
     private final String brand;
     private final String model;
-    private final int warrantyMonths;   // 0 nếu hết bảo hành / hàng cũ
+    private final int warrantyMonths;
 
     public Electronics(String name, String description, UUID sellerId,
                        BigDecimal startingPrice, List<String> images,
                        ItemCondition condition,
                        String brand, String model, int warrantyMonths) {
         super(name, description, sellerId, startingPrice, images,
-                ItemCategory.ELECTRONICS, condition);   // category cố định
+                ItemCategory.ELECTRONICS, condition);
         this.brand = brand;
         this.model = model;
         if (warrantyMonths < 0) {
@@ -33,7 +30,6 @@ public class Electronics extends Item {
         this.warrantyMonths = warrantyMonths;
     }
 
-    /** Restore từ DB - giữ nguyên id và timestamps. */
     public Electronics(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                        String name, String description, UUID sellerId,
                        BigDecimal startingPrice, List<String> images,

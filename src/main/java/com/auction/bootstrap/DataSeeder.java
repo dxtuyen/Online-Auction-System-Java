@@ -17,24 +17,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
-/**
- * Seed dữ liệu mẫu cho môi trường dev/demo.
- *
- * <p>Gọi {@link #run()} một lần ở {@code ServerMain} TRƯỚC khi accept connection.
- * Tự skip nếu đã có user → idempotent, an toàn khi gọi nhiều lần.</p>
- *
- * <p>Item được tạo bằng cả 3 subclass {@code Electronics}/{@code Art}/{@code Vehicle}
- * (không chỉ {@code OtherItem}) để demo inheritance + factory pattern — đây là tiêu chí
- * chấm điểm "phân cấp lớp rõ ràng" của đề BTL.</p>
- */
 public final class DataSeeder {
 
     private static final Logger log = AppLogger.get(DataSeeder.class);
 
-    private DataSeeder() { /* static-only */ }
+    private DataSeeder() {  }
 
     public static void run() {
-        // Idempotent: đã có user nghĩa là DB đã được seed/persist từ trước → bỏ qua.
+
         if (UserManager.getInstance().count() > 0) {
             log.info("Bỏ qua seed — hệ thống đã có dữ liệu");
             return;
@@ -54,8 +44,6 @@ public final class DataSeeder {
         }
     }
 
-    // ============== USERS ==============
-
     private static Map<String, User> seedUsers() {
         UserManager um = UserManager.getInstance();
         Map<String, User> map = new HashMap<>();
@@ -69,7 +57,6 @@ public final class DataSeeder {
         User carol = um.register("carol", "carol123", "carol@auction.local",
                 "Carol (Bidder)", Role.NORMAL);
 
-        // Nạp balance + persist xuống DB — nếu thiếu save(), restart sẽ load lại balance=0.
         bob.setBalance(new BigDecimal("50000000"));
         carol.setBalance(new BigDecimal("80000000"));
         um.save(bob);
@@ -82,17 +69,6 @@ public final class DataSeeder {
         return map;
     }
 
-    // ============== ITEMS ==============
-
-    /**
-     * Tạo item của 3 subclass khác nhau để demo polymorphism (Item → Electronics/Art/Vehicle).
-     * Tên attribute phải khớp với {@link com.auction.model.factory.ItemFactory}:
-     * <ul>
-     *   <li>ELECTRONICS: brand, model, warrantyMonths</li>
-     *   <li>ART: artist, yearCreated, medium</li>
-     *   <li>VEHICLE: make, model, year, mileageKm</li>
-     * </ul>
-     */
     private static Map<String, Item> seedItems(Map<String, User> users) {
         ItemManager im = ItemManager.getInstance();
         Map<String, Item> map = new HashMap<>();
@@ -138,13 +114,10 @@ public final class DataSeeder {
         return map;
     }
 
-    // ============== AUCTIONS ==============
-
     private static void seedAuctions(Map<String, User> users, Map<String, Item> items) {
         AuctionManager am = AuctionManager.getInstance();
         LocalDateTime now = LocalDateTime.now();
 
-        // Phiên đang chạy — bid ngay được
         am.createAuction(
                 items.get("phone").getId(),
                 users.get("alice").getId(),
@@ -153,7 +126,6 @@ public final class DataSeeder {
                 items.get("phone").getStartingPrice(),
                 new BigDecimal("100000"));
 
-        // Phiên tranh — đang chạy
         am.createAuction(
                 items.get("painting").getId(),
                 users.get("alice").getId(),
@@ -162,7 +134,6 @@ public final class DataSeeder {
                 items.get("painting").getStartingPrice(),
                 new BigDecimal("50000"));
 
-        // Phiên xe — chuẩn bị bắt đầu sau 5 phút
         am.createAuction(
                 items.get("car").getId(),
                 users.get("alice").getId(),

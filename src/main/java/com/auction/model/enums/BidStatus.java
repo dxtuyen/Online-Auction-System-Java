@@ -1,22 +1,11 @@
 package com.auction.model.enums;
 
-/**
- * Trạng thái của một bid.
- * <p>
- * Sơ đồ chuyển trạng thái:
- * PENDING ──► VALID ──► OUTBID ──► CANCELED
- * │         │
- * └─► REJECTED
- * └─► CANCELED
- * <p>
- * REJECTED và CANCELED là terminal.
- */
 public enum BidStatus {
     PENDING("Đang xử lý"),
     VALID("Hợp lệ"),
     OUTBID("Bị vượt giá"),
     REJECTED("Bị từ chối"),
-    CANCELED("Đã hủy");        // ĐỔI: CANCELLED -> CANCELED cho đồng bộ với AuctionStatus
+    CANCELED("Đã hủy");
 
     private final String displayName;
 

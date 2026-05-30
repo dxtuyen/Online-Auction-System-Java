@@ -7,16 +7,6 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
-/**
- * Một lượt đặt giá.
- * <p>
- * Design pattern:
- * - State Machine: status chỉ chuyển theo BidStatus.canTransitionTo
- * - Immutable core: auctionId/bidderId/bidAmount KHÔNG đổi sau khi tạo
- * <p>
- * Note: Đã BỎ field `timestamp` riêng vì TRÙNG với createdAt từ Entity.
- * Dùng getCreatedAt() làm timestamp đặt bid - tránh duplicate data.
- */
 public class BidTransaction extends Entity {
 
     private static final long serialVersionUID = 1L;
@@ -25,8 +15,6 @@ public class BidTransaction extends Entity {
     private final UUID bidderId;
     private final BigDecimal bidAmount;
     private BidStatus status;
-
-    // ============== CONSTRUCTORS ==============
 
     public BidTransaction(UUID auctionId, UUID bidderId, BigDecimal bidAmount) {
         super();
@@ -46,7 +34,6 @@ public class BidTransaction extends Entity {
         this.status = Objects.requireNonNull(status);
     }
 
-    // ============== GETTERS ==============
     public UUID getAuctionId() {
         return auctionId;
     }
@@ -63,14 +50,9 @@ public class BidTransaction extends Entity {
         return status;
     }
 
-    /**
-     * Alias dễ hiểu - thực ra là createdAt từ Entity
-     */
     public LocalDateTime getTimestamp() {
         return getCreatedAt();
     }
-
-    // ============== STATE TRANSITIONS ==============
 
     public void markValid() {
         changeStatus(BidStatus.VALID);
@@ -88,9 +70,6 @@ public class BidTransaction extends Entity {
         changeStatus(BidStatus.CANCELED);
     }
 
-    // synchronized: đảm bảo thread-safe khi có thread khác (vd outbid notifier) đồng thời mutate status.
-    // Hiện tại đa số call site đều nằm trong Auction.placeBid lock, nhưng đặt synchronized
-    // ở đây phòng thủ rẻ tiền — tránh race nếu sau này thêm code path chạy ngoài lock.
     private synchronized void changeStatus(BidStatus newStatus) {
         if (this.status == newStatus) return;
         if (!this.status.canTransitionTo(newStatus)) {
@@ -101,7 +80,6 @@ public class BidTransaction extends Entity {
         markUpdated();
     }
 
-    // ============== VALIDATION ==============
     private static BigDecimal validateAmount(BigDecimal amount) {
         Objects.requireNonNull(amount, "bidAmount must not be null");
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {

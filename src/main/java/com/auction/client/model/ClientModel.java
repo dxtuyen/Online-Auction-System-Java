@@ -12,25 +12,6 @@ import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
-/**
- * ClientModel — Singleton, trung tâm trạng thái phía client.
- *
- * <ul>
- *   <li>Giữ connection tới server.</li>
- *   <li>Lưu thông tin user đang login.</li>
- *   <li>Route message từ server: response (SUCCESS/ERROR) đẩy vào hàng đợi theo
- *       {@code action} để controller poll; push notification gọi handler đã đăng ký.</li>
- * </ul>
- *
- * <p><b>Routing theo action thay vì requestId:</b> tầng controller hiện gửi-rồi-chờ
- * tuần tự cho mỗi action (xem các Controller {@code waitForResponse(action, ms)}).
- * Vì 1 màn hình hiếm khi gửi 2 request cùng action đồng thời, model dùng 1 queue cho
- * mỗi action. Mỗi {@code sendRequest} đảm bảo queue tồn tại; mỗi response đến sẽ
- * được offer vào queue đúng action; controller poll bằng {@code waitForResponse}.</p>
- *
- * <p>Thread-safety: dùng {@link ConcurrentHashMap} + {@link LinkedBlockingQueue} nên
- * nhiều màn hình/thread có thể gửi-nhận song song không conflict.</p>
- */
 public class ClientModel {
 
     private static final Logger log = AppLogger.get(ClientModel.class);
@@ -44,20 +25,15 @@ public class ClientModel {
 
     private ServerConnection connection;
 
-    // User state sau khi login
     private String userId;
     private String username;
     private String role;
 
-    /** Queue chờ response cho mỗi action. */
     private final Map<String, BlockingQueue<Response>> pendingByAction = new ConcurrentHashMap<>();
 
-    /** Push handler — Controller đăng ký lắng nghe push (BID_UPDATE, AUCTION_STATUS, ...). */
     private final Map<String, List<Consumer<Map<String, Object>>>> pushHandlers = new ConcurrentHashMap<>();
 
     private ClientModel() {}
-
-    // ============= CONNECTION =============
 
     public void connect(String host, int port) throws IOException {
         if (connection != null && connection.isConnected()) return;
@@ -79,30 +55,14 @@ public class ClientModel {
         role = null;
     }
 
-    // ============= GỬI REQUEST =============
-
-    /**
-     * Gửi request không block. Sau đó controller gọi {@link #waitForResponse(String, long)}
-     * để lấy response tương ứng.
-     */
     public void sendRequest(String action, Map<String, Object> data) {
-        // Tạo queue trước khi gửi, tránh race: response có thể về sớm hơn lần
-        // poll đầu tiên của controller.
+
         pendingByAction.computeIfAbsent(action, k -> new LinkedBlockingQueue<>());
 
         Request req = new Request(action, data, userId);
         connection.send(JsonHelper.toJson(req));
     }
 
-    /**
-     * Đợi response cho 1 action (SUCCESS hoặc ERROR). Block thread hiện tại
-     * tối đa {@code timeoutMs} ms.
-     *
-     * <p><b>KHÔNG gọi trên JavaFX Application Thread</b> — sẽ làm đứng UI.
-     * Controller đang chuyển sang thread riêng (Platform.runLater để update UI sau).</p>
-     *
-     * @return Response, hoặc null nếu timeout.
-     */
     public Response waitForResponse(String action, long timeoutMs) {
         BlockingQueue<Response> q = pendingByAction.computeIfAbsent(
                 action, k -> new LinkedBlockingQueue<>());
@@ -114,9 +74,6 @@ public class ClientModel {
         }
     }
 
-    // ============= NHẬN MESSAGE =============
-
-    /** Callback từ ServerConnection — mỗi dòng JSON từ server gọi hàm này. */
     private void handleServerMessage(String json) {
         try {
             Response res = JsonHelper.parseResponse(json);
@@ -125,13 +82,12 @@ public class ClientModel {
             if (res.isPush()) {
                 dispatchPush(res.getAction(), res);
             } else {
-                // SUCCESS hoặc ERROR — đẩy vào queue của action tương ứng.
+
                 BlockingQueue<Response> q = pendingByAction.get(res.getAction());
                 if (q != null) {
                     q.offer(res);
                 }
-                // Nếu không có queue thì response đến lạc — bỏ (controller đã unmount hoặc
-                // timeout từ trước). Không log để tránh spam.
+
             }
         } catch (Exception e) {
             log.warning(() -> "Lỗi parse: " + e.getMessage());
@@ -151,20 +107,15 @@ public class ClientModel {
         }
     }
 
-    // ============= PUSH HANDLERS =============
-
     public void addPushHandler(String action, Consumer<Map<String, Object>> handler) {
         pushHandlers.computeIfAbsent(action, k -> new CopyOnWriteArrayList<>()).add(handler);
     }
 
-    /** Xóa tất cả handler các push action bidding (gọi khi rời màn Bidding). */
     public void clearBiddingPushHandlers() {
         pushHandlers.remove("BID_UPDATE");
         pushHandlers.remove("AUCTION_STATUS");
         pushHandlers.remove("AUCTION_EXTENDED");
     }
-
-    // ============= GETTERS/SETTERS =============
 
     public String getUserId()    { return userId; }
     public String getUsername()  { return username; }

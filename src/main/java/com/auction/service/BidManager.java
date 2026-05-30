@@ -27,8 +27,6 @@ public final class BidManager {
 
     private static final Logger log = AppLogger.get(BidManager.class);
 
-    // ============== SINGLETON ==============
-
     private static final class Holder {
         private static final BidManager INSTANCE = new BidManager();
     }
@@ -37,16 +35,12 @@ public final class BidManager {
         return Holder.INSTANCE;
     }
 
-    // ============== FIELDS ==============
-
     private final BidTransactionDao bidDao;
     private final AutoBidDao autoBidDao;
 
     private final ConcurrentHashMap<UUID, List<BidTransaction>> bidHistory = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, List<AutoBid>> autoBidsByAuction = new ConcurrentHashMap<>();
     private final ThreadLocal<Boolean> inAutoBid = ThreadLocal.withInitial(() -> false);
-
-    // ============== CONSTRUCTOR ==============
 
     private BidManager() {
         this.bidDao = new MysqlBidTransactionDao();
@@ -73,8 +67,6 @@ public final class BidManager {
         });
     }
 
-    // ============== BOOTSTRAP ==============
-
     public void loadAllFromDb() {
         bidHistory.clear();
         autoBidsByAuction.clear();
@@ -94,8 +86,6 @@ public final class BidManager {
         log.info("Đã load " + totalBids + " bid + " + totalAutoBids + " auto-bid từ DB");
     }
 
-    // ============== BID OPERATIONS ==============
-
     public BidTransaction placeBid(UUID auctionId, UUID userId, BigDecimal amount) {
         Objects.requireNonNull(auctionId, "auctionId");
         Objects.requireNonNull(userId, "userId");
@@ -114,8 +104,7 @@ public final class BidManager {
             throw new InsufficientBalanceException(
                     "Số dư không đủ. Hiện có: " + user.getBalance() + ", muốn bid: " + amount);
         }
-        // Persist reservation NGAY để khi server restart không bị mất khoản đã giữ.
-        // Nếu DB fail thì release RAM rồi rethrow — không có ghost reservation.
+
         try {
             UserManager.getInstance().save(user);
         } catch (RuntimeException e) {
@@ -146,11 +135,6 @@ public final class BidManager {
         return bid;
     }
 
-    /**
-     * Persist user state, log SEVERE nếu fail. Dùng cho code path đã mutate RAM
-     * và muốn cố đồng bộ DB — nếu fail, ít nhất devs biết để fix manual thay vì
-     * âm thầm để RAM lệch DB.
-     */
     private void persistUserBestEffort(User user, String context) {
         try {
             UserManager.getInstance().save(user);
@@ -159,8 +143,6 @@ public final class BidManager {
                     + " (" + context + "). RAM-DB lệch: " + e.getMessage());
         }
     }
-
-    // ============== HISTORY ==============
 
     private void recordBid(Auction auction, BidTransaction bid) {
         bidDao.insert(bid);
@@ -172,8 +154,6 @@ public final class BidManager {
         List<BidTransaction> list = bidHistory.get(auctionId);
         return list == null ? Collections.emptyList() : Collections.unmodifiableList(list);
     }
-
-    // ============== AUTO-BID REGISTRATION ==============
 
     public AutoBid registerAutoBid(UUID auctionId, UUID bidderId,
                                    BigDecimal maxBid, BigDecimal increment) {
@@ -222,20 +202,13 @@ public final class BidManager {
         }
     }
 
-    // ============== AUTO-BID TRIGGER ==============
-
     private void tryTriggerAutoBids(Auction auction, BidTransaction triggerBid) {
-        // Guard chống re-entry: mỗi placeBid bên trong vòng lặp sẽ lại gọi
-        // tryTriggerAutoBids; nếu không chặn sẽ đệ quy vô tận. Vòng lặp ngoài
-        // mới là nơi chuỗi các auto-bid xen kẽ nhau (proxy-bid resolution).
+
         if (Boolean.TRUE.equals(inAutoBid.get())) return;
 
         inAutoBid.set(true);
         try {
-            // Proxy-bid loop (eBay-style): lặp cho đến khi auto-bidder có maxBid
-            // cao nhất (không phải người vừa bid) hết budget. Mỗi vòng pick 1
-            // candidate và đặt minNextBid — mô phỏng 2 bot đấu nhau, kết thúc khi
-            // chỉ còn 1 người đủ budget hoặc không ai outbid được nữa.
+
             UUID lastBidder = triggerBid.getBidderId();
             while (true) {
                 List<AutoBid> list = autoBidsByAuction.get(auction.getId());
@@ -244,8 +217,7 @@ public final class BidManager {
                 AutoBid candidate = null;
                 for (AutoBid ab : list) {
                     if (!ab.isActive()) continue;
-                    // Không cho người vừa đặt bid (manual hoặc auto) outbid chính
-                    // mình ngay sau đó — phải đợi đối thủ khác đẩy giá lên trước.
+
                     if (ab.getBidderId().equals(lastBidder)) continue;
                     if (candidate == null
                             || ab.getMaxBid().compareTo(candidate.getMaxBid()) > 0) {
@@ -256,8 +228,7 @@ public final class BidManager {
 
                 BigDecimal nextRequired = auction.minNextBid();
                 if (nextRequired.compareTo(candidate.getMaxBid()) > 0) {
-                    // Candidate (max-bid cao nhất trong số còn lại) đã hết budget
-                    // → các auto-bid khác cũng vậy. Dừng chuỗi.
+
                     deactivateAutoBid(candidate);
                     return;
                 }
@@ -266,8 +237,7 @@ public final class BidManager {
                     placeBid(auction.getId(), candidate.getBidderId(), nextRequired);
                     lastBidder = candidate.getBidderId();
                 } catch (Exception e) {
-                    // Lỗi bid (auction đóng, DB fail, ...) → deactivate candidate
-                    // và dừng chuỗi để không loop vô tận.
+
                     deactivateAutoBid(candidate);
                     return;
                 }
@@ -276,8 +246,6 @@ public final class BidManager {
             inAutoBid.set(false);
         }
     }
-
-    // ============== TEST ONLY ==============
 
     void clearForTesting() {
         bidHistory.clear();

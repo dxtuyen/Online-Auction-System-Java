@@ -24,16 +24,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * JDBC implementation cho ItemDao.
- *
- * <p>Single-table inheritance: 1 bảng {@code items} chứa mọi loại + cột {@code item_type}
- * làm discriminator. Cột type-specific (brand/artist/make/extra_info) NULL nếu không
- * thuộc subtype tương ứng.</p>
- *
- * <p>Images lưu ở bảng {@code item_images} với (item_id, position) là composite PK.
- * Insert/update images đi kèm với item TRONG CÙNG transaction để đảm bảo atomic.</p>
- */
 public final class MysqlItemDao implements ItemDao {
 
     private static final String COLS =
@@ -69,8 +59,6 @@ public final class MysqlItemDao implements ItemDao {
     public MysqlItemDao() {
         this.db = Database.getInstance();
     }
-
-    // ============== WRITE ==============
 
     @Override
     public void insert(Item item) {
@@ -112,7 +100,7 @@ public final class MysqlItemDao implements ItemDao {
                                 "Item không tồn tại trong DB: " + item.getId());
                     }
                 }
-                // Sync images: xóa hết rồi insert lại theo thứ tự hiện tại
+
                 try (PreparedStatement ps = c.prepareStatement(DELETE_IMAGES_SQL)) {
                     ps.setString(1, item.getId().toString());
                     ps.executeUpdate();
@@ -143,10 +131,9 @@ public final class MysqlItemDao implements ItemDao {
             ps.setString(9, item.getCategory().name());
             ps.setString(10, item.getCondition().name());
 
-            // Type-specific fields - NULL nếu không thuộc subtype
-            setElectronics(ps, 11, item);   // brand, model, warranty_months
-            setArt(ps, 14, item);           // artist, year_created, medium
-            setVehicle(ps, 17, item);       // make, vehicle_model, vehicle_year, mileage_km
+            setElectronics(ps, 11, item);
+            setArt(ps, 14, item);
+            setVehicle(ps, 17, item);
             ps.setString(21, item instanceof OtherItem o ? o.getExtraInfo() : null);
 
             ps.executeUpdate();
@@ -167,8 +154,6 @@ public final class MysqlItemDao implements ItemDao {
         }
     }
 
-    // ============== READ ==============
-
     @Override
     public Optional<Item> findById(UUID id) {
         Objects.requireNonNull(id);
@@ -188,8 +173,7 @@ public final class MysqlItemDao implements ItemDao {
 
     @Override
     public List<Item> findAll() {
-        // 2 query: 1 cho items, 1 cho images. Tránh N+1 bằng cách load tất cả images
-        // 1 lần rồi group theo item_id.
+
         Map<UUID, List<String>> imagesByItem = loadAllImages();
         List<Item> result = new ArrayList<>();
         try (Connection c = db.getConnection();
@@ -228,7 +212,6 @@ public final class MysqlItemDao implements ItemDao {
         return images;
     }
 
-    /** Load tất cả images 1 lần - tránh N+1 query khi findAll. */
     private Map<UUID, List<String>> loadAllImages() {
         Map<UUID, List<String>> map = new HashMap<>();
         try (Connection c = db.getConnection();
@@ -245,9 +228,6 @@ public final class MysqlItemDao implements ItemDao {
         return map;
     }
 
-    // ============== ROW MAPPING ==============
-
-    /** Map row → Item subtype tương ứng dựa vào item_type discriminator. */
     private static Item mapRow(ResultSet rs, List<String> images) throws SQLException {
         UUID id = UUID.fromString(rs.getString("id"));
         LocalDateTime createdAt = rs.getTimestamp("created_at").toLocalDateTime();
@@ -300,8 +280,6 @@ public final class MysqlItemDao implements ItemDao {
         if (item instanceof OtherItem) return "OTHER";
         throw new PersistenceException("Unknown item subtype: " + item.getClass().getName());
     }
-
-    // ============== TYPE-SPECIFIC SETTERS ==============
 
     private static void setElectronics(PreparedStatement ps, int startIdx, Item item)
             throws SQLException {

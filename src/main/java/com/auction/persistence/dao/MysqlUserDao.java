@@ -17,12 +17,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * JDBC implementation cho UserDao - map giữa User entity và bảng `users`.
- *
- * <p>Mọi method dùng try-with-resources để chắc chắn close Connection/Statement
- * dù có exception. PreparedStatement chống SQL injection.</p>
- */
 public final class MysqlUserDao implements UserDao {
 
     private static final String COLS =
@@ -45,8 +39,6 @@ public final class MysqlUserDao implements UserDao {
     public MysqlUserDao() {
         this.db = Database.getInstance();
     }
-
-    // ============== WRITE ==============
 
     @Override
     public void insert(User user) {
@@ -95,8 +87,6 @@ public final class MysqlUserDao implements UserDao {
         }
     }
 
-    // ============== READ ==============
-
     @Override
     public Optional<User> findById(UUID id) {
         Objects.requireNonNull(id);
@@ -136,8 +126,6 @@ public final class MysqlUserDao implements UserDao {
         }
     }
 
-    // ============== HELPERS ==============
-
     private Optional<User> querySingle(String sql, ParamSetter setter) {
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
@@ -150,7 +138,6 @@ public final class MysqlUserDao implements UserDao {
         }
     }
 
-    /** Map row → User entity. Dùng constructor restore-from-DB của User. */
     private static User map(ResultSet rs) throws SQLException {
         UUID id = UUID.fromString(rs.getString("id"));
         Timestamp createdTs = rs.getTimestamp("created_at");
