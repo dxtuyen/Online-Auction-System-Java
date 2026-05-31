@@ -65,7 +65,7 @@ class MysqlUserDaoTest {
         dao.insert(u);
 
         u.setBalance(new BigDecimal("1000.0000"));
-        u.addRevenue(new BigDecimal("250.0000"));
+        u.setRevenue(new BigDecimal("250.0000"));
         u.ban();
         dao.update(u);
 
