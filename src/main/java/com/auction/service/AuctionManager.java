@@ -417,7 +417,7 @@ public final class AuctionManager {
     // ============== SETTLEMENT (INTERNAL) ==============
 
     /**
-     * Chuyển tiền winner reserved → revenue seller, status → PAID.
+     * Chuyển tiền winner reserved → revenue seller, chuyển item cho winner, status → PAID.
      * Dùng chung cho {@link #confirmPayment(UUID, UUID)} (user gọi) và
      * tickLifecycle (scheduler tự PAY sau timeout).
      * <p>Caller đã đảm bảo {@code auction.getHighestBidderId() != null}
@@ -425,16 +425,36 @@ public final class AuctionManager {
      */
     private void settleAsPaid(Auction auction) {
         BigDecimal price = auction.getCurrentPrice();
-        // Pre-lookup TRƯỚC khi transition để fail-fast (không transition rồi mới thấy thiếu seller).
+        UUID winnerId = auction.getHighestBidderId();
+        if (winnerId == null) {
+            throw new IllegalStateException("Auction không có winner: " + auction.getId());
+        }
+
+        // Pre-lookup TRƯỚC khi transition để fail-fast (không transition rồi mới thấy thiếu dữ liệu).
         User seller = UserManager.getInstance().findById(auction.getSellerId())
                 .orElseThrow(() -> new IllegalStateException(
                         "Seller không tồn tại: " + auction.getSellerId()));
+        UserManager.getInstance().findById(winnerId)
+                .orElseThrow(() -> new IllegalStateException("Winner không tồn tại: " + winnerId));
+        ItemManager.getInstance().findById(auction.getItemId())
+                .orElseThrow(() -> new IllegalStateException("Item không tồn tại: " + auction.getItemId()));
 
         // transitionTo là gate atomic: chống race giữa confirmPayment vs forfeit vs auto-PAY.
         auction.transitionTo(AuctionStatus.PAID);
 
+        safeTransferItemOwnership(auction, winnerId);
         seller.addRevenue(price);
         safeSaveUser(seller);
+    }
+
+    private void safeTransferItemOwnership(Auction auction, UUID winnerId) {
+        try {
+            ItemManager.getInstance().transferOwnership(auction.getItemId(), winnerId);
+        } catch (Exception e) {
+            log.severe(() -> "CRITICAL: Không chuyển ownership item " + auction.getItemId()
+                    + " cho winner " + winnerId + " sau khi auction " + auction.getId()
+                    + " đã PAID. RAM-DB có thể lệch: " + e.getMessage());
+        }
     }
 
     /**

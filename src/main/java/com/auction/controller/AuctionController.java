@@ -206,7 +206,9 @@ public final class AuctionController {
         data.put("auctionId", a.getId().toString());
         data.put("status", a.getStatus().name());
         data.put("paidAmount", a.getCurrentPrice());
-        return Response.success("CONFIRM_PAYMENT", "Thanh toán thành công", data);
+        data.put("itemOwnerId", userId.toString());
+        return Response.success("CONFIRM_PAYMENT",
+                "Thanh toán thành công, sản phẩm đã chuyển sang tài khoản của bạn", data);
     }
 
     /**

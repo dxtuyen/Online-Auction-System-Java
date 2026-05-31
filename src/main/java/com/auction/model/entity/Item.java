@@ -30,7 +30,7 @@ public abstract class Item extends Entity {
     // ============== FIELDS ==============
     private String name;
     private String description;          // optional - có thể null
-    private final UUID sellerId;          // ĐỔI: String -> UUID cho đồng bộ với User.getId()
+    private UUID sellerId;                // Current owner/seller of this item.
     private BigDecimal startingPrice;     // ĐỔI: double -> BigDecimal (tiền không bao giờ dùng double!)
     private final List<String> images;
     private final ItemCategory category;
@@ -152,6 +152,14 @@ public abstract class Item extends Entity {
     public void updateCondition(ItemCondition newCondition) {
         this.condition = Objects.requireNonNull(newCondition, "condition must not be null");
         markUpdated();
+    }
+
+    public void transferOwnership(UUID newOwnerId) {
+        Objects.requireNonNull(newOwnerId, "newOwnerId must not be null");
+        if (!sellerId.equals(newOwnerId)) {
+            this.sellerId = newOwnerId;
+            markUpdated();
+        }
     }
 
     public void addImage(String url) {

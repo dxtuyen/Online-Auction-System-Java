@@ -49,7 +49,7 @@ public final class MysqlItemDao implements ItemDao {
             "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private static final String UPDATE_ITEM_SQL =
-            "UPDATE items SET updated_at=?, name=?, description=?, " +
+            "UPDATE items SET updated_at=?, name=?, description=?, seller_id=?, " +
             "starting_price=?, item_condition=?, extra_info=? WHERE id=?";
 
     private static final String SELECT_ITEM_SQL =
@@ -102,10 +102,11 @@ public final class MysqlItemDao implements ItemDao {
                     ps.setTimestamp(1, Timestamp.valueOf(item.getUpdatedAt()));
                     ps.setString(2, item.getName());
                     ps.setString(3, item.getDescription());
-                    ps.setBigDecimal(4, item.getStartingPrice());
-                    ps.setString(5, item.getCondition().name());
-                    ps.setString(6, item instanceof OtherItem o ? o.getExtraInfo() : null);
-                    ps.setString(7, item.getId().toString());
+                    ps.setString(4, item.getSellerId().toString());
+                    ps.setBigDecimal(5, item.getStartingPrice());
+                    ps.setString(6, item.getCondition().name());
+                    ps.setString(7, item instanceof OtherItem o ? o.getExtraInfo() : null);
+                    ps.setString(8, item.getId().toString());
                     int n = ps.executeUpdate();
                     if (n == 0) {
                         throw new PersistenceException(

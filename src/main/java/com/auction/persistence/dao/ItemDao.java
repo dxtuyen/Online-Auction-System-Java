@@ -17,8 +17,8 @@ public interface ItemDao {
     void insert(Item item);
 
     /**
-     * Update các field mutable (name, description, starting_price, item_condition,
-     * extra_info nếu là OtherItem) + sync lại images (delete all + reinsert).
+     * Update các field mutable (seller_id/current owner, name, description,
+     * starting_price, item_condition, extra_info nếu là OtherItem) + sync lại images (delete all + reinsert).
      * Type-specific immutable fields (brand, year...) không cần update.
      */
     void update(Item item);

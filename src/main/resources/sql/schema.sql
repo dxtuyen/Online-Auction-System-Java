@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS items (
     item_type       ENUM('ELECTRONICS','ART','VEHICLE','OTHER') NOT NULL,
     name            VARCHAR(200)   NOT NULL,
     description     TEXT,
+    -- Current owner/seller. This is transferred to the winner after the auction is PAID.
     seller_id       CHAR(36)       NOT NULL,
     starting_price  DECIMAL(19,4)  NOT NULL,
     category        VARCHAR(50)    NOT NULL,

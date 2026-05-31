@@ -122,6 +122,30 @@ public final class ItemManager {
         dao.update(item);
     }
 
+    public Item transferOwnership(UUID itemId, UUID newOwnerId) {
+        Objects.requireNonNull(itemId, "itemId must not be null");
+        Objects.requireNonNull(newOwnerId, "newOwnerId must not be null");
+
+        Item item = findById(itemId)
+                .orElseThrow(() -> new IllegalArgumentException("Item không tồn tại: " + itemId));
+        UserManager.getInstance().findById(newOwnerId)
+                .orElseThrow(() -> new IllegalArgumentException("Owner không tồn tại: " + newOwnerId));
+
+        UUID oldOwnerId = item.getSellerId();
+        if (oldOwnerId.equals(newOwnerId)) {
+            return item;
+        }
+
+        item.transferOwnership(newOwnerId);
+        try {
+            dao.update(item);
+        } catch (RuntimeException e) {
+            item.transferOwnership(oldOwnerId);
+            throw e;
+        }
+        return item;
+    }
+
     // ============== QUERIES ==============
 
     public Optional<Item> findById(UUID itemId) {
