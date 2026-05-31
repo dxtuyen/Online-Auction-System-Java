@@ -3,6 +3,7 @@ package com.auction.server;
 import com.auction.bootstrap.DataSeeder;
 import com.auction.config.AppConfig;
 import com.auction.persistence.Database;
+import com.auction.server.observer.AuctionEventManager;
 import com.auction.service.AuctionManager;
 import com.auction.service.BidManager;
 import com.auction.service.ImageStorageService;
@@ -24,42 +25,30 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Entry point của Server.
- *
- * <p>Mỗi client kết nối được handover cho một thread trong pool có giới hạn — tránh
- * trường hợp 1000 client = 1000 thread sống lay lắt làm cạn tài nguyên server.</p>
- *
- * <p>Cấu hình lấy từ {@link AppConfig}:
- * <ul>
- *   <li>{@code SERVER_PORT} (default 8888)</li>
- *   <li>{@code SERVER_MAX_THREADS} (default 100)</li>
- * </ul>
- */
 public final class ServerMain {
 
     private static final Logger log = AppLogger.get(ServerMain.class);
 
-    private ServerMain() { /* static-only */ }
+    private ServerMain() {}
 
     public static void main(String[] args) {
         int port = AppConfig.getInt("SERVER_PORT", 8888);
         int maxThreads = AppConfig.getInt("SERVER_MAX_THREADS", 100);
 
-        // 1. Fail-fast nếu DB không kết nối được — không cho service start nửa vời.
         Database.getInstance().verifyConnection();
         runMigrations();
 
-        // Khởi tạo thư mục lưu ảnh trước khi load cache (không có DB phụ thuộc).
         ImageStorageService.getInstance().init();
 
-        // 2. Load cache theo thứ tự dependency: User → Item → Auction → Bid/AutoBid.
         UserManager.getInstance().loadAllFromDb();
         ItemManager.getInstance().loadAllFromDb();
         AuctionManager.getInstance().loadAllFromDb();
         BidManager.getInstance().loadAllFromDb();
 
-        // 3. Seed (chỉ khi DB rỗng).
+        BidManager.getInstance().getParticipantsSnapshot().forEach(
+                (auctionId, bidders) -> AuctionEventManager.getInstance()
+                        .registerParticipants(auctionId, bidders));
+
         DataSeeder.run();
 
         ExecutorService workers = Executors.newFixedThreadPool(maxThreads, namedFactory("client-"));
@@ -71,13 +60,16 @@ public final class ServerMain {
             while (!Thread.currentThread().isInterrupted()) {
                 Socket clientSocket = serverSocket.accept();
                 log.info(() -> "Client kết nối: " + clientSocket.getRemoteSocketAddress());
+
                 try {
                     workers.submit(new ClientHandler(clientSocket));
                 } catch (RuntimeException e) {
-                    // Pool reject (đã shutdown hoặc full) — đóng socket để không leak.
                     log.warning("Từ chối client " + clientSocket.getRemoteSocketAddress()
                             + ": " + e.getMessage());
-                    try { clientSocket.close(); } catch (IOException ignored) { }
+                    try {
+                        clientSocket.close();
+                    } catch (IOException ignored) {
+                    }
                 }
             }
         } catch (IOException e) {
@@ -85,11 +77,6 @@ public final class ServerMain {
         }
     }
 
-    /**
-     * Idempotent migration cho cột mới thêm sau khi schema.sql gốc đã chạy.
-     * Mỗi statement đi kèm guard "đã có cột chưa" (information_schema) để chạy nhiều lần
-     * không lỗi. Đơn giản & đủ cho dự án này; production thì nên dùng Flyway/Liquibase.
-     */
     private static void runMigrations() {
         try (Connection c = Database.getInstance().getConnection();
              Statement st = c.createStatement()) {
@@ -100,21 +87,28 @@ public final class ServerMain {
     }
 
     private static void addColumnIfMissing(Connection c, Statement st,
-                                           String table, String column, String columnDef)
-            throws SQLException {
+                                           String table,
+                                           String column,
+                                           String columnDef) throws SQLException {
         String check = "SELECT COUNT(*) FROM information_schema.columns "
                 + "WHERE table_schema = DATABASE() "
                 + "AND table_name = '" + table + "' AND column_name = '" + column + "'";
+
         try (var rs = st.executeQuery(check)) {
-            if (rs.next() && rs.getInt(1) > 0) return;
+            if (rs.next() && rs.getInt(1) > 0) {
+                return;
+            }
         }
+
         st.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + columnDef);
         log.info(() -> "Migration: thêm cột " + table + "." + column);
     }
 
     private static void shutdown(ExecutorService workers) {
         log.info("Đang shutdown server...");
+
         workers.shutdown();
+
         try {
             if (!workers.awaitTermination(5, TimeUnit.SECONDS)) {
                 workers.shutdownNow();
@@ -123,15 +117,16 @@ public final class ServerMain {
             workers.shutdownNow();
             Thread.currentThread().interrupt();
         }
+
         AuctionManager.getInstance().shutdown();
-        // Đóng pool sau cùng — để các tick lifecycle / observer kịp flush DB trước.
         Database.getInstance().close();
+
         log.info("Server đã dừng.");
     }
 
-    /** ThreadFactory đặt tên rõ ràng để dễ trace trong thread dump. */
     private static ThreadFactory namedFactory(String prefix) {
         AtomicInteger seq = new AtomicInteger();
+
         return r -> {
             Thread t = new Thread(r, prefix + seq.incrementAndGet());
             t.setDaemon(false);

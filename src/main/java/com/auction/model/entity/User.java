@@ -270,6 +270,7 @@ public class User extends Entity {
             throw new IllegalArgumentException("amount phải > 0");
         }
         revenue = revenue.add(amount);
+        balance = balance.add(amount);
         markUpdated();
     }
 

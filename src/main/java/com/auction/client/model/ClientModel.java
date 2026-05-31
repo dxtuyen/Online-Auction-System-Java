@@ -7,30 +7,16 @@ import com.auction.util.AppLogger;
 import com.auction.util.JsonHelper;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Map;
+import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
-/**
- * ClientModel — Singleton, trung tâm trạng thái phía client.
- *
- * <ul>
- *   <li>Giữ connection tới server.</li>
- *   <li>Lưu thông tin user đang login.</li>
- *   <li>Route message từ server: response (SUCCESS/ERROR) đẩy vào hàng đợi theo
- *       {@code action} để controller poll; push notification gọi handler đã đăng ký.</li>
- * </ul>
- *
- * <p><b>Routing theo action thay vì requestId:</b> tầng controller hiện gửi-rồi-chờ
- * tuần tự cho mỗi action (xem các Controller {@code waitForResponse(action, ms)}).
- * Vì 1 màn hình hiếm khi gửi 2 request cùng action đồng thời, model dùng 1 queue cho
- * mỗi action. Mỗi {@code sendRequest} đảm bảo queue tồn tại; mỗi response đến sẽ
- * được offer vào queue đúng action; controller poll bằng {@code waitForResponse}.</p>
- *
- * <p>Thread-safety: dùng {@link ConcurrentHashMap} + {@link LinkedBlockingQueue} nên
- * nhiều màn hình/thread có thể gửi-nhận song song không conflict.</p>
- */
 public class ClientModel {
 
     private static final Logger log = AppLogger.get(ClientModel.class);
@@ -44,20 +30,15 @@ public class ClientModel {
 
     private ServerConnection connection;
 
-    // User state sau khi login
     private String userId;
     private String username;
     private String role;
 
-    /** Queue chờ response cho mỗi action. */
     private final Map<String, BlockingQueue<Response>> pendingByAction = new ConcurrentHashMap<>();
-
-    /** Push handler — Controller đăng ký lắng nghe push (BID_UPDATE, AUCTION_STATUS, ...). */
     private final Map<String, List<Consumer<Map<String, Object>>>> pushHandlers = new ConcurrentHashMap<>();
+    private final Map<String, Consumer<Map<String, Object>>> fallbackPushHandlers = new ConcurrentHashMap<>();
 
     private ClientModel() {}
-
-    // ============= CONNECTION =============
 
     public void connect(String host, int port) throws IOException {
         if (connection != null && connection.isConnected()) return;
@@ -74,52 +55,30 @@ public class ClientModel {
         if (connection != null) connection.disconnect();
         pendingByAction.clear();
         pushHandlers.clear();
+        fallbackPushHandlers.clear();
         userId = null;
         username = null;
         role = null;
     }
 
-    /**
-     * Gửi LOGOUT cho server clear session sạch, đợi tối đa 2s rồi disconnect.
-     * Server chết / connection đã rớt → bỏ qua bước gửi, vẫn disconnect cleanup local.
-     * <p><b>Không gọi trên FX thread</b> — block tối đa 2s.</p>
-     */
     public void logoutAndDisconnect() {
         if (isConnected()) {
             try {
                 sendRequest("LOGOUT", Map.of());
                 waitForResponse("LOGOUT", 2000);
             } catch (Exception ignored) {
-                // Server không phản hồi cũng không sao — vẫn disconnect bên dưới.
             }
         }
         disconnect();
     }
 
-    // ============= GỬI REQUEST =============
-
-    /**
-     * Gửi request không block. Sau đó controller gọi {@link #waitForResponse(String, long)}
-     * để lấy response tương ứng.
-     */
     public void sendRequest(String action, Map<String, Object> data) {
-        // Tạo queue trước khi gửi, tránh race: response có thể về sớm hơn lần
-        // poll đầu tiên của controller.
         pendingByAction.computeIfAbsent(action, k -> new LinkedBlockingQueue<>());
 
         Request req = new Request(action, data, userId);
         connection.send(JsonHelper.toJson(req));
     }
 
-    /**
-     * Đợi response cho 1 action (SUCCESS hoặc ERROR). Block thread hiện tại
-     * tối đa {@code timeoutMs} ms.
-     *
-     * <p><b>KHÔNG gọi trên JavaFX Application Thread</b> — sẽ làm đứng UI.
-     * Controller đang chuyển sang thread riêng (Platform.runLater để update UI sau).</p>
-     *
-     * @return Response, hoặc null nếu timeout.
-     */
     public Response waitForResponse(String action, long timeoutMs) {
         BlockingQueue<Response> q = pendingByAction.computeIfAbsent(
                 action, k -> new LinkedBlockingQueue<>());
@@ -131,9 +90,6 @@ public class ClientModel {
         }
     }
 
-    // ============= NHẬN MESSAGE =============
-
-    /** Callback từ ServerConnection — mỗi dòng JSON từ server gọi hàm này. */
     private void handleServerMessage(String json) {
         try {
             Response res = JsonHelper.parseResponse(json);
@@ -142,13 +98,10 @@ public class ClientModel {
             if (res.isPush()) {
                 dispatchPush(res.getAction(), res);
             } else {
-                // SUCCESS hoặc ERROR — đẩy vào queue của action tương ứng.
                 BlockingQueue<Response> q = pendingByAction.get(res.getAction());
                 if (q != null) {
                     q.offer(res);
                 }
-                // Nếu không có queue thì response đến lạc — bỏ (controller đã unmount hoặc
-                // timeout từ trước). Không log để tránh spam.
             }
         } catch (Exception e) {
             log.warning(() -> "Lỗi parse: " + e.getMessage());
@@ -157,36 +110,73 @@ public class ClientModel {
 
     @SuppressWarnings("unchecked")
     private void dispatchPush(String action, Response res) {
-        List<Consumer<Map<String, Object>>> handlers = pushHandlers.get(action);
-        if (handlers == null || handlers.isEmpty()) return;
         Map<String, Object> data = res.getData() instanceof Map
                 ? (Map<String, Object>) res.getData()
                 : Map.of();
-        for (Consumer<Map<String, Object>> h : handlers) {
-            try { h.accept(data); }
-            catch (Exception e) { log.warning(() -> "PushHandler: " + e.getMessage()); }
+
+        List<Consumer<Map<String, Object>>> handlers = pushHandlers.get(action);
+        boolean handledByScreen = handlers != null && !handlers.isEmpty();
+
+        if (handledByScreen) {
+            for (Consumer<Map<String, Object>> handler : handlers) {
+                try {
+                    handler.accept(data);
+                } catch (Exception e) {
+                    log.warning(() -> "PushHandler: " + e.getMessage());
+                }
+            }
+            return;
+        }
+
+        Consumer<Map<String, Object>> fallback = fallbackPushHandlers.get(action);
+        if (fallback != null) {
+            try {
+                fallback.accept(data);
+            } catch (Exception e) {
+                log.warning(() -> "FallbackPushHandler: " + e.getMessage());
+            }
         }
     }
-
-    // ============= PUSH HANDLERS =============
 
     public void addPushHandler(String action, Consumer<Map<String, Object>> handler) {
         pushHandlers.computeIfAbsent(action, k -> new CopyOnWriteArrayList<>()).add(handler);
     }
 
-    /** Xóa tất cả handler các push action bidding (gọi khi rời màn Bidding). */
+    public void setFallbackPushHandler(String action, Consumer<Map<String, Object>> handler) {
+        if (handler == null) {
+            fallbackPushHandlers.remove(action);
+        } else {
+            fallbackPushHandlers.put(action, handler);
+        }
+    }
+
     public void clearBiddingPushHandlers() {
         pushHandlers.remove("BID_UPDATE");
         pushHandlers.remove("AUCTION_STATUS");
         pushHandlers.remove("AUCTION_EXTENDED");
     }
 
-    // ============= GETTERS/SETTERS =============
+    public String getUserId() {
+        return userId;
+    }
 
-    public String getUserId()    { return userId; }
-    public String getUsername()  { return username; }
-    public String getRole()      { return role; }
-    public void setUserId(String userId)     { this.userId = userId; }
-    public void setUsername(String username) { this.username = username; }
-    public void setRole(String role)         { this.role = role; }
+    public String getUsername() {
+        return username;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
 }
