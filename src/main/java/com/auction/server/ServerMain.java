@@ -5,6 +5,7 @@ import com.auction.config.AppConfig;
 import com.auction.persistence.Database;
 import com.auction.service.AuctionManager;
 import com.auction.service.BidManager;
+import com.auction.service.ImageStorageService;
 import com.auction.service.ItemManager;
 import com.auction.service.UserManager;
 import com.auction.util.AppLogger;
@@ -12,6 +13,9 @@ import com.auction.util.AppLogger;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -44,6 +48,10 @@ public final class ServerMain {
 
         // 1. Fail-fast nếu DB không kết nối được — không cho service start nửa vời.
         Database.getInstance().verifyConnection();
+        runMigrations();
+
+        // Khởi tạo thư mục lưu ảnh trước khi load cache (không có DB phụ thuộc).
+        ImageStorageService.getInstance().init();
 
         // 2. Load cache theo thứ tự dependency: User → Item → Auction → Bid/AutoBid.
         UserManager.getInstance().loadAllFromDb();
@@ -75,6 +83,33 @@ public final class ServerMain {
         } catch (IOException e) {
             log.log(Level.SEVERE, "Server lỗi khởi động", e);
         }
+    }
+
+    /**
+     * Idempotent migration cho cột mới thêm sau khi schema.sql gốc đã chạy.
+     * Mỗi statement đi kèm guard "đã có cột chưa" (information_schema) để chạy nhiều lần
+     * không lỗi. Đơn giản & đủ cho dự án này; production thì nên dùng Flyway/Liquibase.
+     */
+    private static void runMigrations() {
+        try (Connection c = Database.getInstance().getConnection();
+             Statement st = c.createStatement()) {
+            addColumnIfMissing(c, st, "users", "avatar_url", "VARCHAR(500) NULL");
+        } catch (SQLException e) {
+            throw new IllegalStateException("Migration thất bại: " + e.getMessage(), e);
+        }
+    }
+
+    private static void addColumnIfMissing(Connection c, Statement st,
+                                           String table, String column, String columnDef)
+            throws SQLException {
+        String check = "SELECT COUNT(*) FROM information_schema.columns "
+                + "WHERE table_schema = DATABASE() "
+                + "AND table_name = '" + table + "' AND column_name = '" + column + "'";
+        try (var rs = st.executeQuery(check)) {
+            if (rs.next() && rs.getInt(1) > 0) return;
+        }
+        st.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + columnDef);
+        log.info(() -> "Migration: thêm cột " + table + "." + column);
     }
 
     private static void shutdown(ExecutorService workers) {

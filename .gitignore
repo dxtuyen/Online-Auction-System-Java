@@ -24,9 +24,17 @@ hs_err_pid*
 replay_pid*
 *.iml
 .idea/
-.claude/
-.vscode/
+
 target
 
 # Environment variables - chứa credentials, không commit
 .env
+
+# User-uploaded files - chỉ giữ cấu trúc thư mục qua .gitkeep
+uploads/*
+!uploads/avatars/
+!uploads/items/
+uploads/avatars/*
+!uploads/avatars/.gitkeep
+uploads/items/*
+!uploads/items/.gitkeep

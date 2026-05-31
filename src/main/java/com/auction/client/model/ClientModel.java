@@ -79,6 +79,23 @@ public class ClientModel {
         role = null;
     }
 
+    /**
+     * Gửi LOGOUT cho server clear session sạch, đợi tối đa 2s rồi disconnect.
+     * Server chết / connection đã rớt → bỏ qua bước gửi, vẫn disconnect cleanup local.
+     * <p><b>Không gọi trên FX thread</b> — block tối đa 2s.</p>
+     */
+    public void logoutAndDisconnect() {
+        if (isConnected()) {
+            try {
+                sendRequest("LOGOUT", Map.of());
+                waitForResponse("LOGOUT", 2000);
+            } catch (Exception ignored) {
+                // Server không phản hồi cũng không sao — vẫn disconnect bên dưới.
+            }
+        }
+        disconnect();
+    }
+
     // ============= GỬI REQUEST =============
 
     /**

@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn -q test)",
+      "Bash(Get-ChildItem -Path \"T:\\\\BASE\\\\Idea\\\\BTL\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20 FullName)",
+      "Bash(xargs grep -l \"bidderId.*bid\\\\\\\\.getBidderId\")",
+      "Bash(xargs grep -l \"implements AuctionObserver\")",
+      "Bash(mvn -q -DskipTests compile)",
+      "Bash(mvn *)",
+      "Bash(netstat -ano)",
+      "Bash(powershell *)",
+      "Bash(taskkill *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(del src\\\\main\\\\java\\\\com\\\\auction\\\\model\\\\entity\\\\readme *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

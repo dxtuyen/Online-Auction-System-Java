@@ -12,10 +12,15 @@ public enum ActionType {
     REGISTER,
     LOGOUT,
     GET_PROFILE,
+    UPDATE_PROFILE,
+    CHANGE_PASSWORD,
+    UPLOAD_AVATAR,
+    GET_IMAGE,
 
     // ============== ITEM ==============
     CREATE_ITEM,
     LIST_MY_ITEMS,
+    UPLOAD_ITEM_IMAGE,
 
     // ============== AUCTION ==============
     LIST_AUCTIONS,
@@ -31,6 +36,12 @@ public enum ActionType {
     PLACE_BID,
     BID_HISTORY,
     SET_AUTO_BID,
+
+    // ============== ADMIN ==============
+    LIST_USERS,             // admin xem danh sách toàn bộ user
+    BAN_USER,               // admin khóa tài khoản
+    UNBAN_USER,             // admin mở lại tài khoản
+    ADMIN_CLOSE_AUCTION,    // admin đóng cưỡng bức phiên đấu giá bất kỳ
 
     // ============== SERVER → CLIENT (PUSH) ==============
     BID_UPDATE,         // có bid mới ở phiên đang xem

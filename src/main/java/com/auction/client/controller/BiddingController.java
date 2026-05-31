@@ -2,6 +2,8 @@ package com.auction.client.controller;
 
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
+import com.auction.client.util.ImageCacheService;
+import com.auction.client.util.MoneyInputFormatter;
 import com.auction.protocol.Response;
 import javafx.animation.*;
 import javafx.application.Platform;
@@ -9,6 +11,8 @@ import javafx.collections.*;
 import javafx.fxml.FXML;
 import javafx.scene.chart.*;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
+import javafx.scene.shape.Circle;
 import javafx.util.Duration;
 
 import java.math.BigDecimal;
@@ -26,13 +30,18 @@ import java.util.*;
 public class BiddingController {
 
     // Info labels
+    @FXML private ImageView imgItem;
     @FXML private Label lblItemName;
+    @FXML private Label lblItemCategory;
     @FXML private Label lblItemInfo;
+    @FXML private ImageView imgSellerAvatar;
+    @FXML private Label lblSellerName;
     @FXML private Label lblStartPrice;
     @FXML private Label lblCurrentPrice;
     @FXML private Label lblIncrement;
     @FXML private Label lblBidCount;
     @FXML private Label lblLeader;
+    @FXML private Label lblStatusBadge;
     @FXML private Label lblTimer;
     @FXML private Label lblError;
 
@@ -90,7 +99,10 @@ public class BiddingController {
     @FXML
     private void initialize() {
         lblError.setText("");
+        MoneyInputFormatter.apply(txtBidAmount, txtMaxBid, txtIncrementAuto);
         txtBidAmount.setOnAction(e -> handlePlaceBid());
+        // Clip avatar người bán thành hình tròn — ImageView vốn vuông.
+        imgSellerAvatar.setClip(new Circle(14, 14, 14));
 
         priceSeries = new XYChart.Series<>();
         chartPrice.getData().add(priceSeries);
@@ -139,7 +151,17 @@ public class BiddingController {
 
     private void updateUI(Map<String, Object> data) {
         lblItemName.setText(str(data, "itemName"));
+        lblItemCategory.setText(str(data, "itemCategory"));
         lblItemInfo.setText(str(data, "itemDescription"));
+        String imageUrl = str(data, "imageUrl");
+        if (!imageUrl.isBlank()) {
+            ImageCacheService.getInstance().loadAsync(imageUrl, imgItem::setImage);
+        }
+        lblSellerName.setText(str(data, "sellerName"));
+        String sellerAvatar = str(data, "sellerAvatarUrl");
+        if (!sellerAvatar.isBlank()) {
+            ImageCacheService.getInstance().loadAsync(sellerAvatar, imgSellerAvatar::setImage);
+        }
         lblStartPrice.setText(formatMoney(data.get("startingPrice")));
         lblCurrentPrice.setText(formatMoney(data.get("currentPrice")));
         lblIncrement.setText(formatMoney(data.get("minimumIncrement")));
@@ -158,12 +180,32 @@ public class BiddingController {
 
         txtBidAmount.setPromptText(String.format("Tối thiểu %,.0f", currentPrice + minimumIncrement));
 
-        // Reload trong khi phiên đã FINISHED và mình là winner → dựng panel ngay.
         String status = str(data, "status");
+        applyStatusBadge(status, str(data, "displayStatus"));
+        // Reload trong khi phiên đã FINISHED và mình là winner → dựng panel ngay.
         String leaderId = data.get("highestBidderId") == null ? null : str(data, "highestBidderId");
         if ("FINISHED".equals(status) && isMyId(leaderId)) {
             showSettlementPanel();
         }
+    }
+
+    /**
+     * Cập nhật badge trạng thái phiên với CSS class tương ứng (status-running / -finished / ...).
+     * Reset class cũ trước khi add mới để không tích lũy nhiều màu khi status đổi.
+     */
+    private void applyStatusBadge(String status, String displayStatus) {
+        lblStatusBadge.setText(displayStatus);
+        lblStatusBadge.getStyleClass().removeAll(
+                "status-running", "status-finished", "status-paid",
+                "status-canceled", "status-pending");
+        String cls = switch (status) {
+            case "RUNNING" -> "status-running";
+            case "FINISHED" -> "status-finished";
+            case "PAID" -> "status-paid";
+            case "CANCELED" -> "status-canceled";
+            default -> "status-pending";
+        };
+        lblStatusBadge.getStyleClass().add(cls);
     }
 
     private void renderHistory(List<Map<String, Object>> bids) {
@@ -235,8 +277,11 @@ public class BiddingController {
             Platform.runLater(() -> {
                 try { endTime = LocalDateTime.parse(str(data, "newEndTime")); }
                 catch (Exception ignored) {}
+                int extended = data.get("extendedSeconds") instanceof Number n ? n.intValue() : 0;
                 lblError.setStyle("-fx-text-fill: #2563eb;");
-                lblError.setText("⏰ Phiên đã được gia hạn!");
+                lblError.setText(extended > 0
+                        ? "⏰ Phiên gia hạn thêm " + extended + " giây!"
+                        : "⏰ Phiên đã được gia hạn!");
             });
         });
     }
@@ -295,6 +340,7 @@ public class BiddingController {
     private void handleStatusChanged(Map<String, Object> data) {
         String status = str(data, "status");
         String leaderId = data.get("highestBidderId") == null ? null : str(data, "highestBidderId");
+        applyStatusBadge(status, str(data, "displayStatus"));
 
         if ("FINISHED".equals(status)) {
             lblTimer.setText("Phiên đã kết thúc");

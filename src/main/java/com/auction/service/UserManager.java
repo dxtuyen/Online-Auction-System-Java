@@ -2,6 +2,7 @@ package com.auction.service;
 
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
+import com.auction.model.enums.UserStatus;
 import com.auction.model.exception.AuthException;
 import com.auction.persistence.dao.MysqlUserDao;
 import com.auction.persistence.dao.UserDao;
@@ -68,11 +69,6 @@ public final class UserManager {
 
     private UserManager() {
         this.dao = new MysqlUserDao();
-    }
-
-    /** Test-only constructor: nhận DAO từ ngoài để unit test không cần DB. */
-    UserManager(UserDao dao) {
-        this.dao = Objects.requireNonNull(dao, "dao must not be null");
     }
 
     // ============== BOOTSTRAP ==============
@@ -173,6 +169,38 @@ public final class UserManager {
     }
 
     /**
+     * Đổi email cho user — đồng bộ {@link #emailIndex} với User entity.
+     *
+     * <p>Bắt buộc đi qua đây thay vì gọi trực tiếp {@code user.setEmail()} để giữ index
+     * trùng với state thật + check trùng email với user khác.</p>
+     *
+     * @throws IllegalStateException nếu email mới đã có user khác dùng
+     */
+    public void changeEmail(User user, String newEmail) {
+        Objects.requireNonNull(user, "user must not be null");
+        Objects.requireNonNull(newEmail, "newEmail must not be null");
+        String newKey = newEmail.trim().toLowerCase();
+        String oldKey = user.getEmail().toLowerCase();
+        if (newKey.equals(oldKey)) {
+            user.setEmail(newEmail);  // validate format dù key không đổi
+            dao.update(user);
+            return;
+        }
+        UUID owner = emailIndex.putIfAbsent(newKey, user.getId());
+        if (owner != null && !owner.equals(user.getId())) {
+            throw new IllegalStateException("Email '" + newEmail.trim() + "' đã được sử dụng");
+        }
+        try {
+            user.setEmail(newEmail);
+            dao.update(user);
+        } catch (RuntimeException e) {
+            emailIndex.remove(newKey, user.getId());
+            throw e;
+        }
+        emailIndex.remove(oldKey, user.getId());
+    }
+
+    /**
      * Sync entity state xuống DB sau khi caller mutate User (setBalance, ban, activate...).
      * <p>
      * VÍ DỤ DÙNG:
@@ -224,6 +252,49 @@ public final class UserManager {
             throw new AuthException("Tài khoản đã bị khóa");
         }
         return user;
+    }
+
+    // ============== ADMIN OPERATIONS ==============
+
+    /**
+     * Ban (khóa) một user. Admin gọi qua AdminController; manager chỉ enforce
+     * invariant chứ không tự verify role (router middleware đã check ADMIN).
+     *
+     * @throws IllegalArgumentException nếu targetId không tồn tại
+     * @throws IllegalStateException nếu cố ban admin khác (admin không ban admin)
+     */
+    public User banUser(UUID targetId) {
+        Objects.requireNonNull(targetId, "targetId");
+        User target = users.get(targetId);
+        if (target == null) {
+            throw new IllegalArgumentException("Không tìm thấy user: " + targetId);
+        }
+        if (target.getRole() == Role.ADMIN) {
+            throw new IllegalStateException("Không thể khóa tài khoản quản trị viên khác");
+        }
+        if (target.getUserStatus() == UserStatus.BANNED) {
+            return target; // idempotent
+        }
+        target.ban();
+        dao.update(target);
+        return target;
+    }
+
+    /**
+     * Bỏ ban — đưa user về ACTIVE. Idempotent: nếu user đang ACTIVE thì không-op.
+     */
+    public User unbanUser(UUID targetId) {
+        Objects.requireNonNull(targetId, "targetId");
+        User target = users.get(targetId);
+        if (target == null) {
+            throw new IllegalArgumentException("Không tìm thấy user: " + targetId);
+        }
+        if (target.isActive()) {
+            return target; // idempotent
+        }
+        target.activate();
+        dao.update(target);
+        return target;
     }
 
     // ============== QUERIES ==============

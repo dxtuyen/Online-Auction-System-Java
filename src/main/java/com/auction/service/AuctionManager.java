@@ -106,21 +106,6 @@ public final class AuctionManager {
         startLifecycleScheduler();
     }
 
-    /**
-     * Test-only constructor: nhận DAO từ ngoài và KHÔNG khởi động lifecycle scheduler
-     * để unit test tất định (không bị tick tự động đổi trạng thái phiên).
-     */
-    AuctionManager(AuctionDao dao) {
-        this.dao = Objects.requireNonNull(dao, "dao must not be null");
-        this.snipingThresholdSeconds = 10;
-        this.snipingExtensionSeconds = 30;
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "AuctionManager-Test-Scheduler");
-            t.setDaemon(true);
-            return t;
-        });
-    }
-
     // ============== BOOTSTRAP ==============
 
     public void loadAllFromDb() {
@@ -213,6 +198,44 @@ public final class AuctionManager {
             }
             default -> throw new IllegalStateException(
                     "Phiên đang ở trạng thái " + current + ", không thể đóng thủ công");
+        }
+        return auction;
+    }
+
+    /**
+     * Admin đóng cưỡng bức phiên — KHÔNG check seller, đóng được mọi auction
+     * đang ở PENDING/RUNNING. Nếu RUNNING có bid → vẫn cancel luôn (admin override
+     * khác seller-close): hoàn lại reserve cho người đang dẫn đầu để money không thất thoát.
+     *
+     * <p>Router đã enforce role ADMIN trước khi gọi method này.</p>
+     */
+    public Auction adminCloseAuction(UUID auctionId) {
+        Objects.requireNonNull(auctionId, "auctionId");
+
+        Auction auction = auctions.get(auctionId);
+        if (auction == null) {
+            throw new IllegalArgumentException("Không tìm thấy auction: " + auctionId);
+        }
+
+        AuctionStatus current = auction.getStatus();
+        if (current != AuctionStatus.PENDING && current != AuctionStatus.RUNNING) {
+            throw new IllegalStateException(
+                    "Phiên đang ở trạng thái " + current + ", không thể đóng");
+        }
+
+        // Pre-lookup leader nếu có để refund sau khi transition.
+        UUID leaderId = auction.getHighestBidderId();
+        BigDecimal refund = leaderId == null ? null : auction.getCurrentPrice();
+        User leader = leaderId == null ? null
+                : UserManager.getInstance().findById(leaderId).orElse(null);
+
+        // transitionTo atomic — nếu thread khác (auto-tick) vừa đổi status, throw trước
+        // khi mutate balance → không double-refund.
+        auction.transitionTo(AuctionStatus.CANCELED);
+
+        if (leader != null && refund != null && refund.signum() > 0) {
+            leader.release(refund);
+            safeSaveUser(leader);
         }
         return auction;
     }

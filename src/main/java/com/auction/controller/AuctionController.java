@@ -10,6 +10,7 @@ import com.auction.protocol.Response;
 import com.auction.server.ClientHandler;
 import com.auction.server.observer.AuctionEventManager;
 import com.auction.service.AuctionManager;
+import com.auction.service.ImageStorageService;
 import com.auction.service.ItemManager;
 import com.auction.service.UserManager;
 
@@ -47,6 +48,7 @@ public final class AuctionController {
     private final ItemManager itemManager = ItemManager.getInstance();
     private final UserManager userManager = UserManager.getInstance();
     private final AuctionEventManager eventManager = AuctionEventManager.getInstance();
+    private final ImageStorageService imageStorage = ImageStorageService.getInstance();
 
     /** PUBLIC — ai cũng xem danh sách phiên đấu giá được. */
     public Response listAuctions(Request req, ClientHandler ctx) {
@@ -55,8 +57,11 @@ public final class AuctionController {
             Item item = itemManager.findById(a.getItemId()).orElse(null);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("auctionId", a.getId().toString());
+            row.put("sellerId", a.getSellerId().toString());
             row.put("itemName", item != null ? item.getName() : "N/A");
             row.put("itemCategory", item != null ? item.getCategory().getDisplayName() : "");
+            row.put("category", item != null ? item.getCategory().name() : "");
+            row.put("imageUrl", primaryImage(item));
             row.put("currentPrice", a.getCurrentPrice());
             row.put("startingPrice", a.getStartingPrice());
             row.put("totalBids", a.getTotalBids());
@@ -85,7 +90,9 @@ public final class AuctionController {
         data.put("itemName", item != null ? item.getName() : "N/A");
         data.put("itemDescription", item != null ? item.getDescription() : "");
         data.put("itemCategory", item != null ? item.getCategory().getDisplayName() : "");
+        data.put("imageUrl", primaryImage(item));
         data.put("sellerName", seller != null ? seller.getUsername() : "N/A");
+        data.put("sellerAvatarUrl", seller != null ? seller.getAvatarUrl() : null);
         data.put("startingPrice", a.getStartingPrice());
         data.put("currentPrice", a.getCurrentPrice());
         data.put("minimumIncrement", a.getMinimumIncrement());
@@ -101,7 +108,6 @@ public final class AuctionController {
         data.put("displayStatus", a.getStatus().getDisplayName());
         data.put("startTime", a.getStartTime().toString());
         data.put("endTime", a.getEndTime().toString());
-        data.put("remainingSeconds", a.getRemainingSeconds());
 
         return Response.success("GET_AUCTION", null, data);
     }
@@ -231,6 +237,7 @@ public final class AuctionController {
             row.put("startingPrice", item.getStartingPrice());
             row.put("category", item.getCategory().getDisplayName());
             row.put("condition", item.getCondition().getDisplayCondition());
+            row.put("imageUrl", primaryImage(item));
             result.add(row);
         }
         Map<String, Object> data = new LinkedHashMap<>();
@@ -255,5 +262,52 @@ public final class AuctionController {
         UUID auctionId = UUID.fromString(req.getDataString("auctionId"));
         eventManager.unsubscribe(auctionId, ctx);
         return Response.success("UNWATCH_AUCTION", "Ngừng theo dõi", null);
+    }
+
+    /**
+     * USER — upload ảnh chính cho item. Seller phải sở hữu item, ảnh sẽ thay thế
+     * ảnh ở position=0 (sản phẩm hiện tại chỉ dùng 1 ảnh chính).
+     *
+     * <p>Payload: {@code itemId, fileName, dataBase64}.</p>
+     */
+    public Response uploadItemImage(Request req, ClientHandler ctx) {
+        UUID userId = ctx.getSession().getCurrentUserId();
+        UUID itemId = req.getDataUUID("itemId");
+        if (itemId == null) {
+            return Response.error("UPLOAD_ITEM_IMAGE", "itemId không hợp lệ");
+        }
+        Item item = itemManager.findById(itemId).orElse(null);
+        if (item == null) {
+            return Response.error("UPLOAD_ITEM_IMAGE", "Item không tồn tại");
+        }
+        if (!item.getSellerId().equals(userId)) {
+            return Response.error("UPLOAD_ITEM_IMAGE", "Bạn không phải chủ sản phẩm này");
+        }
+
+        String fileName = req.getDataString("fileName");
+        String base64 = req.getDataString("dataBase64");
+        if (base64 == null || base64.isBlank()) {
+            return Response.error("UPLOAD_ITEM_IMAGE", "Thiếu dữ liệu ảnh");
+        }
+        String url = imageStorage.save(ImageStorageService.ITEM_DIR, base64, fileName);
+
+        // 1 ảnh duy nhất — xóa danh sách cũ rồi add ảnh mới.
+        for (String old : new ArrayList<>(item.getImages())) {
+            item.removeImage(old);
+        }
+        item.addImage(url);
+        itemManager.save(item);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("itemId", item.getId().toString());
+        data.put("imageUrl", url);
+        return Response.success("UPLOAD_ITEM_IMAGE", "Đã cập nhật ảnh sản phẩm", data);
+    }
+
+    /** Ảnh đại diện của item — phần tử đầu tiên trong list, hoặc null nếu chưa có. */
+    private static String primaryImage(Item item) {
+        if (item == null) return null;
+        List<String> imgs = item.getImages();
+        return imgs.isEmpty() ? null : imgs.get(0);
     }
 }

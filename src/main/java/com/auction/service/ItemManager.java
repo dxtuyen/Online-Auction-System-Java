@@ -63,11 +63,6 @@ public final class ItemManager {
         this.dao = new MysqlItemDao();
     }
 
-    /** Test-only constructor: nhận DAO từ ngoài để unit test không cần DB. */
-    ItemManager(ItemDao dao) {
-        this.dao = Objects.requireNonNull(dao, "dao must not be null");
-    }
-
     // ============== BOOTSTRAP ==============
 
     /**

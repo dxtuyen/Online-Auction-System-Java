@@ -2,72 +2,148 @@ package com.auction.client.controller;
 
 import com.auction.client.ClientApp;
 import com.auction.client.model.ClientModel;
+import com.auction.client.util.ImageCacheService;
 import com.auction.protocol.Response;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.collections.*;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
 
 import java.util.*;
 
 /**
- * Controller hiển thị danh sách phiên đấu giá.
+ * Controller hiển thị danh sách phiên đấu giá dưới dạng card grid (FlowPane).
  *
- * <p>Sửa sau refactor: mọi ID giờ là UUID String (server gửi dạng String, không phải int).
- * Role enum chỉ có ADMIN/NORMAL nên seller-only UI bật cho mọi user không phải admin.</p>
+ * <p>Mỗi auction là một card click-được. Filter/refresh re-render lại toàn bộ pane.</p>
  */
 public class AuctionListController {
 
-    @FXML private TableView<Map<String, Object>> tblAuctions;
-    @FXML private TableColumn<Map<String, Object>, String> colId;
-    @FXML private TableColumn<Map<String, Object>, String> colItem;
-    @FXML private TableColumn<Map<String, Object>, String> colCategory;
-    @FXML private TableColumn<Map<String, Object>, String> colPrice;
-    @FXML private TableColumn<Map<String, Object>, String> colBids;
-    @FXML private TableColumn<Map<String, Object>, String> colStatus;
+    @FXML private FlowPane paneAuctions;
+    @FXML private Label lblEmpty;
     @FXML private TextField txtSearch;
     @FXML private Label lblUserInfo;
     @FXML private Button btnCreateAuction;
+    @FXML private Button btnAdminPanel;
+    @FXML private ImageView imgHeaderAvatar;
 
-    private final ObservableList<Map<String, Object>> allData = FXCollections.observableArrayList();
+    @FXML private ToggleButton filterAll;
+    @FXML private ToggleButton filterPending;
+    @FXML private ToggleButton filterRunning;
+    @FXML private ToggleButton filterFinished;
+    @FXML private ToggleButton filterPaid;
+    @FXML private ToggleButton filterCanceled;
+
+    @FXML private CheckBox catElectronics;
+    @FXML private CheckBox catArt;
+    @FXML private CheckBox catVehicle;
+    @FXML private CheckBox catFashion;
+    @FXML private CheckBox catCollectible;
+    @FXML private CheckBox catOther;
+
+    /** Trạng thái filter hiện tại: "ALL" hoặc tên enum AuctionStatus. */
+    private String activeStatus = "ALL";
+
+    /** Tập category đang chọn (enum name). Rỗng = không filter theo category. */
+    private final Set<String> activeCategories = new HashSet<>();
+
+    /** Dữ liệu gốc — filter dựng lại view từ list này. */
+    private final List<Map<String, Object>> allData = new ArrayList<>();
+
+    /** Số card/hàng đã render lần cuối; chỉ re-render khi count đổi để tránh loop khi resize. */
+    private int lastCardsPerRow = -1;
+
+    // Khoá số cột trong [MIN_CARDS, MAX_CARDS]. Ngoài khoảng này card sẽ dãn/co cho khít.
+    private static final int MIN_CARDS_PER_ROW = 4;
+    private static final int MAX_CARDS_PER_ROW = 8;
+    /** Width tối thiểu để cho phép thêm 1 cột nữa. */
+    private static final double CARD_WIDTH_THRESHOLD = 185;
 
     @FXML
     private void initialize() {
         ClientModel model = ClientModel.getInstance();
         lblUserInfo.setText(String.format("Xin chào, %s (%s)",
                 model.getUsername(), model.getRole()));
+        imgHeaderAvatar.setClip(new Circle(16, 16, 16));
         loadProfileSummary();
 
         // ADMIN không có quyền bán; mọi role khác (hiện tại chỉ NORMAL) đều thấy nút tạo phiên.
-        if (!"ADMIN".equals(model.getRole())) btnCreateAuction.setVisible(true);
+        boolean isAdmin = "ADMIN".equals(model.getRole());
+        btnCreateAuction.setVisible(!isAdmin);
+        btnCreateAuction.setManaged(!isAdmin);
+        btnAdminPanel.setVisible(isAdmin);
+        btnAdminPanel.setManaged(isAdmin);
 
-        // Bind từng cột với key trong Map — PropertyValueFactory không dùng được cho Map
-        colId.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "auctionId")));
-        colItem.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "itemName")));
-        colCategory.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "itemCategory")));
-        colPrice.setCellValueFactory(cd -> new SimpleStringProperty(
-                formatMoney(cd.getValue().get("currentPrice"))));
-        colBids.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "totalBids")));
-        colStatus.setCellValueFactory(cd -> new SimpleStringProperty(str(cd.getValue(), "displayStatus")));
+        // Filter live khi gõ — re-render với keyword hiện tại.
+        txtSearch.textProperty().addListener((obs, old, val) -> render(val));
 
-        tblAuctions.setItems(allData);
+        // Group các ToggleButton lại — chọn 1 cái thì các cái còn lại tự bỏ chọn.
+        ToggleGroup filterGroup = new ToggleGroup();
+        for (ToggleButton b : List.of(filterAll, filterPending, filterRunning,
+                filterFinished, filterPaid, filterCanceled)) {
+            b.setToggleGroup(filterGroup);
+        }
+        // Khi user click vào button đang chọn, toggle nhả ra → group selectedToggle = null.
+        // Fallback về "Tất cả" để luôn có 1 filter active, tránh trạng thái "không chọn gì".
+        filterGroup.selectedToggleProperty().addListener((obs, old, val) -> {
+            if (val == null) {
+                filterAll.setSelected(true);
+                return;
+            }
+            activeStatus = String.valueOf(val.getUserData());
+            render(txtSearch.getText());
+        });
 
-        // Double-click → mở bidding screen. auctionId là UUID String.
-        tblAuctions.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 2) {
-                Map<String, Object> sel = tblAuctions.getSelectionModel().getSelectedItem();
-                if (sel != null) {
-                    String id = String.valueOf(sel.get("auctionId"));
-                    openBidding(id);
-                }
+        // Multi-select category — mỗi checkbox tự add/remove enum name khỏi set,
+        // sau đó re-render. Không chọn cái nào = hiển thị tất cả category.
+        for (CheckBox cb : List.of(catElectronics, catArt, catVehicle,
+                catFashion, catCollectible, catOther)) {
+            String code = String.valueOf(cb.getUserData());
+            cb.selectedProperty().addListener((obs, old, val) -> {
+                if (val) activeCategories.add(code);
+                else activeCategories.remove(code);
+                render(txtSearch.getText());
+            });
+        }
+
+        // Khi cửa sổ thay đổi width, tính lại số card/hàng để card kéo dãn lấp đầy
+        // — tránh khoảng trống lớn bên phải. Chỉ render lại khi count thay đổi thực sự
+        // (lúc resize liên tục, width nhảy từng pixel nhưng count đổi không thường xuyên).
+        paneAuctions.widthProperty().addListener((obs, old, val) -> {
+            int newCount = computeCardsPerRow(val.doubleValue());
+            if (newCount != lastCardsPerRow) {
+                lastCardsPerRow = newCount;
+                render(txtSearch.getText());
             }
         });
 
-        // Filter live khi gõ
-        txtSearch.textProperty().addListener((obs, old, val) -> filterTable(val));
-
         handleRefresh();
+    }
+
+    private int computeCardsPerRow(double width) {
+        double padding = paneAuctions.getPadding().getLeft() + paneAuctions.getPadding().getRight();
+        double hgap = paneAuctions.getHgap();
+        double usable = width - padding;
+        if (usable <= 0) return MIN_CARDS_PER_ROW;
+        int n = (int) Math.floor((usable + hgap) / (CARD_WIDTH_THRESHOLD + hgap));
+        // Khoá vào [MIN, MAX] — narrow vẫn giữ 4, wide tối đa 6 dù màn có rộng đến đâu.
+        return Math.max(MIN_CARDS_PER_ROW, Math.min(MAX_CARDS_PER_ROW, n));
+    }
+
+    private double computeCardWidth(int cardsPerRow) {
+        double padding = paneAuctions.getPadding().getLeft() + paneAuctions.getPadding().getRight();
+        double hgap = paneAuctions.getHgap();
+        double width = paneAuctions.getWidth();
+        if (width <= 0) width = 880;
+        // Không clamp — để card kéo dãn lấp đầy width khi user mở rộng cửa sổ với 6 cột.
+        return Math.max(120, Math.floor((width - padding - (cardsPerRow - 1) * hgap) / cardsPerRow));
     }
 
     @FXML
@@ -86,6 +162,7 @@ public class AuctionListController {
                     Platform.runLater(() -> {
                         allData.clear();
                         if (list != null) allData.addAll(list);
+                        render(txtSearch.getText());
                     });
                 }
             } catch (Exception e) {
@@ -94,43 +171,118 @@ public class AuctionListController {
         }).start();
     }
 
+    private void render(String keyword) {
+        paneAuctions.getChildren().clear();
+        int cardsPerRow = computeCardsPerRow(paneAuctions.getWidth());
+        lastCardsPerRow = cardsPerRow;
+        double cardWidth = computeCardWidth(cardsPerRow);
+
+        String low = keyword == null ? "" : keyword.trim().toLowerCase();
+        int rendered = 0;
+        for (Map<String, Object> row : allData) {
+            if (!"ALL".equals(activeStatus) && !activeStatus.equals(str(row, "status"))) {
+                continue;
+            }
+            if (!activeCategories.isEmpty() && !activeCategories.contains(str(row, "category"))) {
+                continue;
+            }
+            if (!low.isEmpty()
+                    && !str(row, "itemName").toLowerCase().contains(low)
+                    && !str(row, "auctionId").contains(low)) {
+                continue;
+            }
+            paneAuctions.getChildren().add(buildCard(row, cardWidth));
+            rendered++;
+        }
+        lblEmpty.setVisible(rendered == 0);
+        lblEmpty.setManaged(rendered == 0);
+    }
+
+    /** Một card auction — ảnh trên, thông tin + giá ở dưới. Click mở bidding. */
+    private Node buildCard(Map<String, Object> row, double cardWidth) {
+        VBox card = new VBox(6);
+        card.getStyleClass().add("auction-card");
+        card.setPrefWidth(cardWidth);
+        card.setPadding(new Insets(8));
+        card.setCursor(Cursor.HAND);
+
+        // Ảnh sản phẩm — Rectangle placeholder, ImageView chồng lên trên.
+        double imgWidth = cardWidth - 16;   // trừ padding 2 bên
+        double imgHeight = Math.round(imgWidth * 0.7);   // tỉ lệ ~10:7
+        Rectangle bg = new Rectangle(imgWidth, imgHeight, Color.web("#e5e7eb"));
+        bg.setArcWidth(8);
+        bg.setArcHeight(8);
+        ImageView img = new ImageView();
+        img.setFitWidth(imgWidth);
+        img.setFitHeight(imgHeight);
+        img.setPreserveRatio(false);
+        StackPane imageBox = new StackPane(bg, img);
+        String imageUrl = str(row, "imageUrl");
+        if (!imageUrl.isBlank()) {
+            ImageCacheService.getInstance().loadAsync(imageUrl, img::setImage);
+        }
+
+        Label name = new Label(str(row, "itemName"));
+        name.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
+        name.setWrapText(true);
+        name.setMaxWidth(imgWidth);
+
+        Label category = new Label(str(row, "itemCategory"));
+        category.getStyleClass().add("label-muted");
+
+        Label price = new Label(formatMoney(row.get("currentPrice")));
+        price.getStyleClass().add("label-price");
+        price.setStyle("-fx-font-size: 15px;");
+
+        Label bids = new Label("Lượt bid: " + str(row, "totalBids"));
+        bids.getStyleClass().add("label-muted");
+
+        Label status = new Label(str(row, "displayStatus"));
+        status.getStyleClass().add("status-badge");
+        status.getStyleClass().add(statusStyleClass(str(row, "status")));
+
+        HBox footer = new HBox(8, bids, new Region(), status);
+        HBox.setHgrow(footer.getChildren().get(1), Priority.ALWAYS);
+        footer.setAlignment(Pos.CENTER_LEFT);
+
+        card.getChildren().addAll(imageBox, name, category, price, footer);
+        String auctionId = str(row, "auctionId");
+        card.setOnMouseClicked(e -> openBidding(auctionId));
+        return card;
+    }
+
+    /** Map trạng thái → CSS class — đổi màu badge. */
+    private static String statusStyleClass(String status) {
+        return switch (status) {
+            case "RUNNING" -> "status-running";
+            case "FINISHED" -> "status-finished";
+            case "PAID" -> "status-paid";
+            case "CANCELED" -> "status-canceled";
+            default -> "status-pending";
+        };
+    }
+
     private void openBidding(String auctionId) {
         ClientApp.switchSceneWithData("bidding.fxml", ctrl -> {
             ((BiddingController) ctrl).setAuctionId(auctionId);
         });
     }
 
-    private void filterTable(String kw) {
-        if (kw == null || kw.isBlank()) {
-            tblAuctions.setItems(allData);
-            return;
-        }
-        String low = kw.toLowerCase();
-        ObservableList<Map<String, Object>> filtered = FXCollections.observableArrayList();
-        for (Map<String, Object> row : allData) {
-            if (str(row, "itemName").toLowerCase().contains(low)
-                    || str(row, "auctionId").contains(kw)) {
-                filtered.add(row);
-            }
-        }
-        tblAuctions.setItems(filtered);
-    }
-
     @FXML
     private void handleLogout() {
-        // disconnect() gọi socket/reader/writer.close() — I/O đồng bộ.
-        // Nếu chạy trên FX thread, UI sẽ treo (đặc biệt Windows + writer.close flush).
-        // Đẩy sang background; switchScene chỉ chạy SAU KHI disconnect xong để login
-        // tiếp theo không bị race với socket đang đóng.
+        // logoutAndDisconnect() block tối đa 2s (gửi LOGOUT + chờ ACK + close socket).
+        // Phải đẩy ra background, không gọi trên FX thread → UI sẽ treo.
+        // switchScene chạy SAU KHI cleanup xong để login tiếp theo không race với socket đang đóng.
         new Thread(() -> {
-            ClientModel.getInstance().disconnect();
+            ClientModel.getInstance().logoutAndDisconnect();
             Platform.runLater(() -> ClientApp.switchScene("login.fxml"));
         }, "logout-cleanup").start();
     }
 
     @FXML
     private void handleViewAccount() {
-        requestProfile(data -> ClientApp.showInfo(formatProfileDetails(data)));
+        ClientApp.switchSceneWithData("profile.fxml", ctrl ->
+                ((ProfileController) ctrl).setBackFxml("auction_list.fxml"));
     }
 
     @FXML
@@ -138,8 +290,19 @@ public class AuctionListController {
         ClientApp.switchScene("seller_dashboard.fxml");
     }
 
+    @FXML
+    private void goToAdminPanel() {
+        ClientApp.switchScene("admin_panel.fxml");
+    }
+
     private void loadProfileSummary() {
-        requestProfile(data -> lblUserInfo.setText(formatProfileSummary(data)));
+        requestProfile(data -> {
+            lblUserInfo.setText(formatProfileSummary(data));
+            String avatarUrl = data.get("avatarUrl") == null ? null : data.get("avatarUrl").toString();
+            if (avatarUrl != null && !avatarUrl.isBlank()) {
+                ImageCacheService.getInstance().loadAsync(avatarUrl, imgHeaderAvatar::setImage);
+            }
+        });
     }
 
     private void requestProfile(java.util.function.Consumer<Map<String, Object>> onSuccess) {
@@ -169,18 +332,6 @@ public class AuctionListController {
         String base = String.format("Xin chào, %s (%s)", str(data, "username"), str(data, "displayRole"));
         if ("ADMIN".equals(str(data, "role"))) return base;
         return base + " | Số dư: " + formatMoney(data.get("balance"));
-    }
-
-    private String formatProfileDetails(Map<String, Object> data) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Tài khoản: ").append(str(data, "username")).append('\n');
-        sb.append("Vai trò: ").append(str(data, "displayRole")).append('\n');
-        sb.append("Trạng thái: ").append(str(data, "displayStatus"));
-        if (!"ADMIN".equals(str(data, "role"))) {
-            sb.append('\n').append("Số dư: ").append(formatMoney(data.get("balance")));
-            sb.append('\n').append("Doanh thu: ").append(formatMoney(data.get("revenue")));
-        }
-        return sb.toString();
     }
 
     private String str(Map<String, Object> m, String k) {

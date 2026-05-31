@@ -1,16 +1,23 @@
 package com.auction.server;
 
+import com.auction.controller.AdminController;
 import com.auction.controller.AuctionController;
 import com.auction.controller.BidController;
 import com.auction.controller.UserController;
+import com.auction.model.entity.User;
+import com.auction.model.enums.Role;
 import com.auction.protocol.ActionType;
 import com.auction.protocol.Request;
 import com.auction.protocol.Response;
 import com.auction.server.command.AuthLevel;
 import com.auction.server.command.CommandHandler;
+import com.auction.service.UserManager;
+import com.auction.util.AppLogger;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.UUID;
+import java.util.logging.Logger;
 
 /**
  * Router phân phối request tới command handler dựa trên {@link ActionType}.
@@ -32,6 +39,8 @@ import java.util.Map;
  * connection trong server (vì map handler là read-only sau khi khởi tạo).</p>
  */
 public final class RequestRouter {
+
+    private static final Logger log = AppLogger.get(RequestRouter.class);
 
     // ============== SINGLETON (Bill Pugh) ==============
     private static final class Holder {
@@ -56,18 +65,24 @@ public final class RequestRouter {
         UserController user = UserController.getInstance();
         AuctionController auction = AuctionController.getInstance();
         BidController bid = BidController.getInstance();
+        AdminController admin = AdminController.getInstance();
 
         // ===== USER =====
         register(ActionType.LOGIN,        AuthLevel.PUBLIC, user::login);
         register(ActionType.REGISTER,     AuthLevel.PUBLIC, user::register);
         register(ActionType.LOGOUT,       AuthLevel.USER,   user::logout);
         register(ActionType.GET_PROFILE,  AuthLevel.USER,   user::getProfile);
+        register(ActionType.UPDATE_PROFILE, AuthLevel.USER, user::updateProfile);
+        register(ActionType.CHANGE_PASSWORD, AuthLevel.USER, user::changePassword);
+        register(ActionType.UPLOAD_AVATAR, AuthLevel.USER, user::uploadAvatar);
+        register(ActionType.GET_IMAGE, AuthLevel.PUBLIC, user::getImage);
 
         // ===== AUCTION & ITEM =====
         register(ActionType.LIST_AUCTIONS,  AuthLevel.PUBLIC, auction::listAuctions);
         register(ActionType.GET_AUCTION,    AuthLevel.PUBLIC, auction::getAuction);
         register(ActionType.CREATE_ITEM,    AuthLevel.USER,   auction::createItem);
         register(ActionType.LIST_MY_ITEMS,  AuthLevel.USER,   auction::listMyItems);
+        register(ActionType.UPLOAD_ITEM_IMAGE, AuthLevel.USER, auction::uploadItemImage);
         register(ActionType.CREATE_AUCTION, AuthLevel.USER,   auction::createAuction);
         register(ActionType.CLOSE_AUCTION,  AuthLevel.USER,   auction::closeAuction);
         register(ActionType.WATCH_AUCTION,  AuthLevel.PUBLIC, auction::watchAuction);
@@ -79,6 +94,12 @@ public final class RequestRouter {
         register(ActionType.PLACE_BID,    AuthLevel.USER,   bid::placeBid);
         register(ActionType.SET_AUTO_BID, AuthLevel.USER,   bid::setAutoBid);
         register(ActionType.BID_HISTORY,  AuthLevel.PUBLIC, bid::bidHistory);
+
+        // ===== ADMIN =====
+        register(ActionType.LIST_USERS,          AuthLevel.ADMIN, admin::listUsers);
+        register(ActionType.BAN_USER,            AuthLevel.ADMIN, admin::banUser);
+        register(ActionType.UNBAN_USER,          AuthLevel.ADMIN, admin::unbanUser);
+        register(ActionType.ADMIN_CLOSE_AUCTION, AuthLevel.ADMIN, admin::closeAuction);
     }
 
     private void register(ActionType action, AuthLevel auth, CommandHandler handler) {
@@ -110,10 +131,18 @@ public final class RequestRouter {
         }
 
         // ===== Auth middleware =====
-        if (spec.auth() == AuthLevel.USER && !ctx.getSession().isAuthenticated()) {
+        if (spec.auth() != AuthLevel.PUBLIC && !ctx.getSession().isAuthenticated()) {
             return Response.error(rawAction, "Chưa đăng nhập");
         }
+        if (spec.auth() == AuthLevel.ADMIN) {
+            UUID uid = ctx.getSession().getCurrentUserId();
+            User u = UserManager.getInstance().findById(uid).orElse(null);
+            if (u == null || u.getRole() != Role.ADMIN) {
+                return Response.error(rawAction, "Yêu cầu quyền quản trị viên");
+            }
+        }
 
+        log.info(() -> "dispatch " + action + " userId=" + ctx.getSession().getCurrentUserId());
         try {
             return spec.handler().handle(req, ctx);
         } catch (RuntimeException e) {

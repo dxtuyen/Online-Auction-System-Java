@@ -35,6 +35,7 @@ public class User extends Entity {
     private Role role;
     private BigDecimal balance;     // số dư khả dụng để đặt cọc/thanh toán
     private BigDecimal revenue;     // tổng doanh thu nhận được từ bán đấu giá
+    private String avatarUrl;       // URL tương đối tới ảnh đại diện (lưu ở uploads/); null nếu chưa đặt
 
     /**
      * VALIDATE
@@ -134,7 +135,7 @@ public class User extends Entity {
     public User(UUID id, LocalDateTime createdAt, LocalDateTime updatedAt,
                 String username, String hashedPassword, String passwordSalt,
                 String email, String fullName, UserStatus status, Role role,
-                BigDecimal balance, BigDecimal revenue) {
+                BigDecimal balance, BigDecimal revenue, String avatarUrl) {
         super(id, createdAt, updatedAt);
         this.username = validateUsername(username);
         this.hashedPassword = validateHashedPassword(hashedPassword);
@@ -145,6 +146,7 @@ public class User extends Entity {
         this.role = Objects.requireNonNull(role, "role must not be null");
         this.balance = validateNonNegativeAmount(balance, "balance");
         this.revenue = validateNonNegativeAmount(revenue, "revenue");
+        this.avatarUrl = avatarUrl;
     }
 
     /**
@@ -356,6 +358,16 @@ public class User extends Entity {
 
     public synchronized void setRevenue(BigDecimal revenue) {
         this.revenue = validateNonNegativeAmount(revenue, "revenue");
+        markUpdated();
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    /** Set URL ảnh đại diện. Null để xóa avatar (về mặc định). */
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = (avatarUrl == null || avatarUrl.isBlank()) ? null : avatarUrl.trim();
         markUpdated();
     }
 

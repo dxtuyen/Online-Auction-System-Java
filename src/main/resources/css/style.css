@@ -52,6 +52,25 @@
     -fx-prompt-text-fill: #9ca3af;
 }
 
+/* Chừa chỗ bên phải cho nút con mắt */
+.password-with-eye {
+    -fx-padding: 8 38 8 12;
+}
+
+/* Nút toggle hiển thị mật khẩu */
+.eye-toggle {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 0 10 0 0;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+.eye-toggle:hover, .eye-toggle:selected, .eye-toggle:focused {
+    -fx-background-color: transparent;
+}
+
 
 
 /* =============== LABELS =============== */
@@ -114,6 +133,72 @@
     -fx-font-weight: bold;
 }
 
+
+/* =============== SIDEBAR =============== */
+.sidebar {
+    -fx-background-color: white;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 0 1 0 0;
+}
+
+.filter-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #374151;
+    -fx-padding: 8 12 8 12;
+    -fx-alignment: CENTER_LEFT;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-font-size: 13px;
+}
+.filter-btn:hover {
+    -fx-background-color: #f1f5f9;
+}
+.filter-btn:selected {
+    -fx-background-color: #2563eb;
+    -fx-text-fill: white;
+}
+.filter-btn:selected:hover {
+    -fx-background-color: #1d4ed8;
+}
+
+.filter-check {
+    -fx-padding: 4 4 4 6;
+    -fx-text-fill: #374151;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+.filter-check:hover {
+    -fx-text-fill: #2563eb;
+}
+
+/* =============== AUCTION CARD =============== */
+.auction-card {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 6, 0, 0, 2);
+}
+.auction-card:hover {
+    -fx-border-color: #2563eb;
+    -fx-effect: dropshadow(three-pass-box, rgba(37,99,235,0.18), 10, 0, 0, 3);
+    -fx-translate-y: -1;
+}
+
+/* Badge trạng thái — pill nhỏ ở góc card */
+.status-badge {
+    -fx-padding: 2 8 2 8;
+    -fx-background-radius: 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+}
+.status-running   { -fx-background-color: #059669; }
+.status-finished  { -fx-background-color: #6366f1; }
+.status-paid      { -fx-background-color: #2563eb; }
+.status-canceled  { -fx-background-color: #6b7280; }
+.status-pending   { -fx-background-color: #f59e0b; }
 
 /* =============== CHART =============== */
 .chart-series-line {
