@@ -15,6 +15,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,18 @@ class AuctionManagerTest {
         a.placeBid(new BidTransaction(a.getId(), winner.getId(), new BigDecimal("1000")));
         a.transitionTo(AuctionStatus.FINISHED);
         return a;
+    }
+
+    private void invokeTickLifecycle() throws Exception {
+        Method tick = AuctionManager.class.getDeclaredMethod("tickLifecycle");
+        tick.setAccessible(true);
+        tick.invoke(am);
+    }
+
+    private static void setUpdatedAt(Auction auction, LocalDateTime updatedAt) throws Exception {
+        Field field = Auction.class.getSuperclass().getDeclaredField("updatedAt");
+        field.setAccessible(true);
+        field.set(auction, updatedAt);
     }
 
     // ============== createAuction ==============
@@ -244,5 +258,42 @@ class AuctionManagerTest {
     @DisplayName("configureAntiSniping hợp lệ - không throw")
     void configureAntiSniping_valid() {
         assertDoesNotThrow(() -> am.configureAntiSniping(5, 15));
+    }
+
+    @Test
+    @DisplayName("tickLifecycle chuyển PENDING đã đến giờ -> RUNNING")
+    void tickLifecycle_pendingStarted_runs() throws Exception {
+        Auction a = createAuction();
+
+        invokeTickLifecycle();
+
+        assertEquals(AuctionStatus.RUNNING, a.getStatus());
+    }
+
+    @Test
+    @DisplayName("tickLifecycle chuyển RUNNING hết giờ không bid -> CANCELED")
+    void tickLifecycle_runningExpiredNoBid_cancels() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        Auction a = am.createAuction(item.getId(), seller.getId(),
+                now.minusMinutes(10), now.minusMinutes(1),
+                item.getStartingPrice(), new BigDecimal("100"));
+        a.transitionTo(AuctionStatus.RUNNING);
+
+        invokeTickLifecycle();
+
+        assertEquals(AuctionStatus.CANCELED, a.getStatus());
+    }
+
+    @Test
+    @DisplayName("tickLifecycle tự thanh toán phiên FINISHED quá hạn")
+    void tickLifecycle_finishedPastTimeout_autoPays() throws Exception {
+        Auction a = finishedWithWinner();
+        setUpdatedAt(a, LocalDateTime.now().minusMinutes(10));
+
+        invokeTickLifecycle();
+
+        assertEquals(AuctionStatus.PAID, a.getStatus());
+        assertEquals(0, UserManager.getInstance().findById(seller.getId()).orElseThrow()
+                .getRevenue().compareTo(new BigDecimal("1000")));
     }
 }
