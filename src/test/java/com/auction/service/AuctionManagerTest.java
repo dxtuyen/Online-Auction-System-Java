@@ -9,7 +9,6 @@ import com.auction.model.enums.ItemCategory;
 import com.auction.model.enums.ItemCondition;
 import com.auction.model.enums.Role;
 import com.auction.model.exception.IllegalAuctionStateException;
-import com.auction.persistence.dao.MysqlAuctionDao;
 import com.auction.testsupport.Reset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +33,7 @@ class AuctionManagerTest {
     @BeforeEach
     void setUp() {
         Reset.all();
-        am = new AuctionManager(new MysqlAuctionDao());
+        am = AuctionManager.getInstance();
 
         UserManager um = UserManager.getInstance();
         seller = um.register("seller", "password123", "seller@example.com", "Seller",

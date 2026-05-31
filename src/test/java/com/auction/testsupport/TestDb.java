@@ -37,7 +37,8 @@ public final class TestDb {
                 user_status     VARCHAR(10)   NOT NULL DEFAULT 'ACTIVE',
                 role            VARCHAR(10)    NOT NULL DEFAULT 'NORMAL',
                 balance         DECIMAL(19,4) NOT NULL DEFAULT 0,
-                revenue         DECIMAL(19,4) NOT NULL DEFAULT 0
+                revenue         DECIMAL(19,4) NOT NULL DEFAULT 0,
+                avatar_url      VARCHAR(500)
             )
             """,
             """

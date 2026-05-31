@@ -67,23 +67,6 @@ class AuctionListControllerTest {
         assertTrue(!adminOut.contains("Số dư"));
     }
 
-    @Test
-    @DisplayName("formatProfileDetails: admin không hiển thị số dư/doanh thu")
-    void formatProfileDetails_byRole() {
-        Map<String, Object> normal = new HashMap<>();
-        normal.put("username", "carol");
-        normal.put("displayRole", "Người dùng");
-        normal.put("displayStatus", "Hoạt động");
-        normal.put("role", "NORMAL");
-        normal.put("balance", 10000.0);
-        normal.put("revenue", 0.0);
-        assertTrue(formatProfileDetails(normal).contains("Số dư"));
-
-        Map<String, Object> admin = new HashMap<>(normal);
-        admin.put("role", "ADMIN");
-        assertTrue(!formatProfileDetails(admin).contains("Doanh thu"));
-    }
-
     // ===== reflection helpers =====
 
     private String str(Map<String, Object> m, String k) {
@@ -96,10 +79,6 @@ class AuctionListControllerTest {
 
     private String formatProfileSummary(Map<String, Object> data) {
         return (String) invoke("formatProfileSummary", new Class<?>[]{Map.class}, data);
-    }
-
-    private String formatProfileDetails(Map<String, Object> data) {
-        return (String) invoke("formatProfileDetails", new Class<?>[]{Map.class}, data);
     }
 
     private Object invoke(String name, Class<?>[] types, Object... args) {

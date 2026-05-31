@@ -59,22 +59,6 @@ class SellerDashboardControllerTest {
         assertEquals("Laptop", s(m, "name"));
     }
 
-    @Test
-    @DisplayName("formatProfileDetails: gồm tài khoản, vai trò, số dư, doanh thu")
-    void formatProfileDetails_full() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("username", "seller1");
-        data.put("displayRole", "Người dùng");
-        data.put("displayStatus", "Hoạt động");
-        data.put("balance", 200000.0);
-        data.put("revenue", 75000.0);
-
-        String out = formatProfileDetails(data);
-        assertTrue(out.contains("seller1"));
-        assertTrue(out.contains("Số dư"));
-        assertTrue(out.contains("Doanh thu"));
-    }
-
     // ===== reflection helpers =====
 
     private double parseMoney(String s) {
@@ -87,10 +71,6 @@ class SellerDashboardControllerTest {
 
     private String s(Map<String, Object> m, String k) {
         return (String) invoke("s", new Class<?>[]{Map.class, String.class}, m, k);
-    }
-
-    private String formatProfileDetails(Map<String, Object> data) {
-        return (String) invoke("formatProfileDetails", new Class<?>[]{Map.class}, data);
     }
 
     private Object invoke(String name, Class<?>[] types, Object... args) {

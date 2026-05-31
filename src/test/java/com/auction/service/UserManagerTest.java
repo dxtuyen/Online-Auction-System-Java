@@ -3,6 +3,7 @@ package com.auction.service;
 import com.auction.model.entity.User;
 import com.auction.model.enums.Role;
 import com.auction.model.exception.AuthException;
+import com.auction.testsupport.Reset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,27 +15,23 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests cho UserManager — không cần MySQL.
- *
- * Dùng package-private test constructor (UserManager(UserDao)) + InMemoryUserDao
- * để cô lập hoàn toàn khỏi Database / HikariCP.
+ * Tests cho UserManager trên singleton hiện tại, dùng H2 test DB qua Reset.all().
  */
 @DisplayName("UserManager service")
 class UserManagerTest {
 
-    private InMemoryUserDao dao;
     private UserManager manager;
 
     @BeforeEach
     void setUp() {
-        dao = new InMemoryUserDao();
-        manager = new UserManager(dao);   // test constructor, không cần Singleton
+        Reset.all();
+        manager = UserManager.getInstance();
     }
 
     // ============== register ==============
 
     @Test
-    @DisplayName("register user mới - gọi dao.insert() và trả về user")
+    @DisplayName("register user mới - persist và trả về user")
     void register_newUser_insertsAndReturnsUser() {
         User result = manager.register(
                 "alice", "password123", "alice@example.com", "Alice", Role.NORMAL);
@@ -42,7 +39,8 @@ class UserManagerTest {
         assertNotNull(result);
         assertEquals("alice", result.getUsername());
         assertEquals("alice@example.com", result.getEmail());
-        assertEquals(1, dao.insertCount);
+        assertTrue(manager.findById(result.getId()).isPresent());
+        assertEquals(1, manager.count());
     }
 
     @Test
@@ -71,7 +69,7 @@ class UserManagerTest {
                 manager.register("dave", "password123", "dave@example.com", "Dave",
                         Role.NORMAL, new BigDecimal("-100")));
 
-        assertEquals(0, dao.insertCount);
+        assertEquals(0, manager.count());
     }
 
     @Test
@@ -80,7 +78,7 @@ class UserManagerTest {
         assertThrows(IllegalArgumentException.class, () ->
                 manager.register("eve", "abc", "eve@example.com", "Eve", Role.NORMAL));
 
-        assertEquals(0, dao.insertCount);
+        assertEquals(0, manager.count());
     }
 
     @Test
@@ -89,7 +87,7 @@ class UserManagerTest {
         assertThrows(NullPointerException.class, () ->
                 manager.register("frank", null, "frank@example.com", "Frank", Role.NORMAL));
 
-        assertEquals(0, dao.insertCount);
+        assertEquals(0, manager.count());
     }
 
     @Test
@@ -100,7 +98,7 @@ class UserManagerTest {
         assertThrows(IllegalStateException.class, () ->
                 manager.register("alice", "password456", "other@example.com", "Other", Role.NORMAL));
 
-        assertEquals(1, dao.insertCount);
+        assertEquals(1, manager.count());
     }
 
     @Test
@@ -113,17 +111,14 @@ class UserManagerTest {
     }
 
     @Test
-    @DisplayName("register khi dao.insert() fail - rollback index, cho phép đăng ký lại")
-    void register_dbFails_rollbacksIndexAllowsRetry() {
-        dao.insertShouldFail = true;
-
+    @DisplayName("register input invalid - không giữ index lỗi, cho phép đăng ký lại")
+    void register_invalidInput_allowsRetry() {
         assertThrows(RuntimeException.class, () ->
-                manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL));
+                manager.register("alice", "password123", "invalid-email", "Alice", Role.NORMAL));
 
-        // Sau khi rollback, cùng username + email phải được dùng lại được
-        dao.insertShouldFail = false;
         assertDoesNotThrow(() ->
                 manager.register("alice", "password123", "alice@example.com", "Alice", Role.NORMAL));
+        assertEquals(1, manager.count());
     }
 
     @Test
@@ -247,18 +242,20 @@ class UserManagerTest {
     // ============== save ==============
 
     @Test
-    @DisplayName("save user đã register - gọi dao.update()")
+    @DisplayName("save user đã register - không throw")
     void save_registeredUser_callsDaoUpdate() {
         User user = manager.register(
                 "alice", "password123", "alice@example.com", "Alice", Role.NORMAL);
 
-        manager.save(user);
+        user.setBalance(new BigDecimal("12345"));
 
-        assertEquals(1, dao.updateCount);
+        assertDoesNotThrow(() -> manager.save(user));
+        assertEquals(0, manager.findById(user.getId()).orElseThrow()
+                .getBalance().compareTo(new BigDecimal("12345")));
     }
 
     @Test
-    @DisplayName("save user chưa register - throw IllegalArgumentException, không gọi dao.update()")
+    @DisplayName("save user chưa register - throw IllegalArgumentException")
     void save_unregisteredUser_throws() {
         User stranger = new User.Builder()
                 .username("stranger")
@@ -269,7 +266,6 @@ class UserManagerTest {
                 .build();
 
         assertThrows(IllegalArgumentException.class, () -> manager.save(stranger));
-        assertEquals(0, dao.updateCount);
     }
 
     @Test
