@@ -44,6 +44,7 @@ public enum ActionType {
     ADMIN_CLOSE_AUCTION,    // admin đóng cưỡng bức phiên đấu giá bất kỳ
 
     // ============== SERVER → CLIENT (PUSH) ==============
+    AUCTION_CREATED,    // có phiên đấu giá mới được tạo
     BID_UPDATE,         // có bid mới ở phiên đang xem
     AUCTION_STATUS,     // phiên đổi status (RUNNING → FINISHED, ...)
     AUCTION_EXTENDED;   // phiên được gia hạn do anti-sniping
