@@ -148,6 +148,10 @@ public final class AuctionManager {
         dao.insert(auction);
         auctions.put(auction.getId(), auction);
         auction.addObserver(internalObserver);
+        
+        // Notify global observers về phiên mới
+        globalObservers.forEach(obs -> safeNotify(() -> obs.onAuctionCreated(auction)));
+        
         return auction;
     }
 

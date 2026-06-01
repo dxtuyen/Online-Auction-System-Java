@@ -14,6 +14,12 @@ import com.auction.model.enums.AuctionStatus;
 public interface AuctionObserver {
 
     /**
+     * Khi có phiên đấu giá mới được tạo (Global event)
+     */
+    default void onAuctionCreated(Auction auction) {
+    }
+
+    /**
      * Khi có bid mới được chấp nhận
      */
     default void onBidPlaced(Auction auction, BidTransaction bid) {

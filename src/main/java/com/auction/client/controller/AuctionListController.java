@@ -74,6 +74,11 @@ public class AuctionListController {
         imgHeaderAvatar.setClip(new Circle(16, 16, 16));
         loadProfileSummary();
 
+        // Tự động refresh khi có phiên mới từ server push
+        model.addPushHandler("AUCTION_CREATED", data -> {
+            Platform.runLater(this::handleRefresh);
+        });
+
         // ADMIN không có quyền bán; mọi role khác (hiện tại chỉ NORMAL) đều thấy nút tạo phiên.
         boolean isAdmin = "ADMIN".equals(model.getRole());
         btnCreateAuction.setVisible(!isAdmin);

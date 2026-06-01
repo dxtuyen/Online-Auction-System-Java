@@ -214,10 +214,7 @@ public class BiddingController {
         ObservableList<String> items = FXCollections.observableArrayList();
         for (int i = bids.size() - 1; i >= 0; i--) {
             Map<String, Object> b = bids.get(i);
-            items.add(String.format("%s | %s | %s",
-                    shortTime(str(b, "timestamp")),
-                    str(b, "bidderName"),
-                    formatMoney(b.get("amount"))));
+            items.add(formatBidRow(b));
         }
         lstBidHistory.setItems(items);
 
@@ -227,6 +224,31 @@ public class BiddingController {
                     shortTime(str(b, "timestamp")),
                     num(b.get("amount"))));
         }
+    }
+
+    /**
+     * Thêm 1 dòng bid mới vào UI mà không cần re-fetch toàn bộ history.
+     * Giúp UI phản hồi tức thì và tránh race condition.
+     */
+    private void appendBidToUI(Map<String, Object> bidData) {
+        String row = formatBidRow(bidData);
+        lstBidHistory.getItems().add(0, row); // add lên đầu danh sách
+
+        priceSeries.getData().add(new XYChart.Data<>(
+                shortTime(str(bidData, "timestamp")),
+                num(bidData.get("amount"))));
+        
+        // Giới hạn số điểm trên biểu đồ nếu quá nhiều (tùy chọn)
+        if (priceSeries.getData().size() > 50) {
+            priceSeries.getData().remove(0);
+        }
+    }
+
+    private String formatBidRow(Map<String, Object> b) {
+        return String.format("%s | %s | %s",
+                shortTime(str(b, "timestamp")),
+                str(b, "bidderName"),
+                formatMoney(b.get("amount")));
     }
 
     // =========== WATCH + PUSH ===========
@@ -262,7 +284,11 @@ public class BiddingController {
                 // Refresh prompt text với min next bid mới.
                 txtBidAmount.setPromptText(
                         String.format("Tối thiểu %,.0f", currentPrice + minimumIncrement));
-                loadBidHistory();
+                
+                // Cập nhật biểu đồ và danh sách lịch sử trực tiếp từ push data
+                // để đảm bảo real-time tuyệt đối và tránh race condition khi gọi API.
+                appendBidToUI(data);
+                
                 flashLabel(lblCurrentPrice);
             });
         });

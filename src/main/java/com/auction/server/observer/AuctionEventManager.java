@@ -50,9 +50,22 @@ public final class AuctionEventManager implements AuctionObserver {
     /** Map: auctionId → list observer đang xem phiên đó. */
     private final Map<UUID, List<AuctionObserver>> observers = new ConcurrentHashMap<>();
 
+    /** List observer đăng ký nhận mọi sự kiện global (vd: tạo phiên mới). */
+    private final List<AuctionObserver> globalSubscribers = new CopyOnWriteArrayList<>();
+
     private AuctionEventManager() {
         // Tự đăng ký làm global observer để mọi event domain tự động chảy về đây.
         AuctionManager.getInstance().addGlobalObserver(this);
+    }
+
+    /** Đăng ký nhận sự kiện global (vd: khi client vừa kết nối). */
+    public void subscribeGlobal(AuctionObserver observer) {
+        globalSubscribers.add(observer);
+    }
+
+    /** Hủy nhận sự kiện global. */
+    public void unsubscribeGlobal(AuctionObserver observer) {
+        globalSubscribers.remove(observer);
     }
 
     /** Client đăng ký xem phiên. */
@@ -69,10 +82,22 @@ public final class AuctionEventManager implements AuctionObserver {
 
     /** Gỡ observer khỏi TẤT CẢ phiên (khi client disconnect). */
     public void unsubscribeAll(AuctionObserver observer) {
+        globalSubscribers.remove(observer);
         observers.values().forEach(list -> list.remove(observer));
     }
 
     // ============== AuctionObserver — forward event tới subscribers theo auctionId ==============
+
+    @Override
+    public void onAuctionCreated(Auction auction) {
+        for (AuctionObserver o : globalSubscribers) {
+            try {
+                o.onAuctionCreated(auction);
+            } catch (Exception e) {
+                log.warning(() -> "Global Observer lỗi: " + e.getMessage());
+            }
+        }
+    }
 
     @Override
     public void onBidPlaced(Auction auction, BidTransaction bid) {

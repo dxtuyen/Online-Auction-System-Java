@@ -58,6 +58,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             writer = new PrintWriter(new OutputStreamWriter(
                     socket.getOutputStream(), StandardCharsets.UTF_8), true);
 
+            // Đăng ký nhận sự kiện global (vd: AUCTION_CREATED) ngay khi kết nối thành công.
+            eventManager.subscribeGlobal(this);
+
             String line;
             while ((line = reader.readLine()) != null) {
                 // Protocol: mỗi dòng là một JSON request.
@@ -129,6 +132,13 @@ public class ClientHandler implements Runnable, AuctionObserver {
     // serialize UUID thành object {mostSigBits, leastSigBits} làm vỡ logic so sánh ở client).
 
     @Override
+    public void onAuctionCreated(Auction auction) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("auctionId", auction.getId().toString());
+        send(Response.push("AUCTION_CREATED", data));
+    }
+
+    @Override
     public void onBidPlaced(Auction auction, BidTransaction bid) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("auctionId", auction.getId().toString());
@@ -139,6 +149,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
         data.put("bidderName", bidderName);
         data.put("amount", bid.getBidAmount());
         data.put("totalBids", auction.getTotalBids());
+        data.put("timestamp", bid.getTimestamp().toString());
         send(Response.push("BID_UPDATE", data));
     }
 
