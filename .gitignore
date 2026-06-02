@@ -28,7 +28,7 @@ replay_pid*
 target
 
 # Environment variables - chứa credentials, không commit
-.env
+release/.env
 
 # User-uploaded files - chỉ giữ cấu trúc thư mục qua .gitkeep
 uploads/*
